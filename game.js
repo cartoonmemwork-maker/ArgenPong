@@ -38,6 +38,67 @@ const rightPaddle = {
     y: (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2
 };
 
+// ============================================================
+// CONFIGURACIÓN DE MOVIMIENTO
+// ============================================================
+
+const PADDLE_SPEED = 8;
+
+// ============================================================
+// ESTADO DE LOS CONTROLES
+// ============================================================
+
+const keys = {
+    w: false,
+    s: false
+};
+// ============================================================
+// ACTUALIZACIÓN DE LA PALETA IZQUIERDA
+// ============================================================
+
+function updateLeftPaddle() {
+    if (keys.w) {
+        leftPaddle.y -= PADDLE_SPEED;
+    }
+
+    if (keys.s) {
+        leftPaddle.y += PADDLE_SPEED;
+    }
+
+    // Evitar que la paleta salga por arriba
+    if (leftPaddle.y < 0) {
+        leftPaddle.y = 0;
+    }
+
+    // Evitar que la paleta salga por abajo
+    if (leftPaddle.y + PADDLE_HEIGHT > CANVAS_HEIGHT) {
+        leftPaddle.y = CANVAS_HEIGHT - PADDLE_HEIGHT;
+    }
+}
+
+// ============================================================
+// ENTRADA DEL JUGADOR
+// ============================================================
+
+window.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() === "w") {
+        keys.w = true;
+    }
+
+    if (event.key.toLowerCase() === "s") {
+        keys.s = true;
+    }
+});
+
+window.addEventListener("keyup", (event) => {
+    if (event.key.toLowerCase() === "w") {
+        keys.w = false;
+    }
+
+    if (event.key.toLowerCase() === "s") {
+        keys.s = false;
+    }
+});
 
 // ============================================================
 // RENDERIZADO
@@ -86,4 +147,15 @@ function drawGame() {
 // INICIALIZACIÓN
 // ============================================================
 
-drawGame();
+// ============================================================
+// BUCLE PRINCIPAL
+// ============================================================
+
+function gameLoop() {
+    updateLeftPaddle();
+    drawGame();
+
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
