@@ -44,6 +44,13 @@ const CENTER_LINE_GAP = 20;
 
 
 // ============================================================
+// CONFIGURACIÓN DE AUDIO
+// ============================================================
+
+let audioContext = null;
+
+
+// ============================================================
 // ESTADO DE LAS PALETAS
 // ============================================================
 
@@ -82,11 +89,88 @@ const keys = {
 };
 
 
+// ============================================================
+// SISTEMA DE AUDIO
+// ============================================================
+
+function initializeAudio() {
+
+    if (!audioContext) {
+        audioContext = new AudioContext();
+    }
+
+    if (audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+}
+
+
+function playSound(frequency, duration, volume) {
+
+    if (!audioContext) {
+        return;
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = "square";
+    oscillator.frequency.value = frequency;
+
+    gainNode.gain.setValueAtTime(
+        volume,
+        audioContext.currentTime
+    );
+
+    gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioContext.currentTime + duration
+    );
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.start();
+
+    oscillator.stop(
+        audioContext.currentTime + duration
+    );
+}
+
+
+// ============================================================
+// SONIDOS DEL JUEGO
+// ============================================================
+
+function playWallSound() {
+    playSound(500, 0.06, 0.08);
+}
+
+
+function playPaddleSound() {
+    playSound(800, 0.07, 0.1);
+}
+
+
+function playMissSound() {
+    playSound(180, 0.2, 0.12);
+}
+
+
+// ============================================================
+// EVENTOS DE TECLADO
+// ============================================================
+
 window.addEventListener("keydown", (event) => {
+
+    initializeAudio();
 
     const key = event.key.toLowerCase();
 
+    // --------------------------------------------------------
     // Jugador 1
+    // --------------------------------------------------------
+
     if (key === "w") {
         keys.w = true;
     }
@@ -95,7 +179,11 @@ window.addEventListener("keydown", (event) => {
         keys.s = true;
     }
 
+
+    // --------------------------------------------------------
     // Jugador 2
+    // --------------------------------------------------------
+
     if (event.key === "ArrowUp") {
         keys.ArrowUp = true;
         event.preventDefault();
@@ -120,6 +208,7 @@ window.addEventListener("keyup", (event) => {
     if (key === "s") {
         keys.s = false;
     }
+
 
     // Jugador 2
     if (event.key === "ArrowUp") {
@@ -204,11 +293,12 @@ function updateBall() {
     // Rebote contra el techo
     // --------------------------------------------------------
 
-    if (ball.y <= 0) {
+    if (ball.y <= COURT_MARGIN) {
 
-        ball.y = 0;
+        ball.y = COURT_MARGIN;
         ball.velocityY *= -1;
 
+        playWallSound();
     }
 
 
@@ -216,11 +306,19 @@ function updateBall() {
     // Rebote contra el piso
     // --------------------------------------------------------
 
-    if (ball.y + BALL_SIZE >= CANVAS_HEIGHT) {
+    if (
+        ball.y + BALL_SIZE >=
+        CANVAS_HEIGHT - COURT_MARGIN
+    ) {
 
-        ball.y = CANVAS_HEIGHT - BALL_SIZE;
+        ball.y =
+            CANVAS_HEIGHT -
+            COURT_MARGIN -
+            BALL_SIZE;
+
         ball.velocityY *= -1;
 
+        playWallSound();
     }
 
 
@@ -236,9 +334,13 @@ function updateBall() {
         ball.velocityX < 0
     ) {
 
-        ball.x = leftPaddle.x + PADDLE_WIDTH;
+        ball.x =
+            leftPaddle.x +
+            PADDLE_WIDTH;
+
         ball.velocityX *= -1;
 
+        playPaddleSound();
     }
 
 
@@ -254,14 +356,18 @@ function updateBall() {
         ball.velocityX > 0
     ) {
 
-        ball.x = rightPaddle.x - BALL_SIZE;
+        ball.x =
+            rightPaddle.x -
+            BALL_SIZE;
+
         ball.velocityX *= -1;
 
+        playPaddleSound();
     }
 
 
     // --------------------------------------------------------
-    // Reinicio provisional
+    // Pelota fuera de la cancha
     // --------------------------------------------------------
 
     if (
@@ -269,11 +375,15 @@ function updateBall() {
         ball.x > CANVAS_WIDTH
     ) {
 
-        ball.x = (CANVAS_WIDTH - BALL_SIZE) / 2;
-        ball.y = (CANVAS_HEIGHT - BALL_SIZE) / 2;
+        playMissSound();
+
+        ball.x =
+            (CANVAS_WIDTH - BALL_SIZE) / 2;
+
+        ball.y =
+            (CANVAS_HEIGHT - BALL_SIZE) / 2;
 
         ball.velocityX *= -1;
-
     }
 }
 
@@ -286,6 +396,7 @@ function drawCourt() {
 
     context.strokeStyle = "#FFFFFF";
     context.lineWidth = 4;
+
 
     // --------------------------------------------------------
     // Borde exterior
@@ -336,6 +447,7 @@ function drawPaddles() {
 
     context.fillStyle = "#FFFFFF";
 
+
     // Paleta izquierda
     context.fillRect(
         leftPaddle.x,
@@ -343,6 +455,7 @@ function drawPaddles() {
         PADDLE_WIDTH,
         PADDLE_HEIGHT
     );
+
 
     // Paleta derecha
     context.fillRect(
@@ -360,9 +473,15 @@ function drawPaddles() {
 
 function drawBall() {
 
-    const centerX = ball.x + BALL_SIZE / 2;
-    const centerY = ball.y + BALL_SIZE / 2;
-    const radius = BALL_SIZE / 2;
+    const centerX =
+        ball.x + BALL_SIZE / 2;
+
+    const centerY =
+        ball.y + BALL_SIZE / 2;
+
+    const radius =
+        BALL_SIZE / 2;
+
 
     context.fillStyle = "#FFFFFF";
 
@@ -386,7 +505,6 @@ function drawBall() {
 
 function drawGame() {
 
-    // Limpiar el canvas
     context.clearRect(
         0,
         0,
@@ -394,7 +512,6 @@ function drawGame() {
         CANVAS_HEIGHT
     );
 
-    // Dibujar elementos
     drawCourt();
     drawPaddles();
     drawBall();
