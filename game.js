@@ -282,12 +282,17 @@ function drawBall() {
 
     context.fillStyle = "#FFFFFF";
 
-    context.fillRect(
-        ball.x, + BALL_SIZE / 2
-        ball.y, + BALL_SIZE / 2
-        BALL_SIZE,
-        BALL_SIZE / 2
+    context.beginPath();
+
+    context.arc(
+        ball.x + BALL_SIZE / 2,
+        ball.y + BALL_SIZE / 2,
+        BALL_SIZE / 2,
+        0,
+        Math.PI * 2
     );
+
+    context.fill();
 }
 
 
