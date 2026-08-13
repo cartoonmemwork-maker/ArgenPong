@@ -34,6 +34,16 @@ const BALL_SPEED_Y = 5;
 
 
 // ============================================================
+// CONFIGURACIÓN DE LA CANCHA
+// ============================================================
+
+const COURT_MARGIN = 10;
+const CENTER_LINE_WIDTH = 4;
+const CENTER_LINE_DASH = 20;
+const CENTER_LINE_GAP = 20;
+
+
+// ============================================================
 // ESTADO DE LAS PALETAS
 // ============================================================
 
@@ -73,8 +83,10 @@ const keys = {
 
 
 window.addEventListener("keydown", (event) => {
+
     const key = event.key.toLowerCase();
 
+    // Jugador 1
     if (key === "w") {
         keys.w = true;
     }
@@ -83,6 +95,7 @@ window.addEventListener("keydown", (event) => {
         keys.s = true;
     }
 
+    // Jugador 2
     if (event.key === "ArrowUp") {
         keys.ArrowUp = true;
         event.preventDefault();
@@ -96,8 +109,10 @@ window.addEventListener("keydown", (event) => {
 
 
 window.addEventListener("keyup", (event) => {
+
     const key = event.key.toLowerCase();
 
+    // Jugador 1
     if (key === "w") {
         keys.w = false;
     }
@@ -106,6 +121,7 @@ window.addEventListener("keyup", (event) => {
         keys.s = false;
     }
 
+    // Jugador 2
     if (event.key === "ArrowUp") {
         keys.ArrowUp = false;
     }
@@ -189,8 +205,10 @@ function updateBall() {
     // --------------------------------------------------------
 
     if (ball.y <= 0) {
+
         ball.y = 0;
         ball.velocityY *= -1;
+
     }
 
 
@@ -199,8 +217,10 @@ function updateBall() {
     // --------------------------------------------------------
 
     if (ball.y + BALL_SIZE >= CANVAS_HEIGHT) {
+
         ball.y = CANVAS_HEIGHT - BALL_SIZE;
         ball.velocityY *= -1;
+
     }
 
 
@@ -215,8 +235,10 @@ function updateBall() {
         ball.y <= leftPaddle.y + PADDLE_HEIGHT &&
         ball.velocityX < 0
     ) {
+
         ball.x = leftPaddle.x + PADDLE_WIDTH;
         ball.velocityX *= -1;
+
     }
 
 
@@ -231,8 +253,10 @@ function updateBall() {
         ball.y <= rightPaddle.y + PADDLE_HEIGHT &&
         ball.velocityX > 0
     ) {
+
         ball.x = rightPaddle.x - BALL_SIZE;
         ball.velocityX *= -1;
+
     }
 
 
@@ -240,20 +264,72 @@ function updateBall() {
     // Reinicio provisional
     // --------------------------------------------------------
 
-    // Por ahora, si la pelota sale por un lateral,
-    // simplemente vuelve al centro.
+    if (
+        ball.x + BALL_SIZE < 0 ||
+        ball.x > CANVAS_WIDTH
+    ) {
 
-    if (ball.x + BALL_SIZE < 0 || ball.x > CANVAS_WIDTH) {
         ball.x = (CANVAS_WIDTH - BALL_SIZE) / 2;
         ball.y = (CANVAS_HEIGHT - BALL_SIZE) / 2;
 
         ball.velocityX *= -1;
+
     }
 }
 
 
 // ============================================================
-// RENDERIZADO
+// RENDERIZADO DE LA CANCHA
+// ============================================================
+
+function drawCourt() {
+
+    context.strokeStyle = "#FFFFFF";
+    context.lineWidth = 4;
+
+    // --------------------------------------------------------
+    // Borde exterior
+    // --------------------------------------------------------
+
+    context.strokeRect(
+        COURT_MARGIN,
+        COURT_MARGIN,
+        CANVAS_WIDTH - COURT_MARGIN * 2,
+        CANVAS_HEIGHT - COURT_MARGIN * 2
+    );
+
+
+    // --------------------------------------------------------
+    // Línea central
+    // --------------------------------------------------------
+
+    context.lineWidth = CENTER_LINE_WIDTH;
+
+    context.setLineDash([
+        CENTER_LINE_DASH,
+        CENTER_LINE_GAP
+    ]);
+
+    context.beginPath();
+
+    context.moveTo(
+        CANVAS_WIDTH / 2,
+        COURT_MARGIN
+    );
+
+    context.lineTo(
+        CANVAS_WIDTH / 2,
+        CANVAS_HEIGHT - COURT_MARGIN
+    );
+
+    context.stroke();
+
+    context.setLineDash([]);
+}
+
+
+// ============================================================
+// RENDERIZADO DE LAS PALETAS
 // ============================================================
 
 function drawPaddles() {
@@ -278,16 +354,24 @@ function drawPaddles() {
 }
 
 
+// ============================================================
+// RENDERIZADO DE LA PELOTA
+// ============================================================
+
 function drawBall() {
+
+    const centerX = ball.x + BALL_SIZE / 2;
+    const centerY = ball.y + BALL_SIZE / 2;
+    const radius = BALL_SIZE / 2;
 
     context.fillStyle = "#FFFFFF";
 
     context.beginPath();
 
     context.arc(
-        ball.x + BALL_SIZE / 2,
-        ball.y + BALL_SIZE / 2,
-        BALL_SIZE / 2,
+        centerX,
+        centerY,
+        radius,
         0,
         Math.PI * 2
     );
@@ -310,6 +394,8 @@ function drawGame() {
         CANVAS_HEIGHT
     );
 
+    // Dibujar elementos
+    drawCourt();
     drawPaddles();
     drawBall();
 }
