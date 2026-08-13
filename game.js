@@ -15,6 +15,18 @@ const context = canvas.getContext("2d");
 
 
 // ============================================================
+// CONFIGURACIÓN DE LA CANCHA
+// ============================================================
+
+const COURT_MARGIN = 10;
+
+const COURT_LEFT = COURT_MARGIN;
+const COURT_RIGHT = CANVAS_WIDTH - COURT_MARGIN;
+const COURT_TOP = COURT_MARGIN;
+const COURT_BOTTOM = CANVAS_HEIGHT - COURT_MARGIN;
+
+
+// ============================================================
 // CONFIGURACIÓN DE LAS PALETAS
 // ============================================================
 
@@ -34,10 +46,9 @@ const BALL_SPEED_Y = 5;
 
 
 // ============================================================
-// CONFIGURACIÓN DE LA CANCHA
+// CONFIGURACIÓN DE LA LÍNEA CENTRAL
 // ============================================================
 
-const COURT_MARGIN = 10;
 const CENTER_LINE_WIDTH = 4;
 const CENTER_LINE_DASH = 20;
 const CENTER_LINE_GAP = 20;
@@ -48,6 +59,7 @@ const CENTER_LINE_GAP = 20;
 // ============================================================
 
 let audioContext = null;
+let audioMuted = false;
 
 
 // ============================================================
@@ -107,7 +119,7 @@ function initializeAudio() {
 
 function playSound(frequency, duration, volume) {
 
-    if (!audioContext) {
+    if (audioMuted || !audioContext) {
         return;
     }
 
@@ -115,7 +127,11 @@ function playSound(frequency, duration, volume) {
     const gainNode = audioContext.createGain();
 
     oscillator.type = "square";
-    oscillator.frequency.value = frequency;
+
+    oscillator.frequency.setValueAtTime(
+        frequency,
+        audioContext.currentTime
+    );
 
     gainNode.gain.setValueAtTime(
         volume,
@@ -139,21 +155,60 @@ function playSound(frequency, duration, volume) {
 
 
 // ============================================================
-// SONIDOS DEL JUEGO
+// SONIDO — PELOTA CONTRA PARED
 // ============================================================
 
 function playWallSound() {
-    playSound(500, 0.06, 0.08);
+
+    playSound(
+        500,
+        0.06,
+        0.08
+    );
 }
 
+
+// ============================================================
+// SONIDO — PELOTA CONTRA PALETA
+// ============================================================
 
 function playPaddleSound() {
-    playSound(800, 0.07, 0.1);
+
+    playSound(
+        800,
+        0.07,
+        0.1
+    );
 }
 
 
+// ============================================================
+// SONIDO — PELOTA FUERA
+// ============================================================
+
 function playMissSound() {
-    playSound(180, 0.2, 0.12);
+
+    playSound(
+        180,
+        0.2,
+        0.12
+    );
+}
+
+
+// ============================================================
+// MUTE / UNMUTE
+// ============================================================
+
+function toggleMute() {
+
+    audioMuted = !audioMuted;
+
+    console.log(
+        audioMuted
+            ? "Audio: MUTE"
+            : "Audio: ON"
+    );
 }
 
 
@@ -166,6 +221,19 @@ window.addEventListener("keydown", (event) => {
     initializeAudio();
 
     const key = event.key.toLowerCase();
+
+
+    // --------------------------------------------------------
+    // Mute / Unmute
+    // --------------------------------------------------------
+
+    if (key === "m") {
+
+        toggleMute();
+
+        return;
+    }
+
 
     // --------------------------------------------------------
     // Jugador 1
@@ -185,12 +253,16 @@ window.addEventListener("keydown", (event) => {
     // --------------------------------------------------------
 
     if (event.key === "ArrowUp") {
+
         keys.ArrowUp = true;
+
         event.preventDefault();
     }
 
     if (event.key === "ArrowDown") {
+
         keys.ArrowDown = true;
+
         event.preventDefault();
     }
 });
@@ -200,7 +272,11 @@ window.addEventListener("keyup", (event) => {
 
     const key = event.key.toLowerCase();
 
+
+    // --------------------------------------------------------
     // Jugador 1
+    // --------------------------------------------------------
+
     if (key === "w") {
         keys.w = false;
     }
@@ -210,7 +286,10 @@ window.addEventListener("keyup", (event) => {
     }
 
 
+    // --------------------------------------------------------
     // Jugador 2
+    // --------------------------------------------------------
+
     if (event.key === "ArrowUp") {
         keys.ArrowUp = false;
     }
@@ -257,18 +336,24 @@ function updatePaddles() {
     // Límites de las paletas
     // --------------------------------------------------------
 
+    const paddleTopLimit = COURT_TOP;
+    const paddleBottomLimit =
+        COURT_BOTTOM - PADDLE_HEIGHT;
+
+
     leftPaddle.y = Math.max(
-        0,
+        paddleTopLimit,
         Math.min(
-            CANVAS_HEIGHT - PADDLE_HEIGHT,
+            paddleBottomLimit,
             leftPaddle.y
         )
     );
 
+
     rightPaddle.y = Math.max(
-        0,
+        paddleTopLimit,
         Math.min(
-            CANVAS_HEIGHT - PADDLE_HEIGHT,
+            paddleBottomLimit,
             rightPaddle.y
         )
     );
@@ -290,12 +375,13 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Rebote contra el techo
+    // Rebote contra techo
     // --------------------------------------------------------
 
-    if (ball.y <= COURT_MARGIN) {
+    if (ball.y <= COURT_TOP) {
 
-        ball.y = COURT_MARGIN;
+        ball.y = COURT_TOP;
+
         ball.velocityY *= -1;
 
         playWallSound();
@@ -303,18 +389,15 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Rebote contra el piso
+    // Rebote contra piso
     // --------------------------------------------------------
 
     if (
-        ball.y + BALL_SIZE >=
-        CANVAS_HEIGHT - COURT_MARGIN
+        ball.y + BALL_SIZE >= COURT_BOTTOM
     ) {
 
         ball.y =
-            CANVAS_HEIGHT -
-            COURT_MARGIN -
-            BALL_SIZE;
+            COURT_BOTTOM - BALL_SIZE;
 
         ball.velocityY *= -1;
 
@@ -323,7 +406,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Colisión con la paleta izquierda
+    // Colisión con paleta izquierda
     // --------------------------------------------------------
 
     if (
@@ -335,8 +418,7 @@ function updateBall() {
     ) {
 
         ball.x =
-            leftPaddle.x +
-            PADDLE_WIDTH;
+            leftPaddle.x + PADDLE_WIDTH;
 
         ball.velocityX *= -1;
 
@@ -345,7 +427,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Colisión con la paleta derecha
+    // Colisión con paleta derecha
     // --------------------------------------------------------
 
     if (
@@ -357,8 +439,7 @@ function updateBall() {
     ) {
 
         ball.x =
-            rightPaddle.x -
-            BALL_SIZE;
+            rightPaddle.x - BALL_SIZE;
 
         ball.velocityX *= -1;
 
@@ -371,8 +452,8 @@ function updateBall() {
     // --------------------------------------------------------
 
     if (
-        ball.x + BALL_SIZE < 0 ||
-        ball.x > CANVAS_WIDTH
+        ball.x + BALL_SIZE < COURT_LEFT ||
+        ball.x > COURT_RIGHT
     ) {
 
         playMissSound();
@@ -403,10 +484,10 @@ function drawCourt() {
     // --------------------------------------------------------
 
     context.strokeRect(
-        COURT_MARGIN,
-        COURT_MARGIN,
-        CANVAS_WIDTH - COURT_MARGIN * 2,
-        CANVAS_HEIGHT - COURT_MARGIN * 2
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
     );
 
 
@@ -414,7 +495,8 @@ function drawCourt() {
     // Línea central
     // --------------------------------------------------------
 
-    context.lineWidth = CENTER_LINE_WIDTH;
+    context.lineWidth =
+        CENTER_LINE_WIDTH;
 
     context.setLineDash([
         CENTER_LINE_DASH,
@@ -425,12 +507,12 @@ function drawCourt() {
 
     context.moveTo(
         CANVAS_WIDTH / 2,
-        COURT_MARGIN
+        COURT_TOP
     );
 
     context.lineTo(
         CANVAS_WIDTH / 2,
-        CANVAS_HEIGHT - COURT_MARGIN
+        COURT_BOTTOM
     );
 
     context.stroke();
@@ -449,6 +531,7 @@ function drawPaddles() {
 
 
     // Paleta izquierda
+
     context.fillRect(
         leftPaddle.x,
         leftPaddle.y,
@@ -458,6 +541,7 @@ function drawPaddles() {
 
 
     // Paleta derecha
+
     context.fillRect(
         rightPaddle.x,
         rightPaddle.y,
