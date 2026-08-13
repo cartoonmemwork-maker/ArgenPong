@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <!-- ============================================================
+         CONFIGURACIÓN DEL DOCUMENTO
+         ============================================================ -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Pong</title>
+
+    <!-- ============================================================
+         ESTILOS
+         ============================================================ -->
+
+    <style>
+        /* El documento ocupa toda la pantalla */
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+
+        /* Fondo negro y centrado del juego */
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #000000;
+            overflow: hidden;
+        }
+
+        /* Área del juego en proporción 16:9 */
+        #gameCanvas {
+            display: block;
+            width: min(100vw, 177.78vh);
+            height: min(56.25vw, 100vh);
+            background-color: #000000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ============================================================
+         ÁREA DEL JUEGO
+         ============================================================ -->
+
+    <canvas
+        id="gameCanvas"
+        width="1280"
+        height="720">
+    </canvas>
+
+    <!-- ============================================================
+         SCRIPTS
+         ============================================================ -->
+
+    <!-- Todavía no tenemos lógica del juego.
+         La agregaremos en el siguiente paso. -->
+
+</body>
+</html>
