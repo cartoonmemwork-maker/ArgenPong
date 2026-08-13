@@ -283,10 +283,10 @@ function drawBall() {
     context.fillStyle = "#FFFFFF";
 
     context.fillRect(
-        ball.x,
-        ball.y,
+        ball.x, + BALL_SIZE / 2
+        ball.y, + BALL_SIZE / 2
         BALL_SIZE,
-        BALL_SIZE
+        BALL_SIZE / 2
     );
 }
 
