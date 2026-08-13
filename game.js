@@ -218,9 +218,9 @@ function toggleMute() {
 
 window.addEventListener("keydown", (event) => {
 
-    initializeAudio();
-
     const key = event.key.toLowerCase();
+
+    initializeAudio();
 
 
     // --------------------------------------------------------
@@ -228,6 +228,8 @@ window.addEventListener("keydown", (event) => {
     // --------------------------------------------------------
 
     if (key === "m") {
+
+        event.preventDefault();
 
         toggleMute();
 
@@ -307,7 +309,7 @@ window.addEventListener("keyup", (event) => {
 function updatePaddles() {
 
     // --------------------------------------------------------
-    // Jugador 1 — W / S
+    // Movimiento jugador 1
     // --------------------------------------------------------
 
     if (keys.w) {
@@ -320,7 +322,7 @@ function updatePaddles() {
 
 
     // --------------------------------------------------------
-    // Jugador 2 — Flechas
+    // Movimiento jugador 2
     // --------------------------------------------------------
 
     if (keys.ArrowUp) {
@@ -333,30 +335,39 @@ function updatePaddles() {
 
 
     // --------------------------------------------------------
-    // Límites de las paletas
+    // Límites verticales de la cancha
     // --------------------------------------------------------
 
-    const paddleTopLimit = COURT_TOP;
-    const paddleBottomLimit =
+    const topLimit = COURT_TOP;
+
+    const bottomLimit =
         COURT_BOTTOM - PADDLE_HEIGHT;
 
 
-    leftPaddle.y = Math.max(
-        paddleTopLimit,
-        Math.min(
-            paddleBottomLimit,
-            leftPaddle.y
-        )
-    );
+    // --------------------------------------------------------
+    // Limitar paleta izquierda
+    // --------------------------------------------------------
+
+    if (leftPaddle.y < topLimit) {
+        leftPaddle.y = topLimit;
+    }
+
+    if (leftPaddle.y > bottomLimit) {
+        leftPaddle.y = bottomLimit;
+    }
 
 
-    rightPaddle.y = Math.max(
-        paddleTopLimit,
-        Math.min(
-            paddleBottomLimit,
-            rightPaddle.y
-        )
-    );
+    // --------------------------------------------------------
+    // Limitar paleta derecha
+    // --------------------------------------------------------
+
+    if (rightPaddle.y < topLimit) {
+        rightPaddle.y = topLimit;
+    }
+
+    if (rightPaddle.y > bottomLimit) {
+        rightPaddle.y = bottomLimit;
+    }
 }
 
 
@@ -392,9 +403,7 @@ function updateBall() {
     // Rebote contra piso
     // --------------------------------------------------------
 
-    if (
-        ball.y + BALL_SIZE >= COURT_BOTTOM
-    ) {
+    if (ball.y + BALL_SIZE >= COURT_BOTTOM) {
 
         ball.y =
             COURT_BOTTOM - BALL_SIZE;
