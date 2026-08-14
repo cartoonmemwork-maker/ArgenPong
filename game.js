@@ -5,12 +5,14 @@
 const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
 
+
 // ============================================================
 // REFERENCIA AL CANVAS
 // ============================================================
 
 const canvas = document.getElementById("gameCanvas");
 const context = canvas.getContext("2d");
+
 
 // ============================================================
 // CONFIGURACIÓN DE LA CANCHA
@@ -22,6 +24,19 @@ const COURT_LEFT = COURT_MARGIN;
 const COURT_RIGHT = CANVAS_WIDTH - COURT_MARGIN;
 const COURT_TOP = COURT_MARGIN;
 const COURT_BOTTOM = CANVAS_HEIGHT - COURT_MARGIN;
+
+
+// ============================================================
+// COLORES DE CANCHA
+// ============================================================
+
+const COURT_COLORS = {
+    green: "#1f5f3a",
+    blue: "#174a78",
+    black: "#000000"
+};
+
+let courtColor = "black";
 
 
 // ============================================================
@@ -83,6 +98,30 @@ const REVENGE_BUTTON_X =
 
 const REVENGE_BUTTON_Y =
     CANVAS_HEIGHT / 2 + 55;
+
+
+// ============================================================
+// CONFIGURACIÓN DEL MENÚ DE PAUSA
+// ============================================================
+
+const MENU_TITLE_FONT = "bold 48px monospace";
+const MENU_BUTTON_FONT = "bold 24px monospace";
+
+const MENU_BUTTON_WIDTH = 300;
+const MENU_BUTTON_HEIGHT = 60;
+
+const MENU_BUTTON_GAP = 20;
+
+const MENU_START_Y =
+    CANVAS_HEIGHT / 2 - 70;
+
+
+// ============================================================
+// ESTADO DEL MENÚ
+// ============================================================
+
+let gamePaused = false;
+let settingsOpen = false;
 
 
 // ============================================================
@@ -209,44 +248,21 @@ function playSound(frequency, duration, volume) {
 
 
 // ============================================================
-// SONIDO — PELOTA CONTRA PARED
+// SONIDOS
 // ============================================================
 
 function playWallSound() {
-
-    playSound(
-        500,
-        0.06,
-        0.08
-    );
+    playSound(500, 0.06, 0.08);
 }
 
-
-// ============================================================
-// SONIDO — PELOTA CONTRA PALETA
-// ============================================================
 
 function playPaddleSound() {
-
-    playSound(
-        800,
-        0.07,
-        0.1
-    );
+    playSound(800, 0.07, 0.1);
 }
 
 
-// ============================================================
-// SONIDO — PELOTA FUERA
-// ============================================================
-
 function playMissSound() {
-
-    playSound(
-        180,
-        0.2,
-        0.12
-    );
+    playSound(180, 0.2, 0.12);
 }
 
 
@@ -263,6 +279,20 @@ function toggleMute() {
             ? "Audio: MUTE"
             : "Audio: ON"
     );
+}
+
+
+// ============================================================
+// CAMBIAR COLOR DE CANCHA
+// ============================================================
+
+function setCourtColor(color) {
+
+    if (!COURT_COLORS[color]) {
+        return;
+    }
+
+    courtColor = color;
 }
 
 
@@ -292,7 +322,30 @@ window.addEventListener("keydown", (event) => {
 
 
     // --------------------------------------------------------
-    // No aceptar controles durante la pantalla de victoria
+    // ESC — PAUSA / CONTINUAR
+    // --------------------------------------------------------
+
+    if (event.key === "Escape") {
+
+        event.preventDefault();
+
+        handleEscape();
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Si estamos en pausa, no mover las paletas
+    // --------------------------------------------------------
+
+    if (gamePaused) {
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Si terminó el partido, no aceptar controles
     // --------------------------------------------------------
 
     if (gameOver) {
@@ -337,7 +390,6 @@ window.addEventListener("keyup", (event) => {
 
     const key = event.key.toLowerCase();
 
-
     if (key === "w") {
         keys.w = false;
     }
@@ -357,20 +409,59 @@ window.addEventListener("keyup", (event) => {
 
 
 // ============================================================
-// CLICK — BOTÓN REVANCHA
+// CONTROL DE ESC
 // ============================================================
 
-canvas.addEventListener("click", (event) => {
+function handleEscape() {
 
-    if (!gameOver) {
+    // --------------------------------------------------------
+    // Durante la pantalla de victoria, ESC no hace nada
+    // --------------------------------------------------------
+
+    if (gameOver) {
         return;
     }
 
 
     // --------------------------------------------------------
-    // Convertir coordenadas del navegador
-    // a coordenadas internas del Canvas
+    // Si estamos dentro de ajustes
     // --------------------------------------------------------
+
+    if (settingsOpen) {
+
+        settingsOpen = false;
+
+        gamePaused = true;
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Si estamos pausados
+    // --------------------------------------------------------
+
+    if (gamePaused) {
+
+        gamePaused = false;
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Pausar
+    // --------------------------------------------------------
+
+    gamePaused = true;
+}
+
+
+// ============================================================
+// CLICK SOBRE EL CANVAS
+// ============================================================
+
+canvas.addEventListener("click", (event) => {
 
     const rect = canvas.getBoundingClientRect();
 
@@ -388,21 +479,259 @@ canvas.addEventListener("click", (event) => {
 
 
     // --------------------------------------------------------
-    // Comprobar si hizo click en REVANCHA
+    // PANTALLA DE VICTORIA
+    // --------------------------------------------------------
+
+    if (gameOver) {
+
+        if (
+            mouseX >= REVENGE_BUTTON_X &&
+            mouseX <=
+                REVENGE_BUTTON_X + REVENGE_BUTTON_WIDTH &&
+            mouseY >= REVENGE_BUTTON_Y &&
+            mouseY <=
+                REVENGE_BUTTON_Y + REVENGE_BUTTON_HEIGHT
+        ) {
+
+            restartGame();
+        }
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // AJUSTES
+    // --------------------------------------------------------
+
+    if (settingsOpen) {
+
+        handleSettingsClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // MENÚ DE PAUSA
+    // --------------------------------------------------------
+
+    if (gamePaused) {
+
+        handlePauseMenuClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+});
+
+
+// ============================================================
+// BOTONES DEL MENÚ DE PAUSA
+// ============================================================
+
+function getPauseButtonY(index) {
+
+    return MENU_START_Y +
+        index *
+        (MENU_BUTTON_HEIGHT + MENU_BUTTON_GAP);
+}
+
+
+function isInsideButton(
+    mouseX,
+    mouseY,
+    x,
+    y,
+    width,
+    height
+) {
+
+    return (
+        mouseX >= x &&
+        mouseX <= x + width &&
+        mouseY >= y &&
+        mouseY <= y + height
+    );
+}
+
+
+// ============================================================
+// CLICK — MENÚ DE PAUSA
+// ============================================================
+
+function handlePauseMenuClick(mouseX, mouseY) {
+
+    const buttonX =
+        (CANVAS_WIDTH - MENU_BUTTON_WIDTH) / 2;
+
+
+    // --------------------------------------------------------
+    // CONTINUAR
     // --------------------------------------------------------
 
     if (
-        mouseX >= REVENGE_BUTTON_X &&
-        mouseX <=
-            REVENGE_BUTTON_X + REVENGE_BUTTON_WIDTH &&
-        mouseY >= REVENGE_BUTTON_Y &&
-        mouseY <=
-            REVENGE_BUTTON_Y + REVENGE_BUTTON_HEIGHT
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            getPauseButtonY(0),
+            MENU_BUTTON_WIDTH,
+            MENU_BUTTON_HEIGHT
+        )
     ) {
 
-        restartGame();
+        gamePaused = false;
+
+        return;
     }
-});
+
+
+    // --------------------------------------------------------
+    // AJUSTES
+    // --------------------------------------------------------
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            getPauseButtonY(1),
+            MENU_BUTTON_WIDTH,
+            MENU_BUTTON_HEIGHT
+        )
+    ) {
+
+        settingsOpen = true;
+
+        return;
+    }
+}
+
+
+// ============================================================
+// BOTONES DE AJUSTES
+// ============================================================
+
+const SETTINGS_BUTTON_WIDTH = 240;
+const SETTINGS_BUTTON_HEIGHT = 55;
+
+const SETTINGS_BUTTON_GAP = 15;
+
+const SETTINGS_START_Y =
+    CANVAS_HEIGHT / 2 - 100;
+
+
+// ============================================================
+// CLICK — AJUSTES
+// ============================================================
+
+function handleSettingsClick(mouseX, mouseY) {
+
+    const buttonX =
+        (CANVAS_WIDTH - SETTINGS_BUTTON_WIDTH) / 2;
+
+
+    // --------------------------------------------------------
+    // VERDE
+    // --------------------------------------------------------
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            SETTINGS_START_Y,
+            SETTINGS_BUTTON_WIDTH,
+            SETTINGS_BUTTON_HEIGHT
+        )
+    ) {
+
+        setCourtColor("green");
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // AZUL
+    // --------------------------------------------------------
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            SETTINGS_START_Y +
+                SETTINGS_BUTTON_HEIGHT +
+                SETTINGS_BUTTON_GAP,
+            SETTINGS_BUTTON_WIDTH,
+            SETTINGS_BUTTON_HEIGHT
+        )
+    ) {
+
+        setCourtColor("blue");
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // NEGRO
+    // --------------------------------------------------------
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            SETTINGS_START_Y +
+                2 *
+                (
+                    SETTINGS_BUTTON_HEIGHT +
+                    SETTINGS_BUTTON_GAP
+                ),
+            SETTINGS_BUTTON_WIDTH,
+            SETTINGS_BUTTON_HEIGHT
+        )
+    ) {
+
+        setCourtColor("black");
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // VOLVER
+    // --------------------------------------------------------
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            SETTINGS_START_Y +
+                3 *
+                (
+                    SETTINGS_BUTTON_HEIGHT +
+                    SETTINGS_BUTTON_GAP
+                ),
+            SETTINGS_BUTTON_WIDTH,
+            SETTINGS_BUTTON_HEIGHT
+        )
+    ) {
+
+        settingsOpen = false;
+
+        return;
+    }
+}
 
 
 // ============================================================
@@ -411,13 +740,13 @@ canvas.addEventListener("click", (event) => {
 
 function updatePaddles() {
 
-    if (gameOver) {
+    if (gamePaused || gameOver) {
         return;
     }
 
 
     // --------------------------------------------------------
-    // Movimiento jugador 1
+    // Jugador 1
     // --------------------------------------------------------
 
     if (keys.w) {
@@ -430,7 +759,7 @@ function updatePaddles() {
 
 
     // --------------------------------------------------------
-    // Movimiento jugador 2
+    // Jugador 2
     // --------------------------------------------------------
 
     if (keys.ArrowUp) {
@@ -443,7 +772,7 @@ function updatePaddles() {
 
 
     // --------------------------------------------------------
-    // Límites verticales
+    // Límites
     // --------------------------------------------------------
 
     const topLimit = COURT_TOP;
@@ -477,7 +806,7 @@ function updatePaddles() {
 
 function updateBall() {
 
-    if (gameOver) {
+    if (gamePaused || gameOver) {
         return;
     }
 
@@ -491,7 +820,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Rebote contra techo
+    // Techo
     // --------------------------------------------------------
 
     if (ball.y <= COURT_TOP) {
@@ -505,7 +834,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Rebote contra piso
+    // Piso
     // --------------------------------------------------------
 
     if (ball.y + BALL_SIZE >= COURT_BOTTOM) {
@@ -520,7 +849,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Colisión con paleta izquierda
+    // Paleta izquierda
     // --------------------------------------------------------
 
     if (
@@ -541,7 +870,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Colisión con paleta derecha
+    // Paleta derecha
     // --------------------------------------------------------
 
     if (
@@ -562,7 +891,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Gol — pelota sale por la izquierda
+    // Gol — izquierda
     // --------------------------------------------------------
 
     if (ball.x + BALL_SIZE < COURT_LEFT) {
@@ -578,7 +907,7 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Gol — pelota sale por la derecha
+    // Gol — derecha
     // --------------------------------------------------------
 
     if (ball.x > COURT_RIGHT) {
@@ -600,10 +929,6 @@ function updateBall() {
 
 function handlePoint() {
 
-    // --------------------------------------------------------
-    // Comprobar ganador
-    // --------------------------------------------------------
-
     if (checkGameWinner()) {
 
         gameOver = true;
@@ -617,16 +942,7 @@ function handlePoint() {
     }
 
 
-    // --------------------------------------------------------
-    // Actualizar saque
-    // --------------------------------------------------------
-
     updateServe();
-
-
-    // --------------------------------------------------------
-    // Preparar siguiente saque
-    // --------------------------------------------------------
 
     resetBall();
 }
@@ -642,10 +958,6 @@ function checkGameWinner() {
         Math.abs(leftScore - rightScore);
 
 
-    // --------------------------------------------------------
-    // Nadie llegó a 11
-    // --------------------------------------------------------
-
     if (
         leftScore < GAME_WIN_SCORE &&
         rightScore < GAME_WIN_SCORE
@@ -653,10 +965,6 @@ function checkGameWinner() {
         return false;
     }
 
-
-    // --------------------------------------------------------
-    // Se necesitan 2 puntos de diferencia
-    // --------------------------------------------------------
 
     if (scoreDifference < WIN_MARGIN) {
         return false;
@@ -678,7 +986,7 @@ function updateServe() {
 
 
     // --------------------------------------------------------
-    // DEUCE — 10 / 10 o superior
+    // DEUCE
     // --------------------------------------------------------
 
     if (
@@ -696,7 +1004,7 @@ function updateServe() {
 
 
     // --------------------------------------------------------
-    // SAQUE CADA DOS PUNTOS
+    // CADA DOS PUNTOS
     // --------------------------------------------------------
 
     const serveBlock =
@@ -727,10 +1035,6 @@ function resetBall() {
         (CANVAS_HEIGHT - BALL_SIZE) / 2;
 
 
-    // --------------------------------------------------------
-    // Dirección según el saque
-    // --------------------------------------------------------
-
     if (servingPlayer === "left") {
 
         ball.velocityX =
@@ -742,10 +1046,6 @@ function resetBall() {
             -Math.abs(BALL_SPEED_X);
     }
 
-
-    // --------------------------------------------------------
-    // Dirección vertical
-    // --------------------------------------------------------
 
     if (ball.velocityY === 0) {
 
@@ -760,43 +1060,22 @@ function resetBall() {
 
 function restartGame() {
 
-    // --------------------------------------------------------
-    // Marcador
-    // --------------------------------------------------------
-
     leftScore = 0;
     rightScore = 0;
 
-
-    // --------------------------------------------------------
-    // Saque inicial
-    // --------------------------------------------------------
-
     servingPlayer = "left";
-
-
-    // --------------------------------------------------------
-    // Estado del partido
-    // --------------------------------------------------------
 
     gameOver = false;
     winner = null;
 
-
-    // --------------------------------------------------------
-    // Reiniciar posiciones
-    // --------------------------------------------------------
+    gamePaused = false;
+    settingsOpen = false;
 
     leftPaddle.y =
         (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
 
     rightPaddle.y =
         (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
-
-
-    // --------------------------------------------------------
-    // Reiniciar pelota
-    // --------------------------------------------------------
 
     resetBall();
 }
@@ -808,13 +1087,27 @@ function restartGame() {
 
 function drawCourt() {
 
+    // --------------------------------------------------------
+    // Fondo
+    // --------------------------------------------------------
+
+    context.fillStyle =
+        COURT_COLORS[courtColor];
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
+    );
+
+
+    // --------------------------------------------------------
+    // Borde
+    // --------------------------------------------------------
+
     context.strokeStyle = "#FFFFFF";
     context.lineWidth = 4;
-
-
-    // --------------------------------------------------------
-    // Borde exterior
-    // --------------------------------------------------------
 
     context.strokeRect(
         COURT_LEFT,
@@ -825,7 +1118,7 @@ function drawCourt() {
 
 
     // --------------------------------------------------------
-    // Línea central punteada
+    // Línea central
     // --------------------------------------------------------
 
     context.lineWidth =
@@ -863,10 +1156,6 @@ function drawPaddles() {
     context.fillStyle = "#FFFFFF";
 
 
-    // --------------------------------------------------------
-    // Paleta izquierda
-    // --------------------------------------------------------
-
     context.fillRect(
         leftPaddle.x,
         leftPaddle.y,
@@ -874,10 +1163,6 @@ function drawPaddles() {
         PADDLE_HEIGHT
     );
 
-
-    // --------------------------------------------------------
-    // Paleta derecha
-    // --------------------------------------------------------
 
     context.fillRect(
         rightPaddle.x,
@@ -935,20 +1220,12 @@ function drawScore() {
     context.textBaseline = "bottom";
 
 
-    // --------------------------------------------------------
-    // Jugador izquierdo
-    // --------------------------------------------------------
-
     context.fillText(
         String(leftScore).padStart(2, "0"),
         CANVAS_WIDTH / 4,
         SCORE_Y
     );
 
-
-    // --------------------------------------------------------
-    // Jugador derecho
-    // --------------------------------------------------------
 
     context.fillText(
         String(rightScore).padStart(2, "0"),
@@ -963,16 +1240,57 @@ function drawScore() {
 
 
 // ============================================================
-// RENDERIZADO DE LA PANTALLA DE VICTORIA
+// BOTÓN GENÉRICO DE MENÚ
 // ============================================================
 
-function drawVictoryScreen() {
+function drawMenuButton(
+    text,
+    x,
+    y,
+    width,
+    height
+) {
+
+    context.strokeStyle = "#FFFFFF";
+    context.lineWidth = 3;
+
+    context.strokeRect(
+        x,
+        y,
+        width,
+        height
+    );
+
+    context.fillStyle = "#FFFFFF";
+
+    context.font = MENU_BUTTON_FONT;
+
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        text,
+        x + width / 2,
+        y + height / 2
+    );
+
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
+}
+
+
+// ============================================================
+// RENDERIZADO DEL MENÚ DE PAUSA
+// ============================================================
+
+function drawPauseMenu() {
 
     // --------------------------------------------------------
-    // Oscurecer ligeramente la cancha
+    // Oscurecer cancha
     // --------------------------------------------------------
 
-    context.fillStyle = "rgba(0, 0, 0, 0.65)";
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.70)";
 
     context.fillRect(
         COURT_LEFT,
@@ -983,15 +1301,191 @@ function drawVictoryScreen() {
 
 
     // --------------------------------------------------------
-    // Texto ganador
+    // Título
     // --------------------------------------------------------
+
+    context.fillStyle = "#FFFFFF";
+
+    context.font = MENU_TITLE_FONT;
+
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        "PAUSA",
+        CANVAS_WIDTH / 2,
+        CANVAS_HEIGHT / 2 - 150
+    );
+
+
+    // --------------------------------------------------------
+    // CONTINUAR
+    // --------------------------------------------------------
+
+    const buttonX =
+        (CANVAS_WIDTH - MENU_BUTTON_WIDTH) / 2;
+
+    drawMenuButton(
+        "CONTINUAR",
+        buttonX,
+        getPauseButtonY(0),
+        MENU_BUTTON_WIDTH,
+        MENU_BUTTON_HEIGHT
+    );
+
+
+    // --------------------------------------------------------
+    // AJUSTES
+    // --------------------------------------------------------
+
+    drawMenuButton(
+        "AJUSTES",
+        buttonX,
+        getPauseButtonY(1),
+        MENU_BUTTON_WIDTH,
+        MENU_BUTTON_HEIGHT
+    );
+
+
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
+}
+
+
+// ============================================================
+// RENDERIZADO DE AJUSTES
+// ============================================================
+
+function drawSettingsMenu() {
+
+    // --------------------------------------------------------
+    // Oscurecer cancha
+    // --------------------------------------------------------
+
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.75)";
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
+    );
+
+
+    // --------------------------------------------------------
+    // Título
+    // --------------------------------------------------------
+
+    context.fillStyle = "#FFFFFF";
+
+    context.font = MENU_TITLE_FONT;
+
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        "AJUSTES",
+        CANVAS_WIDTH / 2,
+        90
+    );
+
+
+    const buttonX =
+        (CANVAS_WIDTH - SETTINGS_BUTTON_WIDTH) / 2;
+
+
+    // --------------------------------------------------------
+    // VERDE
+    // --------------------------------------------------------
+
+    drawMenuButton(
+        "VERDE",
+        buttonX,
+        SETTINGS_START_Y,
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT
+    );
+
+
+    // --------------------------------------------------------
+    // AZUL
+    // --------------------------------------------------------
+
+    drawMenuButton(
+        "AZUL",
+        buttonX,
+        SETTINGS_START_Y +
+            SETTINGS_BUTTON_HEIGHT +
+            SETTINGS_BUTTON_GAP,
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT
+    );
+
+
+    // --------------------------------------------------------
+    // NEGRO
+    // --------------------------------------------------------
+
+    drawMenuButton(
+        "NEGRO",
+        buttonX,
+        SETTINGS_START_Y +
+            2 *
+            (
+                SETTINGS_BUTTON_HEIGHT +
+                SETTINGS_BUTTON_GAP
+            ),
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT
+    );
+
+
+    // --------------------------------------------------------
+    // VOLVER
+    // --------------------------------------------------------
+
+    drawMenuButton(
+        "VOLVER",
+        buttonX,
+        SETTINGS_START_Y +
+            3 *
+            (
+                SETTINGS_BUTTON_HEIGHT +
+                SETTINGS_BUTTON_GAP
+            ),
+        SETTINGS_BUTTON_WIDTH,
+        SETTINGS_BUTTON_HEIGHT
+    );
+
+
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
+}
+
+
+// ============================================================
+// RENDERIZADO DE LA PANTALLA DE VICTORIA
+// ============================================================
+
+function drawVictoryScreen() {
+
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.65)";
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
+    );
+
 
     context.fillStyle = "#FFFFFF";
 
     context.font = WINNER_FONT;
 
     context.textAlign = "center";
-
     context.textBaseline = "middle";
 
 
@@ -1007,10 +1501,6 @@ function drawVictoryScreen() {
         CANVAS_HEIGHT / 2 - 35
     );
 
-
-    // --------------------------------------------------------
-    // Botón REVANCHA
-    // --------------------------------------------------------
 
     context.strokeStyle = "#FFFFFF";
     context.lineWidth = 3;
@@ -1035,17 +1525,13 @@ function drawVictoryScreen() {
     );
 
 
-    // --------------------------------------------------------
-    // Restaurar configuración
-    // --------------------------------------------------------
-
     context.textAlign = "start";
     context.textBaseline = "alphabetic";
 }
 
 
 // ============================================================
-// DIBUJAR EL JUEGO
+// DIBUJAR TODO
 // ============================================================
 
 function drawGame() {
@@ -1058,14 +1544,30 @@ function drawGame() {
     );
 
 
-    // --------------------------------------------------------
-    // Elementos normales
-    // --------------------------------------------------------
-
     drawCourt();
     drawPaddles();
     drawBall();
     drawScore();
+
+
+    // --------------------------------------------------------
+    // Menú de pausa
+    // --------------------------------------------------------
+
+    if (gamePaused && !settingsOpen && !gameOver) {
+
+        drawPauseMenu();
+    }
+
+
+    // --------------------------------------------------------
+    // Menú de ajustes
+    // --------------------------------------------------------
+
+    if (settingsOpen && !gameOver) {
+
+        drawSettingsMenu();
+    }
 
 
     // --------------------------------------------------------
