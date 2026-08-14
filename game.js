@@ -58,9 +58,16 @@ const CENTER_LINE_GAP = 20;
 // CONFIGURACIÓN DEL MARCADOR
 // ============================================================
 
-const SCORE_FONT_SIZE = 48;
 const SCORE_FONT = "bold 48px monospace";
 const SCORE_Y = COURT_BOTTOM - 20;
+
+
+// ============================================================
+// CONFIGURACIÓN DEL PARTIDO
+// ============================================================
+
+const GAME_WIN_SCORE = 11;
+const WIN_MARGIN = 2;
 
 
 // ============================================================
@@ -77,6 +84,21 @@ let audioMuted = false;
 
 let leftScore = 0;
 let rightScore = 0;
+
+
+// ============================================================
+// ESTADO DEL SAQUE
+// ============================================================
+
+// El jugador izquierdo comienza sacando.
+let servingPlayer = "left";
+
+
+// ============================================================
+// ESTADO DEL PARTIDO
+// ============================================================
+
+let gameOver = false;
 
 
 // ============================================================
@@ -394,6 +416,12 @@ function updatePaddles() {
 
 function updateBall() {
 
+    // Si terminó el juego, no seguimos moviendo la pelota.
+    if (gameOver) {
+        return;
+    }
+
+
     // --------------------------------------------------------
     // Movimiento
     // --------------------------------------------------------
@@ -483,7 +511,9 @@ function updateBall() {
 
         playMissSound();
 
-        resetBall();
+        handlePoint();
+
+        return;
     }
 
 
@@ -497,7 +527,135 @@ function updateBall() {
 
         playMissSound();
 
-        resetBall();
+        handlePoint();
+
+        return;
+    }
+}
+
+
+// ============================================================
+// PROCESAR PUNTO
+// ============================================================
+
+function handlePoint() {
+
+    // --------------------------------------------------------
+    // Comprobar si terminó el juego
+    // --------------------------------------------------------
+
+    if (checkGameWinner()) {
+
+        gameOver = true;
+
+        console.log(
+            leftScore > rightScore
+                ? "Ganó el jugador izquierdo"
+                : "Ganó el jugador derecho"
+        );
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Cambiar el saque
+    // --------------------------------------------------------
+
+    updateServe();
+
+
+    // --------------------------------------------------------
+    // Preparar el siguiente saque
+    // --------------------------------------------------------
+
+    resetBall();
+}
+
+
+// ============================================================
+// COMPROBAR GANADOR
+// ============================================================
+
+function checkGameWinner() {
+
+    const scoreDifference =
+        Math.abs(leftScore - rightScore);
+
+
+    // --------------------------------------------------------
+    // Ningún jugador llegó a 11
+    // --------------------------------------------------------
+
+    if (
+        leftScore < GAME_WIN_SCORE &&
+        rightScore < GAME_WIN_SCORE
+    ) {
+        return false;
+    }
+
+
+    // --------------------------------------------------------
+    // Ganar requiere 2 puntos de diferencia
+    // --------------------------------------------------------
+
+    if (scoreDifference < WIN_MARGIN) {
+        return false;
+    }
+
+
+    return true;
+}
+
+
+// ============================================================
+// ACTUALIZAR SAQUE
+// ============================================================
+
+function updateServe() {
+
+    const totalPoints =
+        leftScore + rightScore;
+
+
+    // --------------------------------------------------------
+    // Deuce — 10 a 10 o más
+    // --------------------------------------------------------
+
+    if (
+        leftScore >= 10 &&
+        rightScore >= 10
+    ) {
+
+        // Después de 10-10 el saque cambia
+        // después de cada punto.
+
+        servingPlayer =
+            servingPlayer === "left"
+                ? "right"
+                : "left";
+
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Antes del deuce
+    // --------------------------------------------------------
+
+    // Cada jugador saca durante dos puntos.
+
+    const serveBlock =
+        Math.floor(totalPoints / 2);
+
+
+    if (serveBlock % 2 === 0) {
+
+        servingPlayer = "left";
+
+    } else {
+
+        servingPlayer = "right";
     }
 }
 
@@ -514,7 +672,33 @@ function resetBall() {
     ball.y =
         (CANVAS_HEIGHT - BALL_SIZE) / 2;
 
-    ball.velocityX *= -1;
+
+    // --------------------------------------------------------
+    // Dirección según el jugador que saca
+    // --------------------------------------------------------
+
+    if (servingPlayer === "left") {
+
+        // Saque desde la izquierda hacia la derecha.
+        ball.velocityX =
+            Math.abs(BALL_SPEED_X);
+
+    } else {
+
+        // Saque desde la derecha hacia la izquierda.
+        ball.velocityX =
+            -Math.abs(BALL_SPEED_X);
+    }
+
+
+    // --------------------------------------------------------
+    // Mantener dirección vertical actual
+    // --------------------------------------------------------
+
+    if (ball.velocityY === 0) {
+
+        ball.velocityY = BALL_SPEED_Y;
+    }
 }
 
 
