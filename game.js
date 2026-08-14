@@ -55,11 +55,28 @@ const CENTER_LINE_GAP = 20;
 
 
 // ============================================================
+// CONFIGURACIÓN DEL MARCADOR
+// ============================================================
+
+const SCORE_FONT_SIZE = 48;
+const SCORE_FONT = "bold 48px monospace";
+const SCORE_Y = COURT_BOTTOM - 20;
+
+
+// ============================================================
 // CONFIGURACIÓN DE AUDIO
 // ============================================================
 
 let audioContext = null;
 let audioMuted = false;
+
+
+// ============================================================
+// ESTADO DEL MARCADOR
+// ============================================================
+
+let leftScore = 0;
+let rightScore = 0;
 
 
 // ============================================================
@@ -457,24 +474,47 @@ function updateBall() {
 
 
     // --------------------------------------------------------
-    // Pelota fuera de la cancha
+    // Gol — pelota sale por la izquierda
     // --------------------------------------------------------
 
-    if (
-        ball.x + BALL_SIZE < COURT_LEFT ||
-        ball.x > COURT_RIGHT
-    ) {
+    if (ball.x + BALL_SIZE < COURT_LEFT) {
+
+        rightScore++;
 
         playMissSound();
 
-        ball.x =
-            (CANVAS_WIDTH - BALL_SIZE) / 2;
-
-        ball.y =
-            (CANVAS_HEIGHT - BALL_SIZE) / 2;
-
-        ball.velocityX *= -1;
+        resetBall();
     }
+
+
+    // --------------------------------------------------------
+    // Gol — pelota sale por la derecha
+    // --------------------------------------------------------
+
+    if (ball.x > COURT_RIGHT) {
+
+        leftScore++;
+
+        playMissSound();
+
+        resetBall();
+    }
+}
+
+
+// ============================================================
+// REINICIO DE LA PELOTA
+// ============================================================
+
+function resetBall() {
+
+    ball.x =
+        (CANVAS_WIDTH - BALL_SIZE) / 2;
+
+    ball.y =
+        (CANVAS_HEIGHT - BALL_SIZE) / 2;
+
+    ball.velocityX *= -1;
 }
 
 
@@ -501,7 +541,7 @@ function drawCourt() {
 
 
     // --------------------------------------------------------
-    // Línea central
+    // Línea central punteada
     // --------------------------------------------------------
 
     context.lineWidth =
@@ -539,7 +579,9 @@ function drawPaddles() {
     context.fillStyle = "#FFFFFF";
 
 
+    // --------------------------------------------------------
     // Paleta izquierda
+    // --------------------------------------------------------
 
     context.fillRect(
         leftPaddle.x,
@@ -549,7 +591,9 @@ function drawPaddles() {
     );
 
 
+    // --------------------------------------------------------
     // Paleta derecha
+    // --------------------------------------------------------
 
     context.fillRect(
         rightPaddle.x,
@@ -593,6 +637,52 @@ function drawBall() {
 
 
 // ============================================================
+// RENDERIZADO DEL MARCADOR
+// ============================================================
+
+function drawScore() {
+
+    context.fillStyle = "#FFFFFF";
+
+    context.font = SCORE_FONT;
+
+    context.textAlign = "center";
+
+    context.textBaseline = "bottom";
+
+
+    // --------------------------------------------------------
+    // Marcador jugador izquierdo
+    // --------------------------------------------------------
+
+    context.fillText(
+        String(leftScore).padStart(2, "0"),
+        CANVAS_WIDTH / 4,
+        SCORE_Y
+    );
+
+
+    // --------------------------------------------------------
+    // Marcador jugador derecho
+    // --------------------------------------------------------
+
+    context.fillText(
+        String(rightScore).padStart(2, "0"),
+        CANVAS_WIDTH * 3 / 4,
+        SCORE_Y
+    );
+
+
+    // --------------------------------------------------------
+    // Restaurar alineación
+    // --------------------------------------------------------
+
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
+}
+
+
+// ============================================================
 // DIBUJAR EL JUEGO
 // ============================================================
 
@@ -608,6 +698,7 @@ function drawGame() {
     drawCourt();
     drawPaddles();
     drawBall();
+    drawScore();
 }
 
 
