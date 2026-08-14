@@ -71,6 +71,23 @@ const WIN_MARGIN = 2;
 
 
 // ============================================================
+// CONFIGURACIÓN DE LA PANTALLA DE VICTORIA
+// ============================================================
+
+const WINNER_FONT = "bold 52px monospace";
+const REVENGE_FONT = "bold 28px monospace";
+
+const REVENGE_BUTTON_WIDTH = 260;
+const REVENGE_BUTTON_HEIGHT = 60;
+
+const REVENGE_BUTTON_X =
+    (CANVAS_WIDTH - REVENGE_BUTTON_WIDTH) / 2;
+
+const REVENGE_BUTTON_Y =
+    CANVAS_HEIGHT / 2 + 55;
+
+
+// ============================================================
 // CONFIGURACIÓN DE AUDIO
 // ============================================================
 
@@ -90,7 +107,6 @@ let rightScore = 0;
 // ESTADO DEL SAQUE
 // ============================================================
 
-// El jugador izquierdo comienza sacando.
 let servingPlayer = "left";
 
 
@@ -99,6 +115,7 @@ let servingPlayer = "left";
 // ============================================================
 
 let gameOver = false;
+let winner = null;
 
 
 // ============================================================
@@ -277,6 +294,15 @@ window.addEventListener("keydown", (event) => {
 
 
     // --------------------------------------------------------
+    // No aceptar controles durante la pantalla de victoria
+    // --------------------------------------------------------
+
+    if (gameOver) {
+        return;
+    }
+
+
+    // --------------------------------------------------------
     // Jugador 1
     // --------------------------------------------------------
 
@@ -314,10 +340,6 @@ window.addEventListener("keyup", (event) => {
     const key = event.key.toLowerCase();
 
 
-    // --------------------------------------------------------
-    // Jugador 1
-    // --------------------------------------------------------
-
     if (key === "w") {
         keys.w = false;
     }
@@ -325,11 +347,6 @@ window.addEventListener("keyup", (event) => {
     if (key === "s") {
         keys.s = false;
     }
-
-
-    // --------------------------------------------------------
-    // Jugador 2
-    // --------------------------------------------------------
 
     if (event.key === "ArrowUp") {
         keys.ArrowUp = false;
@@ -342,10 +359,64 @@ window.addEventListener("keyup", (event) => {
 
 
 // ============================================================
+// CLICK — BOTÓN REVANCHA
+// ============================================================
+
+canvas.addEventListener("click", (event) => {
+
+    if (!gameOver) {
+        return;
+    }
+
+
+    // --------------------------------------------------------
+    // Convertir coordenadas del navegador
+    // a coordenadas internas del Canvas
+    // --------------------------------------------------------
+
+    const rect = canvas.getBoundingClientRect();
+
+    const scaleX =
+        CANVAS_WIDTH / rect.width;
+
+    const scaleY =
+        CANVAS_HEIGHT / rect.height;
+
+    const mouseX =
+        (event.clientX - rect.left) * scaleX;
+
+    const mouseY =
+        (event.clientY - rect.top) * scaleY;
+
+
+    // --------------------------------------------------------
+    // Comprobar si hizo click en REVANCHA
+    // --------------------------------------------------------
+
+    if (
+        mouseX >= REVENGE_BUTTON_X &&
+        mouseX <=
+            REVENGE_BUTTON_X + REVENGE_BUTTON_WIDTH &&
+        mouseY >= REVENGE_BUTTON_Y &&
+        mouseY <=
+            REVENGE_BUTTON_Y + REVENGE_BUTTON_HEIGHT
+    ) {
+
+        restartGame();
+    }
+});
+
+
+// ============================================================
 // ACTUALIZACIÓN DE LAS PALETAS
 // ============================================================
 
 function updatePaddles() {
+
+    if (gameOver) {
+        return;
+    }
+
 
     // --------------------------------------------------------
     // Movimiento jugador 1
@@ -374,7 +445,7 @@ function updatePaddles() {
 
 
     // --------------------------------------------------------
-    // Límites verticales de la cancha
+    // Límites verticales
     // --------------------------------------------------------
 
     const topLimit = COURT_TOP;
@@ -382,10 +453,6 @@ function updatePaddles() {
     const bottomLimit =
         COURT_BOTTOM - PADDLE_HEIGHT;
 
-
-    // --------------------------------------------------------
-    // Limitar paleta izquierda
-    // --------------------------------------------------------
 
     if (leftPaddle.y < topLimit) {
         leftPaddle.y = topLimit;
@@ -395,10 +462,6 @@ function updatePaddles() {
         leftPaddle.y = bottomLimit;
     }
 
-
-    // --------------------------------------------------------
-    // Limitar paleta derecha
-    // --------------------------------------------------------
 
     if (rightPaddle.y < topLimit) {
         rightPaddle.y = topLimit;
@@ -416,7 +479,6 @@ function updatePaddles() {
 
 function updateBall() {
 
-    // Si terminó el juego, no seguimos moviendo la pelota.
     if (gameOver) {
         return;
     }
@@ -541,32 +603,31 @@ function updateBall() {
 function handlePoint() {
 
     // --------------------------------------------------------
-    // Comprobar si terminó el juego
+    // Comprobar ganador
     // --------------------------------------------------------
 
     if (checkGameWinner()) {
 
         gameOver = true;
 
-        console.log(
+        winner =
             leftScore > rightScore
-                ? "Ganó el jugador izquierdo"
-                : "Ganó el jugador derecho"
-        );
+                ? "left"
+                : "right";
 
         return;
     }
 
 
     // --------------------------------------------------------
-    // Cambiar el saque
+    // Actualizar saque
     // --------------------------------------------------------
 
     updateServe();
 
 
     // --------------------------------------------------------
-    // Preparar el siguiente saque
+    // Preparar siguiente saque
     // --------------------------------------------------------
 
     resetBall();
@@ -584,7 +645,7 @@ function checkGameWinner() {
 
 
     // --------------------------------------------------------
-    // Ningún jugador llegó a 11
+    // Nadie llegó a 11
     // --------------------------------------------------------
 
     if (
@@ -596,7 +657,7 @@ function checkGameWinner() {
 
 
     // --------------------------------------------------------
-    // Ganar requiere 2 puntos de diferencia
+    // Se necesitan 2 puntos de diferencia
     // --------------------------------------------------------
 
     if (scoreDifference < WIN_MARGIN) {
@@ -619,16 +680,13 @@ function updateServe() {
 
 
     // --------------------------------------------------------
-    // Deuce — 10 a 10 o más
+    // DEUCE — 10 / 10 o superior
     // --------------------------------------------------------
 
     if (
         leftScore >= 10 &&
         rightScore >= 10
     ) {
-
-        // Después de 10-10 el saque cambia
-        // después de cada punto.
 
         servingPlayer =
             servingPlayer === "left"
@@ -640,10 +698,8 @@ function updateServe() {
 
 
     // --------------------------------------------------------
-    // Antes del deuce
+    // SAQUE CADA DOS PUNTOS
     // --------------------------------------------------------
-
-    // Cada jugador saca durante dos puntos.
 
     const serveBlock =
         Math.floor(totalPoints / 2);
@@ -674,31 +730,77 @@ function resetBall() {
 
 
     // --------------------------------------------------------
-    // Dirección según el jugador que saca
+    // Dirección según el saque
     // --------------------------------------------------------
 
     if (servingPlayer === "left") {
 
-        // Saque desde la izquierda hacia la derecha.
         ball.velocityX =
             Math.abs(BALL_SPEED_X);
 
     } else {
 
-        // Saque desde la derecha hacia la izquierda.
         ball.velocityX =
             -Math.abs(BALL_SPEED_X);
     }
 
 
     // --------------------------------------------------------
-    // Mantener dirección vertical actual
+    // Dirección vertical
     // --------------------------------------------------------
 
     if (ball.velocityY === 0) {
 
         ball.velocityY = BALL_SPEED_Y;
     }
+}
+
+
+// ============================================================
+// REINICIAR PARTIDO — REVANCHA
+// ============================================================
+
+function restartGame() {
+
+    // --------------------------------------------------------
+    // Marcador
+    // --------------------------------------------------------
+
+    leftScore = 0;
+    rightScore = 0;
+
+
+    // --------------------------------------------------------
+    // Saque inicial
+    // --------------------------------------------------------
+
+    servingPlayer = "left";
+
+
+    // --------------------------------------------------------
+    // Estado del partido
+    // --------------------------------------------------------
+
+    gameOver = false;
+    winner = null;
+
+
+    // --------------------------------------------------------
+    // Reiniciar posiciones
+    // --------------------------------------------------------
+
+    leftPaddle.y =
+        (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
+
+    rightPaddle.y =
+        (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
+
+
+    // --------------------------------------------------------
+    // Reiniciar pelota
+    // --------------------------------------------------------
+
+    resetBall();
 }
 
 
@@ -836,7 +938,7 @@ function drawScore() {
 
 
     // --------------------------------------------------------
-    // Marcador jugador izquierdo
+    // Jugador izquierdo
     // --------------------------------------------------------
 
     context.fillText(
@@ -847,7 +949,7 @@ function drawScore() {
 
 
     // --------------------------------------------------------
-    // Marcador jugador derecho
+    // Jugador derecho
     // --------------------------------------------------------
 
     context.fillText(
@@ -857,8 +959,86 @@ function drawScore() {
     );
 
 
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
+}
+
+
+// ============================================================
+// RENDERIZADO DE LA PANTALLA DE VICTORIA
+// ============================================================
+
+function drawVictoryScreen() {
+
     // --------------------------------------------------------
-    // Restaurar alineación
+    // Oscurecer ligeramente la cancha
+    // --------------------------------------------------------
+
+    context.fillStyle = "rgba(0, 0, 0, 0.65)";
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
+    );
+
+
+    // --------------------------------------------------------
+    // Texto ganador
+    // --------------------------------------------------------
+
+    context.fillStyle = "#FFFFFF";
+
+    context.font = WINNER_FONT;
+
+    context.textAlign = "center";
+
+    context.textBaseline = "middle";
+
+
+    const winnerText =
+        winner === "left"
+            ? "LA IZQUIERDA GANA"
+            : "LA DERECHA GANA";
+
+
+    context.fillText(
+        winnerText,
+        CANVAS_WIDTH / 2,
+        CANVAS_HEIGHT / 2 - 35
+    );
+
+
+    // --------------------------------------------------------
+    // Botón REVANCHA
+    // --------------------------------------------------------
+
+    context.strokeStyle = "#FFFFFF";
+    context.lineWidth = 3;
+
+    context.strokeRect(
+        REVENGE_BUTTON_X,
+        REVENGE_BUTTON_Y,
+        REVENGE_BUTTON_WIDTH,
+        REVENGE_BUTTON_HEIGHT
+    );
+
+
+    context.fillStyle = "#FFFFFF";
+
+    context.font = REVENGE_FONT;
+
+    context.fillText(
+        "¿REVANCHA?",
+        CANVAS_WIDTH / 2,
+        REVENGE_BUTTON_Y +
+            REVENGE_BUTTON_HEIGHT / 2
+    );
+
+
+    // --------------------------------------------------------
+    // Restaurar configuración
     // --------------------------------------------------------
 
     context.textAlign = "start";
@@ -879,10 +1059,25 @@ function drawGame() {
         CANVAS_HEIGHT
     );
 
+
+    // --------------------------------------------------------
+    // Elementos normales
+    // --------------------------------------------------------
+
     drawCourt();
     drawPaddles();
     drawBall();
     drawScore();
+
+
+    // --------------------------------------------------------
+    // Pantalla de victoria
+    // --------------------------------------------------------
+
+    if (gameOver) {
+
+        drawVictoryScreen();
+    }
 }
 
 
