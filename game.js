@@ -2,8 +2,9 @@
 // ARGENPONG — GAME.JS
 // ============================================================
 
+
 // ============================================================
-// CANVAS
+// 1. CANVAS Y DIMENSIONES
 // ============================================================
 
 const W = 1280;
@@ -12,8 +13,9 @@ const H = 720;
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+
 // ============================================================
-// CONFIGURACIÓN
+// 2. CONFIGURACIÓN GENERAL
 // ============================================================
 
 const TABLE = {
@@ -33,9 +35,14 @@ const DEFAULTS = {
     courtColor: "black",
     paddleSensitivity: 1,
     ballSpeed: 5,
-    progressive: false,
+    progressiveSpeed: false,
     progressiveSensitivity: 1
 };
+
+
+// ============================================================
+// 3. CONFIGURACIÓN DE PALETAS Y PELOTA
+// ============================================================
 
 const PADDLE = {
     width: 20,
@@ -46,15 +53,14 @@ const PADDLE = {
 
 const BALL = {
     size: 20,
-    baseY: 5,
+    verticalSpeed: 5,
     maxSpeed: 11
 };
 
-const SENSITIVITY = {
-    min: 0.5,
-    max: 2,
-    step: 0.1
-};
+
+// ============================================================
+// 4. CONFIGURACIÓN DE FÍSICAS
+// ============================================================
 
 const PHYSICS = {
     speedMin: 1,
@@ -65,14 +71,24 @@ const PHYSICS = {
     sensitivityMax: 2,
     sensitivityStep: 0.1,
 
-    // Aumento por rebote
-    increment: 0.05
+    // Porcentaje de aumento aplicado en cada rebote.
+    incrementPerBounce: 0.05
 };
+
+
+// ============================================================
+// 5. CONFIGURACIÓN DEL PARTIDO
+// ============================================================
 
 const MATCH = {
     winScore: 11,
     winMargin: 2
 };
+
+
+// ============================================================
+// 6. CONFIGURACIÓN VISUAL
+// ============================================================
 
 const CENTER_LINE = {
     width: 4,
@@ -83,41 +99,92 @@ const CENTER_LINE = {
 const UI = {
     titleFont: "bold 48px monospace",
     buttonFont: "bold 24px monospace",
-    winnerFont: "bold 52px monospace",
-
-    buttonW: 300,
-    buttonH: 60,
-    gap: 20
+    winnerFont: "bold 52px monospace"
 };
 
-const SUBMENU = {
-    buttonW: 280,
-    buttonH: 55,
+
+// ============================================================
+// 7. CONFIGURACIÓN DE MENÚS
+// ============================================================
+
+// Menú de pausa
+const PAUSE_UI = {
+    buttonWidth: 300,
+    buttonHeight: 60,
+    gap: 20,
+
+    startY: H / 2 - 70
+};
+
+// Menú principal de ajustes
+const SETTINGS_UI = {
+    buttonWidth: 240,
+    buttonHeight: 55,
     gap: 15,
+
+    startY: H / 2 - 125
+};
+
+// Submenús generales
+const SUBMENU_UI = {
+    buttonWidth: 280,
+    buttonHeight: 55,
+    gap: 15,
+
     startY: 150
 };
 
+// Menú de controles
 const CONTROLS_UI = {
-    buttonW: 180,
-    buttonH: 42,
+    buttonWidth: 180,
+    buttonHeight: 42,
 
     leftX: 140,
     rightX: 680,
 
     startY: 170,
-    rowGap: 58
+    rowGap: 58,
+
+    bottomButtonWidth: 220,
+    bottomButtonHeight: 50
 };
 
-const REVENGE = {
-    width: 260,
-    height: 60,
+// Menú de físicas
+//
+// Todas las posiciones de este menú están definidas acá.
+// El dibujo, el hover y el click utilizan estas mismas
+// definiciones.
+const PHYSICS_UI = {
+    width: 300,
+    height: 55,
+
+    centerX: (W - 300) / 2,
+
+    speedPlusY: 150,
+    speedMinusY: 220,
+    progressiveY: 290,
+
+    sensitivityY: 360,
+
+    backY: 470,
+    resetY: 540,
+
+    sensitivityButtonWidth: 45,
+    sensitivityValueWidth: 200
+};
+
+// Pantalla de victoria
+const VICTORY_UI = {
+    buttonWidth: 260,
+    buttonHeight: 60,
 
     x: (W - 260) / 2,
     y: H / 2 + 55
 };
 
+
 // ============================================================
-// ESTADO GENERAL
+// 8. ESTADO DEL JUEGO
 // ============================================================
 
 let courtColor = DEFAULTS.courtColor;
@@ -132,6 +199,11 @@ let winner = null;
 
 let gamePaused = false;
 
+
+// ============================================================
+// 9. ESTADO DE MENÚS
+// ============================================================
+
 let settingsOpen = false;
 let controlsOpen = false;
 let backgroundOpen = false;
@@ -140,20 +212,22 @@ let physicsOpen = false;
 let hoveredButton = null;
 let waitingForKey = null;
 
+
 // ============================================================
-// FÍSICAS
+// 10. ESTADO DE FÍSICAS
 // ============================================================
 
 let ballSpeed = DEFAULTS.ballSpeed;
 
 let progressiveSpeed =
-    DEFAULTS.progressive;
+    DEFAULTS.progressiveSpeed;
 
 let progressiveSensitivity =
     DEFAULTS.progressiveSensitivity;
 
+
 // ============================================================
-// PALETAS
+// 11. JUGADORES Y PALETAS
 // ============================================================
 
 const leftPaddle = {
@@ -166,8 +240,9 @@ const rightPaddle = {
     y: (H - PADDLE.height) / 2
 };
 
+
 // ============================================================
-// PELOTA
+// 12. PELOTA
 // ============================================================
 
 const ball = {
@@ -175,11 +250,12 @@ const ball = {
     y: (H - BALL.size) / 2,
 
     velocityX: DEFAULTS.ballSpeed,
-    velocityY: BALL.baseY
+    velocityY: BALL.verticalSpeed
 };
 
+
 // ============================================================
-// CONTROLES
+// 13. CONTROLES DEL JUGADOR
 // ============================================================
 
 const playerDefaults = {
@@ -213,8 +289,9 @@ const keys = {};
 let mouseY = H / 2;
 let previousMouseY = null;
 
+
 // ============================================================
-// AUDIO
+// 14. AUDIO
 // ============================================================
 
 let audioContext = null;
@@ -278,8 +355,9 @@ function toggleMute() {
     audioMuted = !audioMuted;
 }
 
+
 // ============================================================
-// UTILIDADES
+// 15. UTILIDADES GENERALES
 // ============================================================
 
 function clamp(value, min, max) {
@@ -294,29 +372,19 @@ function round1(value) {
 }
 
 function isInsideButton(
-    mx,
-    my,
+    mouseX,
+    mouseY,
     x,
     y,
     width,
     height
 ) {
     return (
-        mx >= x &&
-        mx <= x + width &&
-        my >= y &&
-        my <= y + height
+        mouseX >= x &&
+        mouseX <= x + width &&
+        mouseY >= y &&
+        mouseY <= y + height
     );
-}
-
-function buttonY(
-    start,
-    index,
-    height,
-    gap
-) {
-    return start +
-        index * (height + gap);
 }
 
 function canvasMouse(event) {
@@ -355,14 +423,9 @@ function formatKey(key) {
     );
 }
 
-function setCourtColor(color) {
-    if (COLORS[color]) {
-        courtColor = color;
-    }
-}
 
 // ============================================================
-// ESTADO DE MENÚS
+// 16. ESTADO DE MENÚS
 // ============================================================
 
 function closeAllMenus() {
@@ -384,8 +447,9 @@ function isAnyMenuOpen() {
     );
 }
 
+
 // ============================================================
-// RESTABLECER CONTROLES
+// 17. RESTABLECER CONFIGURACIÓN
 // ============================================================
 
 function resetControlsDefaults() {
@@ -410,7 +474,7 @@ function resetPhysicsDefaults() {
         DEFAULTS.ballSpeed;
 
     progressiveSpeed =
-        DEFAULTS.progressive;
+        DEFAULTS.progressiveSpeed;
 
     progressiveSensitivity =
         DEFAULTS.progressiveSensitivity;
@@ -418,18 +482,21 @@ function resetPhysicsDefaults() {
     resetBall();
 }
 
+
 // ============================================================
-// TECLADO
+// 18. ENTRADA DE TECLADO
 // ============================================================
 
 window.addEventListener(
     "keydown",
     event => {
+
         initializeAudio();
 
-        // --------------------------------------------
-        // REASIGNACIÓN DE TECLA
-        // --------------------------------------------
+
+        // ----------------------------------------------------
+        // REASIGNACIÓN DE CONTROLES
+        // ----------------------------------------------------
 
         if (waitingForKey) {
             event.preventDefault();
@@ -452,31 +519,38 @@ window.addEventListener(
             return;
         }
 
-        // --------------------------------------------
+
+        // ----------------------------------------------------
         // MUTE
-        // --------------------------------------------
+        // ----------------------------------------------------
 
         if (
             event.key.toLowerCase() === "m"
         ) {
             event.preventDefault();
+
             toggleMute();
+
             return;
         }
 
-        // --------------------------------------------
+
+        // ----------------------------------------------------
         // ESC
-        // --------------------------------------------
+        // ----------------------------------------------------
 
         if (event.key === "Escape") {
             event.preventDefault();
+
             handleEscape();
+
             return;
         }
 
-        // --------------------------------------------
-        // JUEGO
-        // --------------------------------------------
+
+        // ----------------------------------------------------
+        // CONTROLES DURANTE EL JUEGO
+        // ----------------------------------------------------
 
         if (
             gamePaused ||
@@ -496,16 +570,19 @@ window.addEventListener(
     }
 );
 
+
 // ============================================================
-// ESC
+// 19. COMPORTAMIENTO DE ESC
 // ============================================================
 
 function handleEscape() {
+
     if (gameOver) {
         return;
     }
 
-    // Si hay algún submenu abierto,
+
+    // Si hay un submenú abierto,
     // ESC vuelve directamente al juego.
     if (isAnyMenuOpen()) {
         closeAllMenus();
@@ -515,26 +592,34 @@ function handleEscape() {
         return;
     }
 
-    // Si está pausado, continúa.
+
+    // Si está pausado,
+    // ESC continúa.
     if (gamePaused) {
         gamePaused = false;
+
         hoveredButton = null;
 
         return;
     }
 
-    // Si está jugando, pausa.
+
+    // Si está jugando,
+    // ESC pausa.
     gamePaused = true;
+
     hoveredButton = null;
 }
 
+
 // ============================================================
-// MOUSE MOVE
+// 20. ENTRADA DE MOUSE
 // ============================================================
 
 canvas.addEventListener(
     "mousemove",
     event => {
+
         const {
             x,
             y
@@ -542,18 +627,22 @@ canvas.addEventListener(
 
         mouseY = y;
 
-        // --------------------------------------------
-        // CONTROL POR MOUSE
-        // --------------------------------------------
+
+        // ----------------------------------------------------
+        // CONTROL DE PALETA CON MOUSE
+        // ----------------------------------------------------
 
         if (
             !gamePaused &&
             !gameOver &&
             !isAnyMenuOpen()
         ) {
+
             if (previousMouseY !== null) {
+
                 const delta =
                     y - previousMouseY;
+
 
                 if (
                     playerControls.left.mouse
@@ -562,6 +651,7 @@ canvas.addEventListener(
                         delta *
                         playerControls.left.sensitivity;
                 }
+
 
                 if (
                     playerControls.right.mouse
@@ -575,19 +665,22 @@ canvas.addEventListener(
             }
         }
 
+
         previousMouseY = y;
 
         updateHoveredButton(x, y);
     }
 );
 
+
 // ============================================================
-// CLICK
+// 21. CLICK DEL MOUSE
 // ============================================================
 
 canvas.addEventListener(
     "click",
     event => {
+
         initializeAudio();
 
         const {
@@ -595,19 +688,15 @@ canvas.addEventListener(
             y
         } = canvasMouse(event);
 
-        // --------------------------------------------
-        // GAME OVER
-        // --------------------------------------------
 
+        // Pantalla de victoria
         if (gameOver) {
-            handleGameOverClick(x, y);
+            handleVictoryClick(x, y);
             return;
         }
 
-        // --------------------------------------------
-        // SUBMENÚS
-        // --------------------------------------------
 
+        // Submenús
         if (controlsOpen) {
             handleControlsClick(x, y);
             return;
@@ -628,42 +717,57 @@ canvas.addEventListener(
             return;
         }
 
-        // --------------------------------------------
-        // PAUSA
-        // --------------------------------------------
 
+        // Menú de pausa
         if (gamePaused) {
             handlePauseClick(x, y);
         }
     }
 );
 
+
 // ============================================================
-// PAUSA
+// 22. PAUSA — LÓGICA
 // ============================================================
 
-function pauseButton(index) {
-    return buttonY(
-        H / 2 - 70,
-        index,
-        UI.buttonH,
-        UI.gap
-    );
+function getPauseButton(index) {
+    return {
+        x:
+            (W - PAUSE_UI.buttonWidth) / 2,
+
+        y:
+            PAUSE_UI.startY +
+            index *
+                (
+                    PAUSE_UI.buttonHeight +
+                    PAUSE_UI.gap
+                ),
+
+        width:
+            PAUSE_UI.buttonWidth,
+
+        height:
+            PAUSE_UI.buttonHeight
+    };
 }
 
 function handlePauseClick(x, y) {
-    const bx =
-        (W - UI.buttonW) / 2;
 
-    // CONTINUAR
+    const continueButton =
+        getPauseButton(0);
+
+    const settingsButton =
+        getPauseButton(1);
+
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            pauseButton(0),
-            UI.buttonW,
-            UI.buttonH
+            continueButton.x,
+            continueButton.y,
+            continueButton.width,
+            continueButton.height
         )
     ) {
         gamePaused = false;
@@ -672,15 +776,15 @@ function handlePauseClick(x, y) {
         return;
     }
 
-    // AJUSTES
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            pauseButton(1),
-            UI.buttonW,
-            UI.buttonH
+            settingsButton.x,
+            settingsButton.y,
+            settingsButton.width,
+            settingsButton.height
         )
     ) {
         settingsOpen = true;
@@ -690,45 +794,56 @@ function handlePauseClick(x, y) {
     }
 }
 
+
 // ============================================================
-// AJUSTES
+// 23. AJUSTES — LÓGICA
 // ============================================================
 
-function settingsButton(index) {
-    return buttonY(
-        H / 2 - 125,
-        index,
-        55,
-        15
-    );
+function getSettingsButton(index) {
+    return {
+        x:
+            (W - SETTINGS_UI.buttonWidth) / 2,
+
+        y:
+            SETTINGS_UI.startY +
+            index *
+                (
+                    SETTINGS_UI.buttonHeight +
+                    SETTINGS_UI.gap
+                ),
+
+        width:
+            SETTINGS_UI.buttonWidth,
+
+        height:
+            SETTINGS_UI.buttonHeight
+    };
 }
 
 function handleSettingsClick(x, y) {
-    const bx =
-        (W - 240) / 2;
 
     const buttons = [
         {
             index: 0,
             action: () => {
-                controlsOpen = true;
                 settingsOpen = false;
+                controlsOpen = true;
             }
         },
 
         {
             index: 1,
             action: () => {
-                backgroundOpen = true;
                 settingsOpen = false;
+                backgroundOpen = true;
             }
         },
 
         {
             index: 2,
             action: () => {
-                physicsOpen = true;
                 settingsOpen = false;
+                physicsOpen = true;
             }
         },
 
@@ -741,18 +856,26 @@ function handleSettingsClick(x, y) {
         }
     ];
 
-    for (const button of buttons) {
+
+    for (const buttonData of buttons) {
+
+        const button =
+            getSettingsButton(
+                buttonData.index
+            );
+
         if (
             isInsideButton(
                 x,
                 y,
-                bx,
-                settingsButton(button.index),
-                240,
-                55
+                button.x,
+                button.y,
+                button.width,
+                button.height
             )
         ) {
-            button.action();
+            buttonData.action();
+
             hoveredButton = null;
 
             return;
@@ -760,22 +883,33 @@ function handleSettingsClick(x, y) {
     }
 }
 
+
 // ============================================================
-// FONDO
+// 24. FONDO — LÓGICA
 // ============================================================
 
-function backgroundButton(index) {
-    return buttonY(
-        SUBMENU.startY,
-        index,
-        SUBMENU.buttonH,
-        SUBMENU.gap
-    );
+function getBackgroundButton(index) {
+    return {
+        x:
+            (W - SUBMENU_UI.buttonWidth) / 2,
+
+        y:
+            SUBMENU_UI.startY +
+            index *
+                (
+                    SUBMENU_UI.buttonHeight +
+                    SUBMENU_UI.gap
+                ),
+
+        width:
+            SUBMENU_UI.buttonWidth,
+
+        height:
+            SUBMENU_UI.buttonHeight
+    };
 }
 
 function handleBackgroundClick(x, y) {
-    const bx =
-        (W - SUBMENU.buttonW) / 2;
 
     const colors = [
         "green",
@@ -783,84 +917,196 @@ function handleBackgroundClick(x, y) {
         "black"
     ];
 
-    // COLORES
+
+    // Colores
     for (
         let i = 0;
         i < colors.length;
         i++
     ) {
+
+        const button =
+            getBackgroundButton(i);
+
         if (
             isInsideButton(
                 x,
                 y,
-                bx,
-                backgroundButton(i),
-                SUBMENU.buttonW,
-                SUBMENU.buttonH
+                button.x,
+                button.y,
+                button.width,
+                button.height
             )
         ) {
-            setCourtColor(colors[i]);
+            courtColor = colors[i];
+
             return;
         }
     }
 
-    // RESTABLECER
+
+    // Restablecer
+    const resetButton =
+        getBackgroundButton(3);
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            backgroundButton(3),
-            SUBMENU.buttonW,
-            SUBMENU.buttonH
+            resetButton.x,
+            resetButton.y,
+            resetButton.width,
+            resetButton.height
         )
     ) {
         resetBackgroundDefaults();
+
         return;
     }
 
-    // VOLVER
+
+    // Volver
+    const backButton =
+        getBackgroundButton(4);
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            backgroundButton(4),
-            SUBMENU.buttonW,
-            SUBMENU.buttonH
+            backButton.x,
+            backButton.y,
+            backButton.width,
+            backButton.height
         )
     ) {
         backgroundOpen = false;
+
         return;
     }
 }
 
+
 // ============================================================
-// FÍSICAS
+// 25. FÍSICAS — LÓGICA
 // ============================================================
 
-function physicsButton(index) {
-    return buttonY(
-        SUBMENU.startY,
-        index,
-        SUBMENU.buttonH,
-        SUBMENU.gap
-    );
+function getPhysicsButton(type) {
+
+    const base = {
+        width: PHYSICS_UI.width,
+        height: PHYSICS_UI.height
+    };
+
+
+    switch (type) {
+
+        case "speedPlus":
+            return {
+                ...base,
+                x: PHYSICS_UI.centerX,
+                y: PHYSICS_UI.speedPlusY
+            };
+
+
+        case "speedMinus":
+            return {
+                ...base,
+                x: PHYSICS_UI.centerX,
+                y: PHYSICS_UI.speedMinusY
+            };
+
+
+        case "progressive":
+            return {
+                ...base,
+                x: PHYSICS_UI.centerX,
+                y: PHYSICS_UI.progressiveY
+            };
+
+
+        case "sensitivityMinus":
+            return {
+                width:
+                    PHYSICS_UI.sensitivityButtonWidth,
+
+                height:
+                    PHYSICS_UI.height,
+
+                x:
+                    PHYSICS_UI.centerX,
+
+                y:
+                    PHYSICS_UI.sensitivityY
+            };
+
+
+        case "sensitivityValue":
+            return {
+                width:
+                    PHYSICS_UI.sensitivityValueWidth,
+
+                height:
+                    PHYSICS_UI.height,
+
+                x:
+                    PHYSICS_UI.centerX + 55,
+
+                y:
+                    PHYSICS_UI.sensitivityY
+            };
+
+
+        case "sensitivityPlus":
+            return {
+                width:
+                    PHYSICS_UI.sensitivityButtonWidth,
+
+                height:
+                    PHYSICS_UI.height,
+
+                x:
+                    PHYSICS_UI.centerX + 255,
+
+                y:
+                    PHYSICS_UI.sensitivityY
+            };
+
+
+        case "back":
+            return {
+                ...base,
+                x: PHYSICS_UI.centerX,
+                y: PHYSICS_UI.backY
+            };
+
+
+        case "reset":
+            return {
+                ...base,
+                x: PHYSICS_UI.centerX,
+                y: PHYSICS_UI.resetY
+            };
+
+
+        default:
+            return null;
+    }
 }
 
 function handlePhysicsClick(x, y) {
-    const bx =
-        (W - 300) / 2;
 
-    // VELOCIDAD +
+    // Velocidad +
+    const speedPlus =
+        getPhysicsButton("speedPlus");
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            physicsButton(0),
-            300,
-            55
+            speedPlus.x,
+            speedPlus.y,
+            speedPlus.width,
+            speedPlus.height
         )
     ) {
         ballSpeed =
@@ -876,15 +1122,19 @@ function handlePhysicsClick(x, y) {
         return;
     }
 
-    // VELOCIDAD -
+
+    // Velocidad -
+    const speedMinus =
+        getPhysicsButton("speedMinus");
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            physicsButton(1),
-            300,
-            55
+            speedMinus.x,
+            speedMinus.y,
+            speedMinus.width,
+            speedMinus.height
         )
     ) {
         ballSpeed =
@@ -900,15 +1150,19 @@ function handlePhysicsClick(x, y) {
         return;
     }
 
-    // PROGRESIVA
+
+    // Velocidad progresiva
+    const progressive =
+        getPhysicsButton("progressive");
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            physicsButton(2),
-            300,
-            55
+            progressive.x,
+            progressive.y,
+            progressive.width,
+            progressive.height
         )
     ) {
         progressiveSpeed =
@@ -917,15 +1171,21 @@ function handlePhysicsClick(x, y) {
         return;
     }
 
-    // SENSIBILIDAD -
+
+    // Sensibilidad progresiva -
+    const sensitivityMinus =
+        getPhysicsButton(
+            "sensitivityMinus"
+        );
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            physicsButton(3),
-            45,
-            55
+            sensitivityMinus.x,
+            sensitivityMinus.y,
+            sensitivityMinus.width,
+            sensitivityMinus.height
         )
     ) {
         progressiveSensitivity =
@@ -941,15 +1201,21 @@ function handlePhysicsClick(x, y) {
         return;
     }
 
-    // SENSIBILIDAD +
+
+    // Sensibilidad progresiva +
+    const sensitivityPlus =
+        getPhysicsButton(
+            "sensitivityPlus"
+        );
+
     if (
         isInsideButton(
             x,
             y,
-            bx + 255,
-            physicsButton(3),
-            45,
-            55
+            sensitivityPlus.x,
+            sensitivityPlus.y,
+            sensitivityPlus.width,
+            sensitivityPlus.height
         )
     ) {
         progressiveSensitivity =
@@ -965,42 +1231,53 @@ function handlePhysicsClick(x, y) {
         return;
     }
 
-    // VOLVER
+
+    // Volver
+    const back =
+        getPhysicsButton("back");
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            physicsButton(4),
-            300,
-            55
+            back.x,
+            back.y,
+            back.width,
+            back.height
         )
     ) {
         physicsOpen = false;
+
         return;
     }
 
-    // RESTABLECER
+
+    // Restablecer
+    const reset =
+        getPhysicsButton("reset");
+
     if (
         isInsideButton(
             x,
             y,
-            bx,
-            physicsButton(5),
-            300,
-            55
+            reset.x,
+            reset.y,
+            reset.width,
+            reset.height
         )
     ) {
         resetPhysicsDefaults();
+
         return;
     }
 }
 
+
 // ============================================================
-// CONTROLES
+// 26. CONTROLES — LÓGICA
 // ============================================================
 
-function controlRow(index) {
+function getControlRowY(index) {
     return (
         CONTROLS_UI.startY +
         index *
@@ -1008,7 +1285,7 @@ function controlRow(index) {
     );
 }
 
-function controlPlayerX(player) {
+function getControlPlayerX(player) {
     return (
         player === "left"
             ? CONTROLS_UI.leftX
@@ -1016,10 +1293,7 @@ function controlPlayerX(player) {
     );
 }
 
-function startKeyRebind(
-    player,
-    action
-) {
+function startKeyRebind(player, action) {
     waitingForKey = {
         player,
         action
@@ -1045,24 +1319,28 @@ function changeSensitivity(
 }
 
 function handleControlsClick(x, y) {
+
     for (
         const player of
         ["left", "right"]
     ) {
-        const px =
-            controlPlayerX(player);
 
-        const bx = px + 125;
+        const playerX =
+            getControlPlayerX(player);
 
-        // ARRIBA
+        const buttonX =
+            playerX + 125;
+
+
+        // Arriba
         if (
             isInsideButton(
                 x,
                 y,
-                bx,
-                controlRow(0),
-                CONTROLS_UI.buttonW,
-                CONTROLS_UI.buttonH
+                buttonX,
+                getControlRowY(0),
+                CONTROLS_UI.buttonWidth,
+                CONTROLS_UI.buttonHeight
             )
         ) {
             startKeyRebind(
@@ -1073,15 +1351,16 @@ function handleControlsClick(x, y) {
             return;
         }
 
-        // ABAJO
+
+        // Abajo
         if (
             isInsideButton(
                 x,
                 y,
-                bx,
-                controlRow(1),
-                CONTROLS_UI.buttonW,
-                CONTROLS_UI.buttonH
+                buttonX,
+                getControlRowY(1),
+                CONTROLS_UI.buttonWidth,
+                CONTROLS_UI.buttonHeight
             )
         ) {
             startKeyRebind(
@@ -1092,15 +1371,16 @@ function handleControlsClick(x, y) {
             return;
         }
 
-        // MOUSE
+
+        // Mouse
         if (
             isInsideButton(
                 x,
                 y,
-                bx,
-                controlRow(2),
-                CONTROLS_UI.buttonW,
-                CONTROLS_UI.buttonH
+                buttonX,
+                getControlRowY(2),
+                CONTROLS_UI.buttonWidth,
+                CONTROLS_UI.buttonHeight
             )
         ) {
             playerControls[player].mouse =
@@ -1109,15 +1389,16 @@ function handleControlsClick(x, y) {
             return;
         }
 
-        // SENS -
+
+        // Sensibilidad -
         if (
             isInsideButton(
                 x,
                 y,
-                bx,
-                controlRow(3),
+                buttonX,
+                getControlRowY(3),
                 45,
-                CONTROLS_UI.buttonH
+                CONTROLS_UI.buttonHeight
             )
         ) {
             changeSensitivity(
@@ -1128,15 +1409,16 @@ function handleControlsClick(x, y) {
             return;
         }
 
-        // SENS +
+
+        // Sensibilidad +
         if (
             isInsideButton(
                 x,
                 y,
-                bx + 135,
-                controlRow(3),
+                buttonX + 135,
+                getControlRowY(3),
                 45,
-                CONTROLS_UI.buttonH
+                CONTROLS_UI.buttonHeight
             )
         ) {
             changeSensitivity(
@@ -1148,7 +1430,8 @@ function handleControlsClick(x, y) {
         }
     }
 
-    // RESTABLECER
+
+    // Restablecer
     if (
         isInsideButton(
             x,
@@ -1160,10 +1443,12 @@ function handleControlsClick(x, y) {
         )
     ) {
         resetControlsDefaults();
+
         return;
     }
 
-    // VOLVER
+
+    // Volver
     if (
         isInsideButton(
             x,
@@ -1181,389 +1466,34 @@ function handleControlsClick(x, y) {
     }
 }
 
+
 // ============================================================
-// GAME OVER CLICK
+// 27. PANTALLA DE VICTORIA — LÓGICA
 // ============================================================
 
-function handleGameOverClick(x, y) {
+function handleVictoryClick(x, y) {
+
     if (
         isInsideButton(
             x,
             y,
-            REVENGE.x,
-            REVENGE.y,
-            REVENGE.width,
-            REVENGE.height
+            VICTORY_UI.x,
+            VICTORY_UI.y,
+            VICTORY_UI.buttonWidth,
+            VICTORY_UI.buttonHeight
         )
     ) {
         restartGame();
     }
 }
 
-// ============================================================
-// HOVER GENERAL
-// ============================================================
-
-function updateHoveredButton(x, y) {
-    hoveredButton = null;
-
-    if (gameOver) {
-        if (
-            isInsideButton(
-                x,
-                y,
-                REVENGE.x,
-                REVENGE.y,
-                REVENGE.width,
-                REVENGE.height
-            )
-        ) {
-            hoveredButton = "revenge";
-        }
-
-        return;
-    }
-
-    if (controlsOpen) {
-        updateControlsHover(x, y);
-        return;
-    }
-
-    if (backgroundOpen) {
-        updateBackgroundHover(x, y);
-        return;
-    }
-
-    if (physicsOpen) {
-        updatePhysicsHover(x, y);
-        return;
-    }
-
-    if (settingsOpen) {
-        updateSettingsHover(x, y);
-        return;
-    }
-
-    if (gamePaused) {
-        updatePauseHover(x, y);
-    }
-}
 
 // ============================================================
-// HOVER — PAUSA
-// ============================================================
-
-function updatePauseHover(x, y) {
-    const bx =
-        (W - UI.buttonW) / 2;
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            bx,
-            pauseButton(0),
-            UI.buttonW,
-            UI.buttonH
-        )
-    ) {
-        hoveredButton = "continue";
-        return;
-    }
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            bx,
-            pauseButton(1),
-            UI.buttonW,
-            UI.buttonH
-        )
-    ) {
-        hoveredButton = "settings";
-    }
-}
-
-// ============================================================
-// HOVER — AJUSTES
-// ============================================================
-
-function updateSettingsHover(x, y) {
-    const bx =
-        (W - 240) / 2;
-
-    const ids = [
-        "controls",
-        "background",
-        "physics",
-        "settingsBack"
-    ];
-
-    for (
-        let i = 0;
-        i < ids.length;
-        i++
-    ) {
-        if (
-            isInsideButton(
-                x,
-                y,
-                bx,
-                settingsButton(i),
-                240,
-                55
-            )
-        ) {
-            hoveredButton = ids[i];
-            return;
-        }
-    }
-}
-
-// ============================================================
-// HOVER — FONDO
-// ============================================================
-
-function updateBackgroundHover(x, y) {
-    const bx =
-        (W - SUBMENU.buttonW) / 2;
-
-    const ids = [
-        "background-green",
-        "background-blue",
-        "background-black",
-        "background-reset",
-        "backgroundBack"
-    ];
-
-    for (
-        let i = 0;
-        i < ids.length;
-        i++
-    ) {
-        if (
-            isInsideButton(
-                x,
-                y,
-                bx,
-                backgroundButton(i),
-                SUBMENU.buttonW,
-                SUBMENU.buttonH
-            )
-        ) {
-            hoveredButton = ids[i];
-            return;
-        }
-    }
-}
-
-// ============================================================
-// HOVER — FÍSICAS
-// ============================================================
-
-function updatePhysicsHover(x, y) {
-    const bx =
-        (W - 300) / 2;
-
-    const ids = [
-        "physics-speed-plus",
-        "physics-speed-minus",
-        "physics-progressive"
-    ];
-
-    for (
-        let i = 0;
-        i < ids.length;
-        i++
-    ) {
-        if (
-            isInsideButton(
-                x,
-                y,
-                bx,
-                physicsButton(i),
-                300,
-                55
-            )
-        ) {
-            hoveredButton = ids[i];
-            return;
-        }
-    }
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            bx,
-            physicsButton(3),
-            45,
-            55
-        )
-    ) {
-        hoveredButton =
-            "physics-sens-minus";
-
-        return;
-    }
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            bx + 255,
-            physicsButton(3),
-            45,
-            55
-        )
-    ) {
-        hoveredButton =
-            "physics-sens-plus";
-
-        return;
-    }
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            bx,
-            physicsButton(4),
-            300,
-            55
-        )
-    ) {
-        hoveredButton =
-            "physicsBack";
-
-        return;
-    }
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            bx,
-            physicsButton(5),
-            300,
-            55
-        )
-    ) {
-        hoveredButton =
-            "physicsReset";
-    }
-}
-
-// ============================================================
-// HOVER — CONTROLES
-// ============================================================
-
-function updateControlsHover(x, y) {
-    for (
-        const player of
-        ["left", "right"]
-    ) {
-        const px =
-            controlPlayerX(player);
-
-        const bx = px + 125;
-
-        const ids = [
-            `${player}-up`,
-            `${player}-down`,
-            `${player}-mouse`
-        ];
-
-        for (
-            let i = 0;
-            i < ids.length;
-            i++
-        ) {
-            if (
-                isInsideButton(
-                    x,
-                    y,
-                    bx,
-                    controlRow(i),
-                    CONTROLS_UI.buttonW,
-                    CONTROLS_UI.buttonH
-                )
-            ) {
-                hoveredButton = ids[i];
-                return;
-            }
-        }
-
-        if (
-            isInsideButton(
-                x,
-                y,
-                bx,
-                controlRow(3),
-                45,
-                CONTROLS_UI.buttonH
-            )
-        ) {
-            hoveredButton =
-                `${player}-sens-minus`;
-
-            return;
-        }
-
-        if (
-            isInsideButton(
-                x,
-                y,
-                bx + 135,
-                controlRow(3),
-                45,
-                CONTROLS_UI.buttonH
-            )
-        ) {
-            hoveredButton =
-                `${player}-sens-plus`;
-
-            return;
-        }
-    }
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            (W - 220) / 2,
-            565,
-            220,
-            50
-        )
-    ) {
-        hoveredButton =
-            "controlsReset";
-
-        return;
-    }
-
-    if (
-        isInsideButton(
-            x,
-            y,
-            (W - 220) / 2,
-            625,
-            220,
-            50
-        )
-    ) {
-        hoveredButton =
-            "controlsBack";
-    }
-}
-
-// ============================================================
-// PALETAS — MOVIMIENTO
+// 28. MOVIMIENTO DE PALETAS
 // ============================================================
 
 function updatePaddles() {
+
     if (
         gamePaused ||
         gameOver ||
@@ -1572,10 +1502,12 @@ function updatePaddles() {
         return;
     }
 
+
     for (
         const player of
         ["left", "right"]
     ) {
+
         const paddle =
             player === "left"
                 ? leftPaddle
@@ -1584,11 +1516,13 @@ function updatePaddles() {
         const controls =
             playerControls[player];
 
+
         if (keys[controls.up]) {
             paddle.y -=
                 PADDLE.speed *
                 controls.sensitivity;
         }
+
 
         if (keys[controls.down]) {
             paddle.y +=
@@ -1597,10 +1531,12 @@ function updatePaddles() {
         }
     }
 
+
     clampPaddles();
 }
 
 function clampPaddles() {
+
     leftPaddle.y =
         clamp(
             leftPaddle.y,
@@ -1618,19 +1554,23 @@ function clampPaddles() {
         );
 }
 
+
 // ============================================================
-// PELOTA — VELOCIDAD PROGRESIVA
+// 29. FÍSICA DE LA PELOTA
 // ============================================================
 
 function applyProgressiveSpeed() {
+
     if (!progressiveSpeed) {
         return;
     }
 
+
     const multiplier =
         1 +
-        PHYSICS.increment *
+        PHYSICS.incrementPerBounce *
         progressiveSensitivity;
+
 
     const maxSpeed =
         Math.min(
@@ -1638,31 +1578,29 @@ function applyProgressiveSpeed() {
             BALL.maxSpeed
         );
 
-    let newVelocityX =
-        Math.abs(ball.velocityX) *
-        multiplier;
 
-    let newVelocityY =
-        Math.abs(ball.velocityY) *
-        multiplier;
-
-    newVelocityX =
+    const newVelocityX =
         Math.min(
-            newVelocityX,
+            Math.abs(ball.velocityX) *
+                multiplier,
             maxSpeed
         );
 
-    newVelocityY =
+
+    const newVelocityY =
         Math.min(
-            newVelocityY,
+            Math.abs(ball.velocityY) *
+                multiplier,
             maxSpeed
         );
+
 
     ball.velocityX =
         Math.sign(
             ball.velocityX || 1
         ) *
         newVelocityX;
+
 
     ball.velocityY =
         Math.sign(
@@ -1671,11 +1609,13 @@ function applyProgressiveSpeed() {
         newVelocityY;
 }
 
+
 // ============================================================
-// PELOTA — MOVIMIENTO
+// 30. MOVIMIENTO Y COLISIONES DE LA PELOTA
 // ============================================================
 
 function updateBall() {
+
     if (
         gamePaused ||
         gameOver ||
@@ -1684,12 +1624,14 @@ function updateBall() {
         return;
     }
 
+
     ball.x += ball.velocityX;
     ball.y += ball.velocityY;
 
-    // --------------------------------------------
+
+    // --------------------------------------------------------
     // PARED SUPERIOR
-    // --------------------------------------------
+    // --------------------------------------------------------
 
     if (
         ball.y <= TABLE.top
@@ -1703,9 +1645,10 @@ function updateBall() {
         sounds.wall();
     }
 
-    // --------------------------------------------
+
+    // --------------------------------------------------------
     // PARED INFERIOR
-    // --------------------------------------------
+    // --------------------------------------------------------
 
     if (
         ball.y + BALL.size >=
@@ -1722,9 +1665,10 @@ function updateBall() {
         sounds.wall();
     }
 
-    // --------------------------------------------
+
+    // --------------------------------------------------------
     // PALETA IZQUIERDA
-    // --------------------------------------------
+    // --------------------------------------------------------
 
     if (
         ball.x <=
@@ -1754,9 +1698,10 @@ function updateBall() {
         sounds.paddle();
     }
 
-    // --------------------------------------------
+
+    // --------------------------------------------------------
     // PALETA DERECHA
-    // --------------------------------------------
+    // --------------------------------------------------------
 
     if (
         ball.x + BALL.size >=
@@ -1786,9 +1731,10 @@ function updateBall() {
         sounds.paddle();
     }
 
-    // --------------------------------------------
-    // PUNTO PARA DERECHA
-    // --------------------------------------------
+
+    // --------------------------------------------------------
+    // PUNTO PARA LA DERECHA
+    // --------------------------------------------------------
 
     if (
         ball.x + BALL.size <
@@ -1803,9 +1749,10 @@ function updateBall() {
         return;
     }
 
-    // --------------------------------------------
-    // PUNTO PARA IZQUIERDA
-    // --------------------------------------------
+
+    // --------------------------------------------------------
+    // PUNTO PARA LA IZQUIERDA
+    // --------------------------------------------------------
 
     if (
         ball.x >
@@ -1821,11 +1768,13 @@ function updateBall() {
     }
 }
 
+
 // ============================================================
-// PARTIDO
+// 31. LÓGICA DEL PARTIDO
 // ============================================================
 
 function checkWinner() {
+
     if (
         leftScore <
             MATCH.winScore &&
@@ -1834,6 +1783,7 @@ function checkWinner() {
     ) {
         return false;
     }
+
 
     return (
         Math.abs(
@@ -1845,8 +1795,8 @@ function checkWinner() {
 }
 
 function updateServe() {
-    // Deuce / 10-10:
-    // alterna el saque.
+
+    // En 10-10 alternamos el saque.
     if (
         leftScore >= 10 &&
         rightScore >= 10
@@ -1859,40 +1809,53 @@ function updateServe() {
         return;
     }
 
-    const block =
+
+    const scoreBlock =
         Math.floor(
-            (leftScore +
-                rightScore) / 2
+            (
+                leftScore +
+                rightScore
+            ) / 2
         );
 
+
     servingPlayer =
-        block % 2 === 0
+        scoreBlock % 2 === 0
             ? "left"
             : "right";
 }
 
 function resetBall() {
+
     ball.x =
         (W - BALL.size) / 2;
 
     ball.y =
         (H - BALL.size) / 2;
 
+
+    // La velocidad horizontal vuelve
+    // a la velocidad configurada.
     ball.velocityX =
         servingPlayer === "left"
             ? Math.abs(ballSpeed)
             : -Math.abs(ballSpeed);
 
-    // Siempre arrancamos con la velocidad
-    // vertical base al comenzar un saque.
+
+    // La velocidad vertical también
+    // vuelve a su valor inicial.
     ball.velocityY =
         Math.random() < 0.5
-            ? -BALL.baseY
-            : BALL.baseY;
+            ? -BALL.verticalSpeed
+            : BALL.verticalSpeed;
 }
 
 function handlePoint() {
+
+    // Si terminó el partido,
+    // mostramos la pantalla de victoria.
     if (checkWinner()) {
+
         gameOver = true;
 
         winner =
@@ -1903,15 +1866,23 @@ function handlePoint() {
         return;
     }
 
+
+    // Nuevo saque.
     updateServe();
+
+    // IMPORTANTE:
+    // al hacer un PUNTO, la pelota vuelve
+    // a la velocidad base configurada.
     resetBall();
 }
 
+
 // ============================================================
-// REINICIAR PARTIDO
+// 32. REINICIO DEL PARTIDO
 // ============================================================
 
 function restartGame() {
+
     leftScore = 0;
     rightScore = 0;
 
@@ -1924,53 +1895,441 @@ function restartGame() {
 
     closeAllMenus();
 
+
     leftPaddle.y =
         (H - PADDLE.height) / 2;
 
     rightPaddle.y =
         (H - PADDLE.height) / 2;
 
+
     resetBall();
 }
 
+
 // ============================================================
-// DIBUJO — BOTONES
+// 33. HOVER — DETECCIÓN GENERAL
+// ============================================================
+
+function updateHoveredButton(x, y) {
+
+    hoveredButton = null;
+
+
+    if (gameOver) {
+
+        if (
+            isInsideButton(
+                x,
+                y,
+                VICTORY_UI.x,
+                VICTORY_UI.y,
+                VICTORY_UI.buttonWidth,
+                VICTORY_UI.buttonHeight
+            )
+        ) {
+            hoveredButton = "revenge";
+        }
+
+        return;
+    }
+
+
+    if (controlsOpen) {
+        updateControlsHover(x, y);
+        return;
+    }
+
+
+    if (backgroundOpen) {
+        updateBackgroundHover(x, y);
+        return;
+    }
+
+
+    if (physicsOpen) {
+        updatePhysicsHover(x, y);
+        return;
+    }
+
+
+    if (settingsOpen) {
+        updateSettingsHover(x, y);
+        return;
+    }
+
+
+    if (gamePaused) {
+        updatePauseHover(x, y);
+    }
+}
+
+
+// ============================================================
+// 34. HOVER — PAUSA
+// ============================================================
+
+function updatePauseHover(x, y) {
+
+    const buttons = [
+        {
+            id: "continue",
+            button: getPauseButton(0)
+        },
+
+        {
+            id: "settings",
+            button: getPauseButton(1)
+        }
+    ];
+
+
+    for (const item of buttons) {
+
+        const button = item.button;
+
+        if (
+            isInsideButton(
+                x,
+                y,
+                button.x,
+                button.y,
+                button.width,
+                button.height
+            )
+        ) {
+            hoveredButton = item.id;
+
+            return;
+        }
+    }
+}
+
+
+// ============================================================
+// 35. HOVER — AJUSTES
+// ============================================================
+
+function updateSettingsHover(x, y) {
+
+    const ids = [
+        "controls",
+        "background",
+        "physics",
+        "settingsBack"
+    ];
+
+
+    for (
+        let i = 0;
+        i < ids.length;
+        i++
+    ) {
+
+        const button =
+            getSettingsButton(i);
+
+        if (
+            isInsideButton(
+                x,
+                y,
+                button.x,
+                button.y,
+                button.width,
+                button.height
+            )
+        ) {
+            hoveredButton = ids[i];
+
+            return;
+        }
+    }
+}
+
+
+// ============================================================
+// 36. HOVER — FONDO
+// ============================================================
+
+function updateBackgroundHover(x, y) {
+
+    const ids = [
+        "background-green",
+        "background-blue",
+        "background-black",
+        "background-reset",
+        "backgroundBack"
+    ];
+
+
+    for (
+        let i = 0;
+        i < ids.length;
+        i++
+    ) {
+
+        const button =
+            getBackgroundButton(i);
+
+        if (
+            isInsideButton(
+                x,
+                y,
+                button.x,
+                button.y,
+                button.width,
+                button.height
+            )
+        ) {
+            hoveredButton = ids[i];
+
+            return;
+        }
+    }
+}
+
+
+// ============================================================
+// 37. HOVER — FÍSICAS
+// ============================================================
+
+function updatePhysicsHover(x, y) {
+
+    const buttons = [
+        {
+            id: "physics-speed-plus",
+            button:
+                getPhysicsButton("speedPlus")
+        },
+
+        {
+            id: "physics-speed-minus",
+            button:
+                getPhysicsButton("speedMinus")
+        },
+
+        {
+            id: "physics-progressive",
+            button:
+                getPhysicsButton("progressive")
+        },
+
+        {
+            id: "physics-sens-minus",
+            button:
+                getPhysicsButton(
+                    "sensitivityMinus"
+                )
+        },
+
+        {
+            id: "physics-sens-plus",
+            button:
+                getPhysicsButton(
+                    "sensitivityPlus"
+                )
+        },
+
+        {
+            id: "physicsBack",
+            button:
+                getPhysicsButton("back")
+        },
+
+        {
+            id: "physicsReset",
+            button:
+                getPhysicsButton("reset")
+        }
+    ];
+
+
+    for (const item of buttons) {
+
+        const button = item.button;
+
+        if (
+            isInsideButton(
+                x,
+                y,
+                button.x,
+                button.y,
+                button.width,
+                button.height
+            )
+        ) {
+            hoveredButton = item.id;
+
+            return;
+        }
+    }
+}
+
+
+// ============================================================
+// 38. HOVER — CONTROLES
+// ============================================================
+
+function updateControlsHover(x, y) {
+
+    for (
+        const player of
+        ["left", "right"]
+    ) {
+
+        const playerX =
+            getControlPlayerX(player);
+
+        const buttonX =
+            playerX + 125;
+
+
+        const ids = [
+            `${player}-up`,
+            `${player}-down`,
+            `${player}-mouse`
+        ];
+
+
+        for (
+            let i = 0;
+            i < ids.length;
+            i++
+        ) {
+
+            if (
+                isInsideButton(
+                    x,
+                    y,
+                    buttonX,
+                    getControlRowY(i),
+                    CONTROLS_UI.buttonWidth,
+                    CONTROLS_UI.buttonHeight
+                )
+            ) {
+                hoveredButton = ids[i];
+
+                return;
+            }
+        }
+
+
+        // Sensibilidad -
+        if (
+            isInsideButton(
+                x,
+                y,
+                buttonX,
+                getControlRowY(3),
+                45,
+                CONTROLS_UI.buttonHeight
+            )
+        ) {
+            hoveredButton =
+                `${player}-sens-minus`;
+
+            return;
+        }
+
+
+        // Sensibilidad +
+        if (
+            isInsideButton(
+                x,
+                y,
+                buttonX + 135,
+                getControlRowY(3),
+                45,
+                CONTROLS_UI.buttonHeight
+            )
+        ) {
+            hoveredButton =
+                `${player}-sens-plus`;
+
+            return;
+        }
+    }
+
+
+    // Restablecer
+    if (
+        isInsideButton(
+            x,
+            y,
+            (W - 220) / 2,
+            565,
+            220,
+            50
+        )
+    ) {
+        hoveredButton =
+            "controlsReset";
+
+        return;
+    }
+
+
+    // Volver
+    if (
+        isInsideButton(
+            x,
+            y,
+            (W - 220) / 2,
+            625,
+            220,
+            50
+        )
+    ) {
+        hoveredButton =
+            "controlsBack";
+    }
+}
+
+
+// ============================================================
+// 39. COMPONENTES VISUALES — BOTONES
 // ============================================================
 
 function drawButton(
     text,
     x,
     y,
-    w,
-    h,
+    width,
+    height,
     id = null
 ) {
+
     const hover =
         hoveredButton === id;
+
 
     ctx.lineWidth =
         hover ? 5 : 3;
 
     ctx.strokeStyle = "#FFFFFF";
 
+
     if (hover) {
+
         ctx.fillStyle =
             "rgba(255,255,255,0.12)";
 
         ctx.fillRect(
             x,
             y,
-            w,
-            h
+            width,
+            height
         );
     }
+
 
     ctx.strokeRect(
         x,
         y,
-        w,
-        h
+        width,
+        height
     );
+
 
     ctx.fillStyle = "#FFFFFF";
 
@@ -1980,11 +2339,13 @@ function drawButton(
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+
     ctx.fillText(
         text,
-        x + w / 2,
-        y + h / 2
+        x + width / 2,
+        y + height / 2
     );
+
 
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
@@ -1995,6 +2356,7 @@ function drawControlLabel(
     x,
     y
 ) {
+
     ctx.fillStyle = "#FFFFFF";
 
     ctx.font =
@@ -2003,11 +2365,12 @@ function drawControlLabel(
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
 
+
     ctx.fillText(
         text,
         x,
         y +
-            CONTROLS_UI.buttonH /
+            CONTROLS_UI.buttonHeight /
                 2
     );
 }
@@ -2016,36 +2379,42 @@ function drawControlButton(
     text,
     x,
     y,
-    w,
-    h,
+    width,
+    height,
     id = null
 ) {
+
     const hover =
         hoveredButton === id;
+
 
     ctx.lineWidth =
         hover ? 4 : 2;
 
     ctx.strokeStyle = "#FFFFFF";
 
+
     if (hover) {
+
         ctx.fillStyle =
             "rgba(255,255,255,0.12)";
 
         ctx.fillRect(
             x,
             y,
-            w,
-            h
+            width,
+            height
         );
     }
+
 
     ctx.strokeRect(
         x,
         y,
-        w,
-        h
+        width,
+        height
     );
+
 
     ctx.fillStyle = "#FFFFFF";
 
@@ -2055,23 +2424,28 @@ function drawControlButton(
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+
     ctx.fillText(
         text,
-        x + w / 2,
-        y + h / 2
+        x + width / 2,
+        y + height / 2
     );
+
 
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
 }
 
+
 // ============================================================
-// MESA
+// 40. RENDER — MESA
 // ============================================================
 
 function drawTable() {
+
     ctx.fillStyle =
         COLORS[courtColor];
+
 
     ctx.fillRect(
         TABLE.left,
@@ -2082,8 +2456,11 @@ function drawTable() {
             TABLE.top
     );
 
+
     ctx.strokeStyle = "#FFFFFF";
+
     ctx.lineWidth = 4;
+
 
     ctx.strokeRect(
         TABLE.left,
@@ -2094,13 +2471,16 @@ function drawTable() {
             TABLE.top
     );
 
+
     ctx.lineWidth =
         CENTER_LINE.width;
+
 
     ctx.setLineDash([
         CENTER_LINE.dash,
         CENTER_LINE.gap
     ]);
+
 
     ctx.beginPath();
 
@@ -2116,15 +2496,19 @@ function drawTable() {
 
     ctx.stroke();
 
+
     ctx.setLineDash([]);
 }
 
+
 // ============================================================
-// PALETAS
+// 41. RENDER — PALETAS
 // ============================================================
 
 function drawPaddles() {
+
     ctx.fillStyle = "#FFFFFF";
+
 
     ctx.fillRect(
         leftPaddle.x,
@@ -2132,6 +2516,7 @@ function drawPaddles() {
         PADDLE.width,
         PADDLE.height
     );
+
 
     ctx.fillRect(
         rightPaddle.x,
@@ -2141,33 +2526,42 @@ function drawPaddles() {
     );
 }
 
+
 // ============================================================
-// PELOTA
+// 42. RENDER — PELOTA
 // ============================================================
 
 function drawBall() {
+
     ctx.fillStyle = "#FFFFFF";
 
     ctx.beginPath();
 
+
     ctx.arc(
         ball.x +
             BALL.size / 2,
+
         ball.y +
             BALL.size / 2,
+
         BALL.size / 2,
+
         0,
         Math.PI * 2
     );
 
+
     ctx.fill();
 }
 
+
 // ============================================================
-// MARCADOR
+// 43. RENDER — MARCADOR
 // ============================================================
 
 function drawScore() {
+
     ctx.fillStyle = "#FFFFFF";
 
     ctx.font =
@@ -2176,12 +2570,14 @@ function drawScore() {
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
 
+
     ctx.fillText(
         String(leftScore)
             .padStart(2, "0"),
         W / 4,
         TABLE.bottom - 20
     );
+
 
     ctx.fillText(
         String(rightScore)
@@ -2190,484 +2586,21 @@ function drawScore() {
         TABLE.bottom - 20
     );
 
-    ctx.textAlign = "start";
-    ctx.textBaseline = "alphabetic";
-}
-
-// ============================================================
-// PAUSA
-// ============================================================
-
-function drawPauseMenu() {
-    drawOverlay(0.70);
-
-    ctx.fillStyle = "#FFFFFF";
-
-    ctx.font =
-        UI.titleFont;
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    ctx.fillText(
-        "PAUSA",
-        W / 2,
-        H / 2 - 150
-    );
-
-    const bx =
-        (W - UI.buttonW) / 2;
-
-    drawButton(
-        "CONTINUAR",
-        bx,
-        pauseButton(0),
-        UI.buttonW,
-        UI.buttonH,
-        "continue"
-    );
-
-    drawButton(
-        "AJUSTES",
-        bx,
-        pauseButton(1),
-        UI.buttonW,
-        UI.buttonH,
-        "settings"
-    );
 
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
 }
 
-// ============================================================
-// AJUSTES
-// ============================================================
-
-function drawSettingsMenu() {
-    drawOverlay(0.75);
-
-    drawTitle("AJUSTES");
-
-    const bx =
-        (W - 240) / 2;
-
-    const buttons = [
-        [
-            "CONTROLES",
-            "controls"
-        ],
-
-        [
-            "FONDO",
-            "background"
-        ],
-
-        [
-            "FÍSICAS",
-            "physics"
-        ],
-
-        [
-            "VOLVER",
-            "settingsBack"
-        ]
-    ];
-
-    buttons.forEach(
-        ([text, id], i) => {
-            drawButton(
-                text,
-                bx,
-                settingsButton(i),
-                240,
-                55,
-                id
-            );
-        }
-    );
-}
 
 // ============================================================
-// FONDO
-// ============================================================
-
-function drawBackgroundMenu() {
-    drawOverlay(0.80);
-
-    drawTitle("FONDO");
-
-    const bx =
-        (W - SUBMENU.buttonW) / 2;
-
-    const buttons = [
-        [
-            "VERDE",
-            "background-green"
-        ],
-
-        [
-            "AZUL",
-            "background-blue"
-        ],
-
-        [
-            "NEGRO",
-            "background-black"
-        ],
-
-        [
-            "RESTABLECER",
-            "background-reset"
-        ],
-
-        [
-            "VOLVER",
-            "backgroundBack"
-        ]
-    ];
-
-    buttons.forEach(
-        ([text, id], i) => {
-            drawButton(
-                text,
-                bx,
-                backgroundButton(i),
-                SUBMENU.buttonW,
-                SUBMENU.buttonH,
-                id
-            );
-        }
-    );
-}
-
-// ============================================================
-// FÍSICAS
-// ============================================================
-
-function drawPhysicsMenu() {
-    drawOverlay(0.80);
-
-    drawTitle("FÍSICAS");
-
-    const bx =
-        (W - 300) / 2;
-
-    drawButton(
-        `VELOCIDAD +   ${ballSpeed}`,
-        bx,
-        physicsButton(0),
-        300,
-        55,
-        "physics-speed-plus"
-    );
-
-    drawButton(
-        `VELOCIDAD -   ${ballSpeed}`,
-        bx,
-        physicsButton(1),
-        300,
-        55,
-        "physics-speed-minus"
-    );
-
-    drawButton(
-        `PROGRESIVA: ${
-            progressiveSpeed
-                ? "ON"
-                : "OFF"
-        }`,
-        bx,
-        physicsButton(2),
-        300,
-        55,
-        "physics-progressive"
-    );
-
-    const sy =
-        physicsButton(3);
-
-    drawControlLabel(
-        "SENS. PROGRESIVA",
-        bx - 120,
-        sy
-    );
-
-    drawControlButton(
-        "-",
-        bx,
-        sy,
-        45,
-        55,
-        "physics-sens-minus"
-    );
-
-    drawControlButton(
-        progressiveSensitivity.toFixed(1),
-        bx + 55,
-        sy,
-        200,
-        55
-    );
-
-    drawControlButton(
-        "+",
-        bx + 255,
-        sy,
-        45,
-        55,
-        "physics-sens-plus"
-    );
-
-    ctx.fillStyle = "#FFFFFF";
-
-    ctx.font =
-        "bold 20px monospace";
-
-    ctx.textAlign = "center";
-
-    ctx.fillText(
-        `VELOCIDAD ACTUAL: ${ballSpeed}`,
-        W / 2,
-        520
-    );
-
-    drawButton(
-        "VOLVER",
-        bx,
-        physicsButton(4),
-        300,
-        55,
-        "physicsBack"
-    );
-
-    drawButton(
-        "RESTABLECER",
-        bx,
-        physicsButton(5),
-        300,
-        55,
-        "physicsReset"
-    );
-
-    ctx.textAlign = "start";
-}
-
-// ============================================================
-// CONTROLES
-// ============================================================
-
-function drawControlsMenu() {
-    drawOverlay(0.80);
-
-    drawTitle("CONTROLES");
-
-    ctx.font =
-        "bold 30px monospace";
-
-    ctx.textAlign = "center";
-
-    ctx.fillStyle = "#FFFFFF";
-
-    const centers = {
-        left: 360,
-        right: 920
-    };
-
-    ctx.fillText(
-        "IZQUIERDA",
-        centers.left,
-        120
-    );
-
-    ctx.fillText(
-        "DERECHA",
-        centers.right,
-        120
-    );
-
-    for (
-        const player of
-        ["left", "right"]
-    ) {
-        const data =
-            playerControls[player];
-
-        const px =
-            controlPlayerX(player);
-
-        const bx =
-            px + 125;
-
-        // ARRIBA
-        drawControlLabel(
-            "ARRIBA",
-            px,
-            controlRow(0)
-        );
-
-        drawControlButton(
-            waitingForKey?.player === player &&
-            waitingForKey?.action === "up"
-                ? "PRESIONÁ..."
-                : formatKey(data.up),
-
-            bx,
-            controlRow(0),
-            CONTROLS_UI.buttonW,
-            CONTROLS_UI.buttonH,
-
-            `${player}-up`
-        );
-
-        // ABAJO
-        drawControlLabel(
-            "ABAJO",
-            px,
-            controlRow(1)
-        );
-
-        drawControlButton(
-            waitingForKey?.player === player &&
-            waitingForKey?.action === "down"
-                ? "PRESIONÁ..."
-                : formatKey(data.down),
-
-            bx,
-            controlRow(1),
-            CONTROLS_UI.buttonW,
-            CONTROLS_UI.buttonH,
-
-            `${player}-down`
-        );
-
-        // MOUSE
-        drawControlLabel(
-            "MOUSE",
-            px,
-            controlRow(2)
-        );
-
-        drawControlButton(
-            data.mouse
-                ? "ON"
-                : "OFF",
-
-            bx,
-            controlRow(2),
-            CONTROLS_UI.buttonW,
-            CONTROLS_UI.buttonH,
-
-            `${player}-mouse`
-        );
-
-        // SENSIBILIDAD
-        drawControlLabel(
-            "SENS.",
-            px,
-            controlRow(3)
-        );
-
-        drawControlButton(
-            "-",
-            bx,
-            controlRow(3),
-            45,
-            CONTROLS_UI.buttonH,
-            `${player}-sens-minus`
-        );
-
-        drawControlButton(
-            data.sensitivity.toFixed(1),
-            bx + 50,
-            controlRow(3),
-            80,
-            CONTROLS_UI.buttonH
-        );
-
-        drawControlButton(
-            "+",
-            bx + 135,
-            controlRow(3),
-            45,
-            CONTROLS_UI.buttonH,
-            `${player}-sens-plus`
-        );
-    }
-
-    ctx.font =
-        "16px monospace";
-
-    ctx.fillText(
-        "Click en una tecla para reasignarla · ESC cancela",
-        W / 2,
-        535
-    );
-
-    drawButton(
-        "RESTABLECER",
-        (W - 220) / 2,
-        565,
-        220,
-        50,
-        "controlsReset"
-    );
-
-    drawButton(
-        "VOLVER",
-        (W - 220) / 2,
-        625,
-        220,
-        50,
-        "controlsBack"
-    );
-
-    ctx.textAlign = "start";
-}
-
-// ============================================================
-// VICTORIA
-// ============================================================
-
-function drawVictoryScreen() {
-    drawOverlay(0.65);
-
-    ctx.fillStyle = "#FFFFFF";
-
-    ctx.font =
-        UI.winnerFont;
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    ctx.fillText(
-        winner === "left"
-            ? "LA IZQUIERDA GANA"
-            : "LA DERECHA GANA",
-        W / 2,
-        H / 2 - 35
-    );
-
-    drawButton(
-        "¿REVANCHA?",
-        REVENGE.x,
-        REVENGE.y,
-        REVENGE.width,
-        REVENGE.height,
-        "revenge"
-    );
-
-    ctx.textAlign = "start";
-    ctx.textBaseline = "alphabetic";
-}
-
-// ============================================================
-// OVERLAY / TÍTULO
+// 44. RENDER — OVERLAY Y TÍTULOS
 // ============================================================
 
 function drawOverlay(alpha) {
+
     ctx.fillStyle =
         `rgba(0,0,0,${alpha})`;
+
 
     ctx.fillRect(
         TABLE.left,
@@ -2680,6 +2613,7 @@ function drawOverlay(alpha) {
 }
 
 function drawTitle(text) {
+
     ctx.fillStyle = "#FFFFFF";
 
     ctx.font =
@@ -2688,6 +2622,7 @@ function drawTitle(text) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+
     ctx.fillText(
         text,
         W / 2,
@@ -2695,11 +2630,561 @@ function drawTitle(text) {
     );
 }
 
+
 // ============================================================
-// DIBUJAR TODO
+// 45. RENDER — MENÚ DE PAUSA
+// ============================================================
+
+function drawPauseMenu() {
+
+    drawOverlay(0.70);
+
+    drawTitle("PAUSA");
+
+
+    const continueButton =
+        getPauseButton(0);
+
+    const settingsButton =
+        getPauseButton(1);
+
+
+    drawButton(
+        "CONTINUAR",
+        continueButton.x,
+        continueButton.y,
+        continueButton.width,
+        continueButton.height,
+        "continue"
+    );
+
+
+    drawButton(
+        "AJUSTES",
+        settingsButton.x,
+        settingsButton.y,
+        settingsButton.width,
+        settingsButton.height,
+        "settings"
+    );
+}
+
+
+// ============================================================
+// 46. RENDER — MENÚ DE AJUSTES
+// ============================================================
+
+function drawSettingsMenu() {
+
+    drawOverlay(0.75);
+
+    drawTitle("AJUSTES");
+
+
+    const buttons = [
+        ["CONTROLES", "controls"],
+        ["FONDO", "background"],
+        ["FÍSICAS", "physics"],
+        ["VOLVER", "settingsBack"]
+    ];
+
+
+    buttons.forEach(
+        ([text, id], index) => {
+
+            const button =
+                getSettingsButton(index);
+
+
+            drawButton(
+                text,
+                button.x,
+                button.y,
+                button.width,
+                button.height,
+                id
+            );
+        }
+    );
+}
+
+
+// ============================================================
+// 47. RENDER — MENÚ DE FONDO
+// ============================================================
+
+function drawBackgroundMenu() {
+
+    drawOverlay(0.80);
+
+    drawTitle("FONDO");
+
+
+    const buttons = [
+        ["VERDE", "background-green"],
+        ["AZUL", "background-blue"],
+        ["NEGRO", "background-black"],
+        ["RESTABLECER", "background-reset"],
+        ["VOLVER", "backgroundBack"]
+    ];
+
+
+    buttons.forEach(
+        ([text, id], index) => {
+
+            const button =
+                getBackgroundButton(index);
+
+
+            drawButton(
+                text,
+                button.x,
+                button.y,
+                button.width,
+                button.height,
+                id
+            );
+        }
+    );
+}
+
+
+// ============================================================
+// 48. RENDER — MENÚ DE FÍSICAS
+// ============================================================
+
+function drawPhysicsMenu() {
+
+    drawOverlay(0.80);
+
+    drawTitle("FÍSICAS");
+
+
+    // --------------------------------------------------------
+    // VELOCIDAD +
+    // --------------------------------------------------------
+
+    const speedPlus =
+        getPhysicsButton("speedPlus");
+
+
+    drawButton(
+        `VELOCIDAD +   ${ballSpeed}`,
+        speedPlus.x,
+        speedPlus.y,
+        speedPlus.width,
+        speedPlus.height,
+        "physics-speed-plus"
+    );
+
+
+    // --------------------------------------------------------
+    // VELOCIDAD -
+    // --------------------------------------------------------
+
+    const speedMinus =
+        getPhysicsButton("speedMinus");
+
+
+    drawButton(
+        `VELOCIDAD -   ${ballSpeed}`,
+        speedMinus.x,
+        speedMinus.y,
+        speedMinus.width,
+        speedMinus.height,
+        "physics-speed-minus"
+    );
+
+
+    // --------------------------------------------------------
+    // VELOCIDAD PROGRESIVA
+    // --------------------------------------------------------
+
+    const progressive =
+        getPhysicsButton("progressive");
+
+
+    drawButton(
+        `PROGRESIVA: ${
+            progressiveSpeed
+                ? "ON"
+                : "OFF"
+        }`,
+        progressive.x,
+        progressive.y,
+        progressive.width,
+        progressive.height,
+        "physics-progressive"
+    );
+
+
+    // --------------------------------------------------------
+    // SENSIBILIDAD PROGRESIVA
+    // --------------------------------------------------------
+
+    const sensitivityMinus =
+        getPhysicsButton(
+            "sensitivityMinus"
+        );
+
+    const sensitivityValue =
+        getPhysicsButton(
+            "sensitivityValue"
+        );
+
+    const sensitivityPlus =
+        getPhysicsButton(
+            "sensitivityPlus"
+        );
+
+
+    drawControlLabel(
+        "SENS. PROGRESIVA",
+        PHYSICS_UI.centerX - 120,
+        PHYSICS_UI.sensitivityY
+    );
+
+
+    drawControlButton(
+        "-",
+        sensitivityMinus.x,
+        sensitivityMinus.y,
+        sensitivityMinus.width,
+        sensitivityMinus.height,
+        "physics-sens-minus"
+    );
+
+
+    drawControlButton(
+        progressiveSensitivity.toFixed(1),
+        sensitivityValue.x,
+        sensitivityValue.y,
+        sensitivityValue.width,
+        sensitivityValue.height
+    );
+
+
+    drawControlButton(
+        "+",
+        sensitivityPlus.x,
+        sensitivityPlus.y,
+        sensitivityPlus.width,
+        sensitivityPlus.height,
+        "physics-sens-plus"
+    );
+
+
+    // --------------------------------------------------------
+    // INFORMACIÓN
+    // --------------------------------------------------------
+
+    ctx.fillStyle = "#FFFFFF";
+
+    ctx.font =
+        "bold 20px monospace";
+
+    ctx.textAlign = "center";
+
+
+    ctx.fillText(
+        `VELOCIDAD ACTUAL: ${ballSpeed}`,
+        W / 2,
+        445
+    );
+
+
+    // --------------------------------------------------------
+    // VOLVER
+    // --------------------------------------------------------
+
+    const back =
+        getPhysicsButton("back");
+
+
+    drawButton(
+        "VOLVER",
+        back.x,
+        back.y,
+        back.width,
+        back.height,
+        "physicsBack"
+    );
+
+
+    // --------------------------------------------------------
+    // RESTABLECER
+    // --------------------------------------------------------
+
+    const reset =
+        getPhysicsButton("reset");
+
+
+    drawButton(
+        "RESTABLECER",
+        reset.x,
+        reset.y,
+        reset.width,
+        reset.height,
+        "physicsReset"
+    );
+
+
+    ctx.textAlign = "start";
+}
+
+
+// ============================================================
+// 49. RENDER — MENÚ DE CONTROLES
+// ============================================================
+
+function drawControlsMenu() {
+
+    drawOverlay(0.80);
+
+    drawTitle("CONTROLES");
+
+
+    ctx.font =
+        "bold 30px monospace";
+
+    ctx.textAlign = "center";
+
+    ctx.fillStyle = "#FFFFFF";
+
+
+    ctx.fillText(
+        "IZQUIERDA",
+        360,
+        120
+    );
+
+
+    ctx.fillText(
+        "DERECHA",
+        920,
+        120
+    );
+
+
+    for (
+        const player of
+        ["left", "right"]
+    ) {
+
+        const data =
+            playerControls[player];
+
+        const playerX =
+            getControlPlayerX(player);
+
+        const buttonX =
+            playerX + 125;
+
+
+        // ----------------------------------------------------
+        // ARRIBA
+        // ----------------------------------------------------
+
+        drawControlLabel(
+            "ARRIBA",
+            playerX,
+            getControlRowY(0)
+        );
+
+
+        drawControlButton(
+            waitingForKey?.player === player &&
+            waitingForKey?.action === "up"
+                ? "PRESIONÁ..."
+                : formatKey(data.up),
+
+            buttonX,
+            getControlRowY(0),
+
+            CONTROLS_UI.buttonWidth,
+            CONTROLS_UI.buttonHeight,
+
+            `${player}-up`
+        );
+
+
+        // ----------------------------------------------------
+        // ABAJO
+        // ----------------------------------------------------
+
+        drawControlLabel(
+            "ABAJO",
+            playerX,
+            getControlRowY(1)
+        );
+
+
+        drawControlButton(
+            waitingForKey?.player === player &&
+            waitingForKey?.action === "down"
+                ? "PRESIONÁ..."
+                : formatKey(data.down),
+
+            buttonX,
+            getControlRowY(1),
+
+            CONTROLS_UI.buttonWidth,
+            CONTROLS_UI.buttonHeight,
+
+            `${player}-down`
+        );
+
+
+        // ----------------------------------------------------
+        // MOUSE
+        // ----------------------------------------------------
+
+        drawControlLabel(
+            "MOUSE",
+            playerX,
+            getControlRowY(2)
+        );
+
+
+        drawControlButton(
+            data.mouse
+                ? "ON"
+                : "OFF",
+
+            buttonX,
+            getControlRowY(2),
+
+            CONTROLS_UI.buttonWidth,
+            CONTROLS_UI.buttonHeight,
+
+            `${player}-mouse`
+        );
+
+
+        // ----------------------------------------------------
+        // SENSIBILIDAD
+        // ----------------------------------------------------
+
+        drawControlLabel(
+            "SENS.",
+            playerX,
+            getControlRowY(3)
+        );
+
+
+        drawControlButton(
+            "-",
+            buttonX,
+            getControlRowY(3),
+            45,
+            CONTROLS_UI.buttonHeight,
+            `${player}-sens-minus`
+        );
+
+
+        drawControlButton(
+            data.sensitivity.toFixed(1),
+            buttonX + 50,
+            getControlRowY(3),
+            80,
+            CONTROLS_UI.buttonHeight
+        );
+
+
+        drawControlButton(
+            "+",
+            buttonX + 135,
+            getControlRowY(3),
+            45,
+            CONTROLS_UI.buttonHeight,
+            `${player}-sens-plus`
+        );
+    }
+
+
+    ctx.font =
+        "16px monospace";
+
+    ctx.fillText(
+        "Click en una tecla para reasignarla · ESC cancela",
+        W / 2,
+        535
+    );
+
+
+    drawButton(
+        "RESTABLECER",
+        (W - 220) / 2,
+        565,
+        220,
+        50,
+        "controlsReset"
+    );
+
+
+    drawButton(
+        "VOLVER",
+        (W - 220) / 2,
+        625,
+        220,
+        50,
+        "controlsBack"
+    );
+
+
+    ctx.textAlign = "start";
+}
+
+
+// ============================================================
+// 50. RENDER — PANTALLA DE VICTORIA
+// ============================================================
+
+function drawVictoryScreen() {
+
+    drawOverlay(0.65);
+
+
+    ctx.fillStyle = "#FFFFFF";
+
+    ctx.font =
+        UI.winnerFont;
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+
+    ctx.fillText(
+        winner === "left"
+            ? "LA IZQUIERDA GANA"
+            : "LA DERECHA GANA",
+
+        W / 2,
+        H / 2 - 35
+    );
+
+
+    drawButton(
+        "¿REVANCHA?",
+        VICTORY_UI.x,
+        VICTORY_UI.y,
+        VICTORY_UI.buttonWidth,
+        VICTORY_UI.buttonHeight,
+        "revenge"
+    );
+
+
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+}
+
+
+// ============================================================
+// 51. RENDER PRINCIPAL
 // ============================================================
 
 function drawGame() {
+
     ctx.clearRect(
         0,
         0,
@@ -2707,38 +3192,48 @@ function drawGame() {
         H
     );
 
-    // Juego base
+
+    // Juego
     drawTable();
     drawPaddles();
     drawBall();
     drawScore();
 
-    // Game Over
+
+    // Victoria
     if (gameOver) {
         drawVictoryScreen();
         return;
     }
 
-    // Submenús
+
+    // Submenú controles
     if (controlsOpen) {
         drawControlsMenu();
         return;
     }
 
+
+    // Submenú fondo
     if (backgroundOpen) {
         drawBackgroundMenu();
         return;
     }
 
+
+    // Submenú físicas
     if (physicsOpen) {
         drawPhysicsMenu();
         return;
     }
 
+
+    // Menú ajustes
     if (settingsOpen) {
         drawSettingsMenu();
         return;
     }
+
 
     // Pausa
     if (gamePaused) {
@@ -2746,12 +3241,15 @@ function drawGame() {
     }
 }
 
+
 // ============================================================
-// LOOP PRINCIPAL
+// 52. BUCLE PRINCIPAL DEL JUEGO
 // ============================================================
 
 function gameLoop() {
+
     updatePaddles();
+
     updateBall();
 
     drawGame();
@@ -2761,9 +3259,11 @@ function gameLoop() {
     );
 }
 
+
 // ============================================================
-// INICIAR
+// 53. INICIALIZACIÓN
 // ============================================================
 
 resetBall();
+
 gameLoop();
