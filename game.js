@@ -1,73 +1,119 @@
-const W = 1280, H = 720;
+const W = 1280;
+const H = 720;
+
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+
+// ============================================================
+// CONFIG
+// ============================================================
+
 const TABLE = {
-  left: 10, right: W - 10, top: 10, bottom: H - 10,
-  colors: { green: "#1f5f3a", blue: "#174a78", black: "#000000" }
+    left: 10,
+    right: W - 10,
+    top: 10,
+    bottom: H - 10,
+
+    colors: {
+        green: "#1f5f3a",
+        blue: "#174a78",
+        black: "#000000"
+    }
 };
 
-const PADDLE = { w: 20, h: 120, margin: 40, baseSpeed: 8 };
+const PADDLE = {
+    w: 20,
+    h: 120,
+    margin: 40
+};
 
 const BALL = {
-  size: 20,
-  speedLevels: [4, 5, 6, 7.2, 8.6, 10.5, 12.8, 15.5, 19, 24],
-  defaultLevel: 5,
-  baseYRatio: 0.7,
-  progressiveFactor: 1.04
+    size: 20,
+
+    speedLevels: [
+        4,
+        5,
+        6,
+        7.2,
+        8.6,
+        10.5,
+        12.8,
+        15.5,
+        19,
+        24
+    ],
+
+    defaultLevel: 5,
+    baseYRatio: 0.7,
+    progressiveFactor: 1.04
 };
 
-const MATCH = { win: 11, margin: 2 };
-const SENS = { min: 0.1, max: 1, step: 0.1, default: 0.5 };
+const MATCH = {
+    win: 11,
+    margin: 2
+};
+
+const SENS = {
+    min: 0.1,
+    max: 1,
+    step: 0.1,
+    default: 0.5
+};
 
 const UI = {
-  title: "bold 48px monospace",
-  button: "bold 24px monospace",
-  score: "bold 48px monospace",
-  winner: "bold 52px monospace"
+    title: "bold 48px monospace",
+    button: "bold 24px monospace",
+    score: "bold 48px monospace",
+    winner: "bold 52px monospace"
 };
 
 const LOCAL_DEFAULTS = {
-  left: {
-    up: "w",
-    down: "s",
-    mouse: false,
-    sensitivity: SENS.default
-  },
+    left: {
+        up: "w",
+        down: "s",
+        mouse: false,
+        sensitivity: SENS.default
+    },
 
-  right: {
-    up: "ArrowUp",
-    down: "ArrowDown",
-    mouse: false,
-    sensitivity: SENS.default
-  }
+    right: {
+        up: "ArrowUp",
+        down: "ArrowDown",
+        mouse: false,
+        sensitivity: SENS.default
+    }
 };
 
 const AI_DEFAULTS = {
-  up1: "w",
-  up2: "ArrowUp",
-  down1: "s",
-  down2: "ArrowDown",
-  mouse: true,
-  sensitivity: SENS.default
+    up1: "w",
+    up2: "ArrowUp",
+    down1: "s",
+    down2: "ArrowDown",
+    mouse: true,
+    sensitivity: SENS.default
 };
 
 const AI_LEVELS = {
-  easy: {
-    label: "FÁCIL",
-    returns: 5
-  },
+    easy: {
+        label: "FÁCIL",
+        returns: 5
+    },
 
-  normal: {
-    label: "NORMAL",
-    returns: 15
-  },
+    normal: {
+        label: "NORMAL",
+        returns: 15
+    },
 
-  hard: {
-    label: "DIFÍCIL",
-    returns: 45
-  }
+    hard: {
+        label: "DIFÍCIL",
+        returns: 30
+    }
 };
+
+
+// ============================================================
+// ESTADO
+// ============================================================
 
 let courtColor = "black";
 
@@ -108,31 +154,36 @@ let previousMouseY = null;
 let activeSlider = null;
 
 const localControls = {
-  left: { ...LOCAL_DEFAULTS.left },
-  right: { ...LOCAL_DEFAULTS.right }
+    left: { ...LOCAL_DEFAULTS.left },
+    right: { ...LOCAL_DEFAULTS.right }
 };
 
 const aiControls = {
-  ...AI_DEFAULTS
+    ...AI_DEFAULTS
 };
 
 const keys = {};
 
+
+// ============================================================
+// OBJETOS
+// ============================================================
+
 const leftPaddle = {
-  x: PADDLE.margin,
-  y: (H - PADDLE.h) / 2
+    x: PADDLE.margin,
+    y: (H - PADDLE.h) / 2
 };
 
 const rightPaddle = {
-  x: W - PADDLE.margin - PADDLE.w,
-  y: (H - PADDLE.h) / 2
+    x: W - PADDLE.margin - PADDLE.w,
+    y: (H - PADDLE.h) / 2
 };
 
 const ball = {
-  x: (W - BALL.size) / 2,
-  y: (H - BALL.size) / 2,
-  vx: 0,
-  vy: 0
+    x: (W - BALL.size) / 2,
+    y: (H - BALL.size) / 2,
+    vx: 0,
+    vy: 0
 };
 
 
@@ -141,70 +192,67 @@ const ball = {
 // ============================================================
 
 const clamp = (value, min, max) =>
-  Math.max(min, Math.min(max, value));
+    Math.max(min, Math.min(max, value));
 
 const round1 = value =>
-  Math.round(value * 10) / 10;
+    Math.round(value * 10) / 10;
 
 const otherSide = side =>
-  side === "left"
-    ? "right"
-    : "left";
+    side === "left"
+        ? "right"
+        : "left";
 
 const sidePaddle = side =>
-  side === "left"
-    ? leftPaddle
-    : rightPaddle;
+    side === "left"
+        ? leftPaddle
+        : rightPaddle;
 
 const currentBallSpeed = () =>
-  BALL.speedLevels[
-    ballSpeedLevel - 1
-  ];
+    BALL.speedLevels[
+        ballSpeedLevel - 1
+    ];
 
-const inside = (
-  x,
-  y,
-  rect
-) =>
-  x >= rect.x &&
-  x <= rect.x + rect.w &&
-  y >= rect.y &&
-  y <= rect.y + rect.h;
-
+function inside(x, y, rect) {
+    return (
+        x >= rect.x &&
+        x <= rect.x + rect.w &&
+        y >= rect.y &&
+        y <= rect.y + rect.h
+    );
+}
 
 function mousePos(event) {
 
-  const rect =
-    canvas.getBoundingClientRect();
+    const rect =
+        canvas.getBoundingClientRect();
 
-  return {
-    x:
-      (event.clientX - rect.left) *
-      W /
-      rect.width,
+    return {
+        x:
+            (event.clientX - rect.left) *
+            W /
+            rect.width,
 
-    y:
-      (event.clientY - rect.top) *
-      H /
-      rect.height
-  };
+        y:
+            (event.clientY - rect.top) *
+            H /
+            rect.height
+    };
 }
-
 
 function formatKey(key) {
 
-  const names = {
-    ArrowUp: "↑",
-    ArrowDown: "↓",
-    ArrowLeft: "←",
-    ArrowRight: "→",
-    " ": "SPACE"
-  };
+    const names = {
+        ArrowUp: "↑",
+        ArrowDown: "↓",
+        ArrowLeft: "←",
+        ArrowRight: "→",
+        " ": "SPACE"
+    };
 
-  return (
-    names[key] ||
-    key.toUpperCase()
-  );
+    return (
+        names[key] ||
+        key.toUpperCase()
+    );
 }
 
 
@@ -214,96 +262,79 @@ function formatKey(key) {
 
 function initAudio() {
 
-  if (!audioContext) {
-    audioContext =
-      new AudioContext();
-  }
+    if (!audioContext) {
+        audioContext =
+            new AudioContext();
+    }
 
-  if (
-    audioContext.state ===
-    "suspended"
-  ) {
-    audioContext.resume();
-  }
+    if (
+        audioContext.state ===
+        "suspended"
+    ) {
+        audioContext.resume();
+    }
 }
-
 
 function sound(
-  frequency,
-  duration,
-  volume
+    frequency,
+    duration,
+    volume
 ) {
 
-  if (
-    audioMuted ||
-    !audioContext
-  ) {
-    return;
-  }
+    if (
+        audioMuted ||
+        !audioContext
+    ) {
+        return;
+    }
 
-  const oscillator =
-    audioContext.createOscillator();
+    const oscillator =
+        audioContext.createOscillator();
 
-  const gain =
-    audioContext.createGain();
+    const gain =
+        audioContext.createGain();
 
-  oscillator.type =
-    "square";
+    oscillator.type =
+        "square";
 
-  oscillator.frequency
-    .setValueAtTime(
-      frequency,
-      audioContext.currentTime
+    oscillator.frequency
+        .setValueAtTime(
+            frequency,
+            audioContext.currentTime
+        );
+
+    gain.gain
+        .setValueAtTime(
+            volume,
+            audioContext.currentTime
+        );
+
+    gain.gain
+        .exponentialRampToValueAtTime(
+            0.001,
+            audioContext.currentTime +
+            duration
+        );
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start();
+
+    oscillator.stop(
+        audioContext.currentTime +
+        duration
     );
-
-  gain.gain
-    .setValueAtTime(
-      volume,
-      audioContext.currentTime
-    );
-
-  gain.gain
-    .exponentialRampToValueAtTime(
-      0.001,
-      audioContext.currentTime +
-      duration
-    );
-
-  oscillator.connect(gain);
-
-  gain.connect(
-    audioContext.destination
-  );
-
-  oscillator.start();
-
-  oscillator.stop(
-    audioContext.currentTime +
-    duration
-  );
 }
 
-
 const wallSound = () =>
-  sound(
-    500,
-    0.06,
-    0.08
-  );
+    sound(500, 0.06, 0.08);
 
 const paddleSound = () =>
-  sound(
-    800,
-    0.07,
-    0.1
-  );
+    sound(800, 0.07, 0.1);
 
 const pointSound = () =>
-  sound(
-    180,
-    0.2,
-    0.12
-  );
+    sound(180, 0.2, 0.12);
 
 
 // ============================================================
@@ -312,235 +343,231 @@ const pointSound = () =>
 
 function resetLocalControls() {
 
-  Object.assign(
-    localControls.left,
-    LOCAL_DEFAULTS.left
-  );
+    Object.assign(
+        localControls.left,
+        LOCAL_DEFAULTS.left
+    );
 
-  Object.assign(
-    localControls.right,
-    LOCAL_DEFAULTS.right
-  );
+    Object.assign(
+        localControls.right,
+        LOCAL_DEFAULTS.right
+    );
 
-  waitingForKey = null;
+    waitingForKey = null;
 }
-
 
 function resetAIControls() {
 
-  Object.assign(
-    aiControls,
-    AI_DEFAULTS
-  );
+    Object.assign(
+        aiControls,
+        AI_DEFAULTS
+    );
 
-  waitingForKey = null;
+    waitingForKey = null;
 }
-
 
 function resetPhysics() {
 
-  ballSpeedLevel =
-    BALL.defaultLevel;
+    ballSpeedLevel =
+        BALL.defaultLevel;
 
-  progressiveSpeed =
-    true;
+    progressiveSpeed =
+        true;
 
-  if (
-    gameMode &&
-    !gameOver
-  ) {
-    resetBall();
-  }
+    if (
+        gameMode &&
+        !gameOver
+    ) {
+        resetBall();
+    }
 }
-
 
 function resetPaddles() {
 
-  leftPaddle.y =
-  rightPaddle.y =
-    (H - PADDLE.h) / 2;
-}
+    const centerY =
+        (H - PADDLE.h) / 2;
 
+    leftPaddle.y =
+        centerY;
+
+    rightPaddle.y =
+        centerY;
+}
 
 function resetBall() {
 
-  ball.x =
-    (W - BALL.size) / 2;
+    ball.x =
+        (W - BALL.size) / 2;
 
-  ball.y =
-    (H - BALL.size) / 2;
+    ball.y =
+        (H - BALL.size) / 2;
 
-  const speed =
-    currentBallSpeed();
+    const speed =
+        currentBallSpeed();
 
-  ball.vx =
-    (
-      servingPlayer ===
-      "left"
+    ball.vx =
+        (
+            servingPlayer === "left"
+                ? 1
+                : -1
+        ) *
+        speed;
 
-        ? 1
-        : -1
-    ) *
-    speed;
+    ball.vy =
+        (
+            ball.vy < 0
+                ? -1
+                : 1
+        ) *
+        Math.max(
+            3,
+            speed *
+            BALL.baseYRatio
+        );
 
-  ball.vy =
-    (
-      ball.vy < 0
-        ? -1
-        : 1
-    ) *
-    Math.max(
-      3,
-      speed *
-      BALL.baseYRatio
-    );
-
-  aiReturns = 0;
+    // Cada punto reinicia
+    // el desgaste de la IA.
+    aiReturns = 0;
 }
-
 
 function resetMatch() {
 
-  leftScore = 0;
-  rightScore = 0;
+    leftScore = 0;
+    rightScore = 0;
 
-  servingPlayer =
-    "left";
+    servingPlayer =
+        "left";
 
-  gameOver = false;
-  winner = null;
+    gameOver = false;
+    winner = null;
 
-  gamePaused = false;
-  confirmOpen = null;
+    gamePaused = false;
+    confirmOpen = null;
 
-  resetPaddles();
-  resetBall();
+    resetPaddles();
+    resetBall();
 }
-
 
 function startGame(
-  mode,
-  side = "left",
-  difficulty = "normal"
+    mode,
+    side = "left",
+    difficulty = "normal"
 ) {
 
-  gameMode =
-    mode;
+    gameMode =
+        mode;
 
-  humanSide =
-    side;
+    humanSide =
+        side;
 
-  aiDifficulty =
-    difficulty;
+    aiDifficulty =
+        difficulty;
 
-  startMenuOpen = false;
-  aiMenuOpen = false;
+    startMenuOpen = false;
+    aiMenuOpen = false;
 
-  settingsOpen = false;
-  controlsOpen = false;
-  backgroundOpen = false;
-  physicsOpen = false;
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
 
-  resetMatch();
+    resetMatch();
 }
-
 
 function goToStartMenu() {
 
-  startMenuOpen = true;
+    startMenuOpen = true;
+    aiMenuOpen = false;
 
-  aiMenuOpen = false;
-  gamePaused = false;
-  gameOver = false;
+    gamePaused = false;
+    gameOver = false;
 
-  winner = null;
+    winner = null;
 
-  confirmOpen = null;
-  hoveredButton = null;
-  waitingForKey = null;
+    confirmOpen = null;
+    hoveredButton = null;
+    waitingForKey = null;
 
-  settingsOpen = false;
-  controlsOpen = false;
-  backgroundOpen = false;
-  physicsOpen = false;
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
 
-  gameMode = null;
+    gameMode = null;
 }
 
 
 // ============================================================
-// MATCH
+// PARTIDO
 // ============================================================
 
 function checkWinner() {
 
-  if (
-    leftScore < MATCH.win &&
-    rightScore < MATCH.win
-  ) {
-    return false;
-  }
+    if (
+        leftScore < MATCH.win &&
+        rightScore < MATCH.win
+    ) {
+        return false;
+    }
 
-  return (
-    Math.abs(
-      leftScore -
-      rightScore
-    ) >=
-    MATCH.margin
-  );
+    return (
+        Math.abs(
+            leftScore -
+            rightScore
+        ) >=
+        MATCH.margin
+    );
 }
-
 
 function updateServe() {
 
-  if (
-    leftScore >= 10 &&
-    rightScore >= 10
-  ) {
+    if (
+        leftScore >= 10 &&
+        rightScore >= 10
+    ) {
+
+        servingPlayer =
+            otherSide(
+                servingPlayer
+            );
+
+        return;
+    }
 
     servingPlayer =
-      otherSide(
-        servingPlayer
-      );
+        Math.floor(
+            (
+                leftScore +
+                rightScore
+            ) /
+            2
+        ) %
+        2 ===
+        0
 
-    return;
-  }
-
-  servingPlayer =
-    Math.floor(
-      (
-        leftScore +
-        rightScore
-      ) /
-      2
-    ) %
-    2 ===
-    0
-
-      ? "left"
-      : "right";
+            ? "left"
+            : "right";
 }
-
 
 function handlePoint() {
 
-  if (checkWinner()) {
+    if (checkWinner()) {
 
-    gameOver =
-      true;
+        gameOver =
+            true;
 
-    winner =
-      leftScore >
-      rightScore
+        winner =
+            leftScore >
+            rightScore
 
-        ? "left"
-        : "right";
+                ? "left"
+                : "right";
 
-    return;
-  }
+        return;
+    }
 
-  updateServe();
-  resetBall();
+    updateServe();
+    resetBall();
 }
 
 
@@ -550,63 +577,58 @@ function handlePoint() {
 
 function wouldWinNext(side) {
 
-  const left =
-    leftScore +
-    (
-      side === "left"
-        ? 1
-        : 0
-    );
+    const left =
+        leftScore +
+        (
+            side === "left"
+                ? 1
+                : 0
+        );
 
-  const right =
-    rightScore +
-    (
-      side === "right"
-        ? 1
-        : 0
-    );
+    const right =
+        rightScore +
+        (
+            side === "right"
+                ? 1
+                : 0
+        );
 
-  return (
-    (
-      left >= MATCH.win ||
-      right >= MATCH.win
-    ) &&
-    Math.abs(
-      left -
-      right
-    ) >=
-    MATCH.margin
-  );
+    return (
+        (
+            left >= MATCH.win ||
+            right >= MATCH.win
+        ) &&
+        Math.abs(
+            left -
+            right
+        ) >=
+        MATCH.margin
+    );
 }
-
 
 function matchPointSide() {
 
-  const left =
-    wouldWinNext(
-      "left"
-    );
+    const left =
+        wouldWinNext("left");
 
-  const right =
-    wouldWinNext(
-      "right"
-    );
+    const right =
+        wouldWinNext("right");
 
-  if (
-    left &&
-    !right
-  ) {
-    return "left";
-  }
+    if (
+        left &&
+        !right
+    ) {
+        return "left";
+    }
 
-  if (
-    right &&
-    !left
-  ) {
-    return "right";
-  }
+    if (
+        right &&
+        !left
+    ) {
+        return "right";
+    }
 
-  return null;
+    return null;
 }
 
 
@@ -616,148 +638,175 @@ function matchPointSide() {
 
 function increaseBallSpeed() {
 
-  if (!progressiveSpeed) {
-    return;
-  }
+    if (!progressiveSpeed) {
+        return;
+    }
 
-  const maxSpeed =
-    BALL.speedLevels.at(-1);
+    const maxSpeed =
+        BALL.speedLevels[
+            BALL.speedLevels.length - 1
+        ];
 
-  const currentSpeed =
-    Math.hypot(
-      ball.vx,
-      ball.vy
-    );
+    const currentSpeed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
 
-  if (
-    currentSpeed <= 0 ||
-    currentSpeed >= maxSpeed
-  ) {
-    return;
-  }
+    if (
+        currentSpeed <= 0 ||
+        currentSpeed >= maxSpeed
+    ) {
+        return;
+    }
 
-  const nextSpeed =
-    Math.min(
-      currentSpeed *
-      BALL.progressiveFactor,
+    const nextSpeed =
+        Math.min(
+            currentSpeed *
+            BALL.progressiveFactor,
 
-      maxSpeed
-    );
+            maxSpeed
+        );
 
-  const scale =
-    nextSpeed /
-    currentSpeed;
+    const scale =
+        nextSpeed /
+        currentSpeed;
 
-  ball.vx *= scale;
-  ball.vy *= scale;
+    ball.vx *= scale;
+    ball.vy *= scale;
 }
 
 
 // ============================================================
-// MOVIMIENTO
+// VELOCIDAD DE PALETAS
+// ============================================================
+
+function keyboardSpeed(
+    sensitivity
+) {
+
+    const t =
+        (
+            sensitivity -
+            SENS.min
+        ) /
+        (
+            SENS.max -
+            SENS.min
+        );
+
+    /*
+        0.1 = 6
+        0.5 = ~12.2
+        1.0 = 20
+
+        El valor por defecto 0.5
+        ahora se siente mucho más ágil.
+    */
+
+    return (
+        6 +
+        t * 14
+    );
+}
+
+
+// ============================================================
+// PVP LOCAL
 // ============================================================
 
 function localMove() {
 
-  for (
-    const side of
-    [
-      "left",
-      "right"
-    ]
-  ) {
-
-    const controls =
-      localControls[side];
-
-    const paddle =
-      sidePaddle(side);
-
-    const speed =
-      PADDLE.baseSpeed *
-      (
-        0.45 +
-        controls.sensitivity *
-        1.35
-      );
-
-    if (
-      keys[
-        controls.up
-      ]
+    for (
+        const side of
+        [
+            "left",
+            "right"
+        ]
     ) {
-      paddle.y -= speed;
-    }
 
-    if (
-      keys[
-        controls.down
-      ]
-    ) {
-      paddle.y += speed;
+        const controls =
+            localControls[side];
+
+        const paddle =
+            sidePaddle(side);
+
+        const speed =
+            keyboardSpeed(
+                controls.sensitivity
+            );
+
+        if (
+            keys[
+                controls.up
+            ]
+        ) {
+            paddle.y -= speed;
+        }
+
+        if (
+            keys[
+                controls.down
+            ]
+        ) {
+            paddle.y += speed;
+        }
     }
-  }
 }
 
+
+// ============================================================
+// JUGADOR VS IA
+// ============================================================
 
 function humanMoveAI() {
 
-  const paddle =
-    sidePaddle(
-      humanSide
-    );
+    const paddle =
+        sidePaddle(
+            humanSide
+        );
 
-  const speed =
-    PADDLE.baseSpeed *
-    (
-      0.45 +
-      aiControls.sensitivity *
-      1.35
-    );
+    const speed =
+        keyboardSpeed(
+            aiControls.sensitivity
+        );
 
-  if (
-    keys[
-      aiControls.up1
-    ] ||
-    keys[
-      aiControls.up2
-    ]
-  ) {
-    paddle.y -= speed;
-  }
+    const up =
+        keys[aiControls.up1] ||
+        keys[aiControls.up2];
 
-  if (
-    keys[
-      aiControls.down1
-    ] ||
-    keys[
-      aiControls.down2
-    ]
-  ) {
-    paddle.y += speed;
-  }
+    const down =
+        keys[aiControls.down1] ||
+        keys[aiControls.down2];
+
+    if (up) {
+        paddle.y -= speed;
+    }
+
+    if (down) {
+        paddle.y += speed;
+    }
 }
-
 
 function clampPaddles() {
 
-  const maxY =
-    TABLE.bottom -
-    PADDLE.h;
+    const maxY =
+        TABLE.bottom -
+        PADDLE.h;
 
-  leftPaddle.y =
-    clamp(
-      leftPaddle.y,
-      TABLE.top,
-      maxY
-    );
+    leftPaddle.y =
+        clamp(
+            leftPaddle.y,
+            TABLE.top,
+            maxY
+        );
 
-  rightPaddle.y =
-    clamp(
-      rightPaddle.y,
-      TABLE.top,
-      maxY
-    );
+    rightPaddle.y =
+        clamp(
+            rightPaddle.y,
+            TABLE.top,
+            maxY
+        );
 }
 
 
@@ -767,496 +816,575 @@ function clampPaddles() {
 
 function aiMovementSensitivity() {
 
-  const limit =
-    AI_LEVELS[
-      aiDifficulty
-    ].returns;
+    const limit =
+        AI_LEVELS[
+            aiDifficulty
+        ].returns;
 
-  const progress =
-    clamp(
-      aiReturns /
-      limit,
+    const progress =
+        clamp(
+            aiReturns /
+            limit,
+            0,
+            1
+        );
 
-      0,
-      1
+    /*
+        Empieza al 100%.
+
+        A medida que devuelve,
+        pierde capacidad de movimiento.
+
+        5 / 15 / 30 determinan
+        cuánto tarda en degradarse.
+    */
+
+    return Math.max(
+        0.08,
+
+        1 -
+        progress *
+        0.92
     );
-
-  return Math.max(
-    0.08,
-
-    1 -
-    progress *
-    0.92
-  );
 }
-
 
 function registerAIReturn(side) {
 
-  if (
-    gameMode ===
-    "ai" &&
+    if (
+        gameMode !== "ai"
+    ) {
+        return;
+    }
 
-    side ===
-    otherSide(
-      humanSide
-    )
-  ) {
+    if (
+        side !==
+        otherSide(
+            humanSide
+        )
+    ) {
+        return;
+    }
+
     aiReturns++;
-  }
 }
-
 
 function updateAI() {
 
-  if (
-    gameMode !==
-    "ai"
-  ) {
-    return;
-  }
+    if (
+        gameMode !== "ai"
+    ) {
+        return;
+    }
 
-  const paddle =
-    sidePaddle(
-      otherSide(
-        humanSide
-      )
-    );
+    const paddle =
+        sidePaddle(
+            otherSide(
+                humanSide
+            )
+        );
 
-  const target =
-    ball.y +
-    BALL.size / 2;
+    const sensitivity =
+        aiMovementSensitivity();
 
-  const center =
-    paddle.y +
-    PADDLE.h / 2;
+    const target =
+        ball.y +
+        BALL.size / 2;
 
-  const sensitivity =
-    aiMovementSensitivity();
+    const center =
+        paddle.y +
+        PADDLE.h / 2;
 
-  const delta =
-    target -
-    center;
+    const delta =
+        target -
+        center;
 
-  const maxStep =
-    12 *
-    sensitivity;
 
-  paddle.y +=
-    clamp(
-      delta *
-      0.22 *
-      sensitivity,
+    /*
+        La IA escala su capacidad
+        con la velocidad REAL de la pelota.
 
-      -maxStep,
-      maxStep
-    );
+        Así Difícil puede sobrevivir
+        a la velocidad progresiva
+        sin volverse invencible.
+    */
+
+    const ballDemand =
+        Math.max(
+            12,
+
+            Math.abs(
+                ball.vy
+            ) *
+            1.35 +
+
+            Math.abs(
+                ball.vx
+            ) *
+            0.38
+        );
+
+
+    /*
+        La sensibilidad sigue
+        reduciendo la capacidad.
+
+        Al principio puede seguir
+        incluso una pelota rápida.
+
+        Al acercarse al límite de
+        devoluciones empieza a quedarse.
+    */
+
+    const maxStep =
+        ballDemand *
+        (
+            0.35 +
+            sensitivity *
+            0.9
+        );
+
+
+    const tracking =
+        0.26 +
+        sensitivity *
+        0.18;
+
+
+    paddle.y +=
+        clamp(
+            delta *
+            tracking,
+
+            -maxStep,
+            maxStep
+        );
 }
-
 
 function updatePaddles() {
 
-  if (
-    startMenuOpen ||
-    gamePaused ||
-    gameOver ||
-    !gameMode
-  ) {
-    return;
-  }
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        !gameMode
+    ) {
+        return;
+    }
 
-  if (
-    gameMode ===
-    "local"
-  ) {
+    if (
+        gameMode ===
+        "local"
+    ) {
 
-    localMove();
+        localMove();
 
-  } else if (
-    gameMode ===
-    "ai"
-  ) {
+    } else if (
+        gameMode ===
+        "ai"
+    ) {
 
-    humanMoveAI();
-    updateAI();
-  }
+        humanMoveAI();
+        updateAI();
+    }
 
-  clampPaddles();
+    clampPaddles();
 }
 
 
 // ============================================================
-// PELOTA / COLISIONES
+// COLISIONES
 // ============================================================
 
 function paddleCollision(
-  paddle,
-  side
+    paddle,
+    side
 ) {
 
-  const movingToward =
-    side === "left"
-      ? ball.vx < 0
-      : ball.vx > 0;
+    const movingToward =
+        side === "left"
+            ? ball.vx < 0
+            : ball.vx > 0;
 
-  if (!movingToward) {
-    return false;
-  }
+    if (!movingToward) {
+        return false;
+    }
 
-  return (
-    ball.x +
-      BALL.size >=
-      paddle.x &&
+    return (
+        ball.x +
+            BALL.size >=
+            paddle.x &&
 
-    ball.x <=
-      paddle.x +
-      PADDLE.w &&
+        ball.x <=
+            paddle.x +
+            PADDLE.w &&
 
-    ball.y +
-      BALL.size >=
-      paddle.y &&
+        ball.y +
+            BALL.size >=
+            paddle.y &&
 
-    ball.y <=
-      paddle.y +
-      PADDLE.h
-  );
+        ball.y <=
+            paddle.y +
+            PADDLE.h
+    );
 }
-
 
 function bouncePaddle(
-  paddle,
-  side
+    paddle,
+    side
 ) {
 
-  ball.x =
-    side ===
-    "left"
+    ball.x =
+        side === "left"
 
-      ? paddle.x +
-        PADDLE.w
+            ? paddle.x +
+              PADDLE.w
 
-      : paddle.x -
-        BALL.size;
+            : paddle.x -
+              BALL.size;
 
-  ball.vx =
-    (
-      side === "left"
-        ? 1
-        : -1
-    ) *
-    Math.abs(
-      ball.vx
+    ball.vx =
+        (
+            side === "left"
+                ? 1
+                : -1
+        ) *
+        Math.abs(
+            ball.vx
+        );
+
+    registerAIReturn(
+        side
     );
 
-  registerAIReturn(
-    side
-  );
-
-  increaseBallSpeed();
-  paddleSound();
+    increaseBallSpeed();
+    paddleSound();
 }
 
+
+// ============================================================
+// PELOTA
+// ============================================================
 
 function updateBall() {
 
-  if (
-    startMenuOpen ||
-    gamePaused ||
-    gameOver ||
-    !gameMode
-  ) {
-    return;
-  }
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        !gameMode
+    ) {
+        return;
+    }
 
-  ball.x +=
-    ball.vx;
+    ball.x +=
+        ball.vx;
 
-  ball.y +=
-    ball.vy;
-
-
-  if (
-    ball.y <=
-    TABLE.top
-  ) {
-
-    ball.y =
-      TABLE.top;
-
-    ball.vy =
-      Math.abs(
-        ball.vy
-      );
-
-    increaseBallSpeed();
-    wallSound();
-
-  } else if (
-    ball.y +
-    BALL.size >=
-    TABLE.bottom
-  ) {
-
-    ball.y =
-      TABLE.bottom -
-      BALL.size;
-
-    ball.vy =
-      -Math.abs(
-        ball.vy
-      );
-
-    increaseBallSpeed();
-    wallSound();
-  }
+    ball.y +=
+        ball.vy;
 
 
-  if (
-    paddleCollision(
-      leftPaddle,
-      "left"
-    )
-  ) {
+    // PARED SUPERIOR
 
-    bouncePaddle(
-      leftPaddle,
-      "left"
-    );
+    if (
+        ball.y <=
+        TABLE.top
+    ) {
 
-  } else if (
-    paddleCollision(
-      rightPaddle,
-      "right"
-    )
-  ) {
+        ball.y =
+            TABLE.top;
 
-    bouncePaddle(
-      rightPaddle,
-      "right"
-    );
-  }
+        ball.vy =
+            Math.abs(
+                ball.vy
+            );
+
+        increaseBallSpeed();
+        wallSound();
 
 
-  if (
-    ball.x +
-    BALL.size <
-    TABLE.left
-  ) {
+    // PARED INFERIOR
 
-    rightScore++;
+    } else if (
+        ball.y +
+        BALL.size >=
+        TABLE.bottom
+    ) {
 
-    pointSound();
-    handlePoint();
+        ball.y =
+            TABLE.bottom -
+            BALL.size;
 
-  } else if (
-    ball.x >
-    TABLE.right
-  ) {
+        ball.vy =
+            -Math.abs(
+                ball.vy
+            );
 
-    leftScore++;
+        increaseBallSpeed();
+        wallSound();
+    }
 
-    pointSound();
-    handlePoint();
-  }
+
+    // PALETA IZQUIERDA
+
+    if (
+        paddleCollision(
+            leftPaddle,
+            "left"
+        )
+    ) {
+
+        bouncePaddle(
+            leftPaddle,
+            "left"
+        );
+
+
+    // PALETA DERECHA
+
+    } else if (
+        paddleCollision(
+            rightPaddle,
+            "right"
+        )
+    ) {
+
+        bouncePaddle(
+            rightPaddle,
+            "right"
+        );
+    }
+
+
+    // PUNTO DERECHA
+
+    if (
+        ball.x +
+        BALL.size <
+        TABLE.left
+    ) {
+
+        rightScore++;
+
+        pointSound();
+        handlePoint();
+
+
+    // PUNTO IZQUIERDA
+
+    } else if (
+        ball.x >
+        TABLE.right
+    ) {
+
+        leftScore++;
+
+        pointSound();
+        handlePoint();
+    }
 }
 
 
 // ============================================================
-// INPUT
+// TECLADO
 // ============================================================
 
 window.addEventListener(
-  "keydown",
-  event => {
+    "keydown",
+    event => {
 
-    initAudio();
+        initAudio();
 
 
-    if (waitingForKey) {
+        // REASIGNAR TECLA
 
-      event.preventDefault();
+        if (waitingForKey) {
 
-      if (
-        event.key ===
-        "Escape"
-      ) {
+            event.preventDefault();
 
-        waitingForKey =
-          null;
+            if (
+                event.key ===
+                "Escape"
+            ) {
+
+                waitingForKey =
+                    null;
+
+                closeMenusToGame();
+
+                return;
+            }
+
+            setRebindKey(
+                waitingForKey,
+                event.key
+            );
+
+            waitingForKey =
+                null;
+
+            return;
+        }
+
+
+        // MUTE
+
+        if (
+            event.key
+                .toLowerCase() ===
+            "m"
+        ) {
+
+            event.preventDefault();
+
+            audioMuted =
+                !audioMuted;
+
+            return;
+        }
+
+
+        // ESC
+
+        if (
+            event.key ===
+            "Escape"
+        ) {
+
+            event.preventDefault();
+
+            handleEscape();
+
+            return;
+        }
+
+
+        if (
+            startMenuOpen ||
+            gamePaused ||
+            gameOver
+        ) {
+            return;
+        }
+
+
+        keys[
+            event.key
+        ] =
+            true;
+
+
+        if (
+            event.key
+                .startsWith(
+                    "Arrow"
+                )
+        ) {
+            event.preventDefault();
+        }
+    }
+);
+
+window.addEventListener(
+    "keyup",
+    event => {
+
+        keys[
+            event.key
+        ] =
+            false;
+    }
+);
+
+function setRebindKey(
+    id,
+    key
+) {
+
+    if (
+        gameMode ===
+        "local"
+    ) {
+
+        const [
+            side,
+            action
+        ] =
+            id.split(":");
+
+        localControls[
+            side
+        ][
+            action
+        ] =
+            key;
+
+    } else {
+
+        aiControls[
+            id
+        ] =
+            key;
+    }
+}
+
+
+// ============================================================
+// ESC / NAVEGACIÓN
+// ============================================================
+
+function closeMenusToGame() {
+
+    if (
+        !gameMode ||
+        startMenuOpen
+    ) {
+        return;
+    }
+
+    gamePaused = false;
+
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+
+    confirmOpen = null;
+
+    waitingForKey = null;
+    hoveredButton = null;
+}
+
+function handleEscape() {
+
+    if (startMenuOpen) {
+
+        if (aiMenuOpen) {
+            aiMenuOpen = false;
+        }
+
+        return;
+    }
+
+    if (gameOver) {
+        return;
+    }
+
+    if (
+        gamePaused ||
+        settingsOpen ||
+        controlsOpen ||
+        backgroundOpen ||
+        physicsOpen ||
+        confirmOpen
+    ) {
 
         closeMenusToGame();
 
         return;
-      }
-
-      setRebindKey(
-        waitingForKey,
-        event.key
-      );
-
-      waitingForKey =
-        null;
-
-      return;
     }
 
-
-    if (
-      event.key
-        .toLowerCase() ===
-      "m"
-    ) {
-
-      event.preventDefault();
-
-      audioMuted =
-        !audioMuted;
-
-      return;
-    }
-
-
-    if (
-      event.key ===
-      "Escape"
-    ) {
-
-      event.preventDefault();
-
-      handleEscape();
-
-      return;
-    }
-
-
-    if (
-      startMenuOpen ||
-      gamePaused ||
-      gameOver
-    ) {
-      return;
-    }
-
-
-    keys[
-      event.key
-    ] =
-      true;
-
-
-    if (
-      event.key
-        .startsWith(
-          "Arrow"
-        )
-    ) {
-
-      event.preventDefault();
-    }
-  }
-);
-
-
-window.addEventListener(
-  "keyup",
-  event => {
-
-    keys[
-      event.key
-    ] =
-      false;
-  }
-);
-
-
-function setRebindKey(
-  id,
-  key
-) {
-
-  if (
-    gameMode ===
-    "local"
-  ) {
-
-    const [
-      side,
-      action
-    ] =
-      id.split(":");
-
-    localControls[
-      side
-    ][
-      action
-    ] =
-      key;
-
-  } else {
-
-    aiControls[
-      id
-    ] =
-      key;
-  }
-}
-
-
-function closeMenusToGame() {
-
-  if (
-    !gameMode ||
-    startMenuOpen
-  ) {
-    return;
-  }
-
-  gamePaused = false;
-
-  settingsOpen = false;
-  controlsOpen = false;
-  backgroundOpen = false;
-  physicsOpen = false;
-
-  confirmOpen = null;
-  waitingForKey = null;
-  hoveredButton = null;
-}
-
-
-function handleEscape() {
-
-  if (startMenuOpen) {
-
-    if (aiMenuOpen) {
-      aiMenuOpen = false;
-    }
-
-    return;
-  }
-
-
-  if (gameOver) {
-    return;
-  }
-
-
-  if (
-    gamePaused ||
-    settingsOpen ||
-    controlsOpen ||
-    backgroundOpen ||
-    physicsOpen ||
-    confirmOpen
-  ) {
-
-    closeMenusToGame();
-
-    return;
-  }
-
-  gamePaused =
-    true;
+    gamePaused =
+        true;
 }
 
 
@@ -1265,204 +1393,207 @@ function handleEscape() {
 // ============================================================
 
 canvas.addEventListener(
-  "mousemove",
-  event => {
+    "mousemove",
+    event => {
 
-    const {
-      x,
-      y
-    } =
-      mousePos(event);
-
-
-    if (
-      !startMenuOpen &&
-      !gamePaused &&
-      !gameOver &&
-      previousMouseY !==
-      null
-    ) {
-
-      const delta =
-        y -
-        previousMouseY;
+        const {
+            x,
+            y
+        } =
+            mousePos(event);
 
 
-      if (
-        gameMode ===
-        "ai" &&
-        aiControls.mouse
-      ) {
-
-        sidePaddle(
-          humanSide
-        ).y +=
-          delta *
-          (
-            0.55 +
-            aiControls
-              .sensitivity *
-            1.65
-          );
-
-      } else if (
-        gameMode ===
-        "local"
-      ) {
-
-        for (
-          const side of
-          [
-            "left",
-            "right"
-          ]
+        if (
+            !startMenuOpen &&
+            !gamePaused &&
+            !gameOver &&
+            previousMouseY !==
+                null
         ) {
 
-          const controls =
-            localControls[
-              side
-            ];
+            const delta =
+                y -
+                previousMouseY;
 
-          if (
-            controls.mouse
-          ) {
 
-            sidePaddle(
-              side
-            ).y +=
-              delta *
-              (
-                0.55 +
-                controls
-                  .sensitivity *
-                1.65
-              );
-          }
+            // VS IA
+
+            if (
+                gameMode ===
+                    "ai" &&
+                aiControls.mouse
+            ) {
+
+                sidePaddle(
+                    humanSide
+                ).y +=
+                    delta *
+                    (
+                        0.75 +
+                        aiControls
+                            .sensitivity *
+                        2
+                    );
+
+
+            // PVP LOCAL
+
+            } else if (
+                gameMode ===
+                "local"
+            ) {
+
+                for (
+                    const side of
+                    [
+                        "left",
+                        "right"
+                    ]
+                ) {
+
+                    const controls =
+                        localControls[
+                            side
+                        ];
+
+                    if (
+                        controls.mouse
+                    ) {
+
+                        sidePaddle(
+                            side
+                        ).y +=
+                            delta *
+                            (
+                                0.75 +
+                                controls
+                                    .sensitivity *
+                                2
+                            );
+                    }
+                }
+            }
+
+            clampPaddles();
         }
-      }
-
-      clampPaddles();
-    }
 
 
-    previousMouseY =
-      y;
-
-    updateHover(
-      x,
-      y
-    );
+        previousMouseY =
+            y;
 
 
-    if (activeSlider) {
-
-      const slider =
-        interactiveItems()
-          .find(
-            item =>
-              item.id ===
-                activeSlider &&
-
-              item.type ===
-                "slider"
-          );
-
-      if (slider) {
-
-        updateSlider(
-          slider,
-          x
+        updateHover(
+            x,
+            y
         );
-      }
-    }
-  }
-);
 
+
+        if (activeSlider) {
+
+            const slider =
+                interactiveItems()
+                    .find(
+                        item =>
+                            item.id ===
+                                activeSlider &&
+
+                            item.type ===
+                                "slider"
+                    );
+
+            if (slider) {
+
+                updateSlider(
+                    slider,
+                    x
+                );
+            }
+        }
+    }
+);
 
 window.addEventListener(
-  "mouseup",
-  () => {
+    "mouseup",
+    () => {
 
-    activeSlider =
-      null;
-  }
+        activeSlider =
+            null;
+    }
 );
 
-
 canvas.addEventListener(
-  "mousedown",
-  event => {
+    "mousedown",
+    event => {
 
-    const {
-      x,
-      y
-    } =
-      mousePos(event);
+        const {
+            x,
+            y
+        } =
+            mousePos(event);
 
-    const slider =
-      interactiveItems()
-        .find(
-          item =>
-            item.type ===
-              "slider" &&
+        const slider =
+            interactiveItems()
+                .find(
+                    item =>
+                        item.type ===
+                            "slider" &&
 
-            inside(
-              x,
-              y,
-              item.hitRect ||
-              item.rect
-            )
+                        inside(
+                            x,
+                            y,
+                            item.hitRect ||
+                            item.rect
+                        )
+                );
+
+        if (!slider) {
+            return;
+        }
+
+        activeSlider =
+            slider.id;
+
+        updateSlider(
+            slider,
+            x
         );
-
-    if (!slider) {
-      return;
     }
-
-    activeSlider =
-      slider.id;
-
-    updateSlider(
-      slider,
-      x
-    );
-  }
 );
 
-
 canvas.addEventListener(
-  "click",
-  event => {
+    "click",
+    event => {
 
-    const {
-      x,
-      y
-    } =
-      mousePos(event);
+        const {
+            x,
+            y
+        } =
+            mousePos(event);
 
-    const hit =
-      interactiveItems()
-        .find(
-          item =>
-            inside(
-              x,
-              y,
-              item.hitRect ||
-              item.rect
-            )
-        );
+        const hit =
+            interactiveItems()
+                .find(
+                    item =>
+                        inside(
+                            x,
+                            y,
+                            item.hitRect ||
+                            item.rect
+                        )
+                );
 
-    if (
-      hit &&
-      !hit.disabled &&
-      hit.type !==
-      "slider"
-    ) {
+        if (
+            hit &&
+            !hit.disabled &&
+            hit.type !==
+                "slider"
+        ) {
 
-      handleAction(
-        hit.id
-      );
+            handleAction(
+                hit.id
+            );
+        }
     }
-  }
 );
 
 
@@ -1471,601 +1602,597 @@ canvas.addEventListener(
 // ============================================================
 
 function buttonRect(
-  index,
-  count,
-  width = 320,
-  height = 58,
-  gap = 16,
-  centerY = 390
+    index,
+    count,
+    width = 320,
+    height = 58,
+    gap = 16,
+    centerY = 390
 ) {
 
-  const total =
-    count *
-    height +
-    (
-      count -
-      1
-    ) *
-    gap;
-
-  return {
-    x:
-      (W - width) /
-      2,
-
-    y:
-      centerY -
-      total / 2 +
-      index *
-      (
+    const total =
+        count *
         height +
-        gap
-      ),
+        (
+            count -
+            1
+        ) *
+        gap;
 
-    w:
-      width,
+    return {
+        x:
+            (W - width) /
+            2,
 
-    h:
-      height
-  };
+        y:
+            centerY -
+            total / 2 +
+            index *
+            (
+                height +
+                gap
+            ),
+
+        w:
+            width,
+
+        h:
+            height
+    };
 }
 
-
 function addSlider(
-  items,
-  id,
-  label,
-  value,
-  min,
-  max,
-  rect
-) {
-
-  items.push({
+    items,
     id,
     label,
     value,
     min,
     max,
-    rect,
+    rect
+) {
 
-    type:
-      "slider",
+    items.push({
+        id,
+        label,
+        value,
+        min,
+        max,
+        rect,
 
-    hitRect: {
-      x:
-        rect.x - 10,
+        type:
+            "slider",
 
-      y:
-        rect.y - 30,
+        hitRect: {
+            x:
+                rect.x - 10,
 
-      w:
-        rect.w + 20,
+            y:
+                rect.y - 30,
 
-      h:
-        rect.h + 50
-    }
-  });
+            w:
+                rect.w + 20,
+
+            h:
+                rect.h + 50
+        }
+    });
 }
-
 
 function interactiveItems() {
 
-  const items = [];
+    const items = [];
 
-  const add = (
-    id,
-    text,
-    rect,
-    disabled = false
-  ) => {
+    const add = (
+        id,
+        text,
+        rect,
+        disabled = false
+    ) => {
 
-    items.push({
-      id,
-      text,
-      rect,
-      disabled,
-      type: "button"
-    });
-  };
-
-
-  if (
-    startMenuOpen &&
-    !aiMenuOpen
-  ) {
-
-    add(
-      "local",
-      "PVP LOCAL",
-      buttonRect(
-        0,
-        3
-      )
-    );
-
-    add(
-      "ai",
-      "VS IA",
-      buttonRect(
-        1,
-        3
-      )
-    );
-
-    add(
-      "online",
-      "PVP ONLINE",
-      buttonRect(
-        2,
-        3
-      ),
-      true
-    );
-
-    return items;
-  }
+        items.push({
+            id,
+            text,
+            rect,
+            disabled,
+            type: "button"
+        });
+    };
 
 
-  if (
-    startMenuOpen &&
-    aiMenuOpen
-  ) {
+    // MENU INICIAL
 
-    add(
-      "side",
+    if (
+        startMenuOpen &&
+        !aiMenuOpen
+    ) {
 
-      `LADO: ${
-        humanSide ===
-        "left"
+        add(
+            "local",
+            "PVP LOCAL",
+            buttonRect(
+                0,
+                3
+            )
+        );
 
-          ? "IZQUIERDA"
-          : "DERECHA"
-      }`,
+        add(
+            "ai",
+            "VS IA",
+            buttonRect(
+                1,
+                3
+            )
+        );
 
-      buttonRect(
-        0,
-        5,
-        360,
-        54,
-        13,
-        390
-      )
-    );
+        add(
+            "online",
+            "PVP ONLINE",
+            buttonRect(
+                2,
+                3
+            ),
+            true
+        );
 
-    add(
-      "easy",
-      "FÁCIL",
-      buttonRect(
-        1,
-        5,
-        360,
-        54,
-        13,
-        390
-      )
-    );
-
-    add(
-      "normal",
-      "NORMAL",
-      buttonRect(
-        2,
-        5,
-        360,
-        54,
-        13,
-        390
-      )
-    );
-
-    add(
-      "hard",
-      "DIFÍCIL",
-      buttonRect(
-        3,
-        5,
-        360,
-        54,
-        13,
-        390
-      )
-    );
-
-    add(
-      "aiBack",
-      "VOLVER",
-      buttonRect(
-        4,
-        5,
-        360,
-        54,
-        13,
-        390
-      )
-    );
-
-    return items;
-  }
+        return items;
+    }
 
 
-  if (gameOver) {
+    // MENU IA
 
-    add(
-      "revenge",
-      "¿REVANCHA?",
-      {
-        x:
-          W / 2 -
-          130,
+    if (
+        startMenuOpen &&
+        aiMenuOpen
+    ) {
 
-        y:
-          H / 2 +
-          55,
+        add(
+            "side",
 
-        w: 260,
-        h: 60
-      }
-    );
+            `LADO: ${
+                humanSide ===
+                "left"
 
-    add(
-      "victoryMenu",
-      "MENÚ INICIAL",
-      {
-        x:
-          W / 2 -
-          130,
+                    ? "IZQUIERDA"
+                    : "DERECHA"
+            }`,
 
-        y:
-          H / 2 +
-          135,
+            buttonRect(
+                0,
+                5,
+                360,
+                54,
+                13,
+                390
+            )
+        );
 
-        w: 260,
-        h: 52
-      }
-    );
+        add(
+            "easy",
+            "FÁCIL",
+            buttonRect(
+                1,
+                5,
+                360,
+                54,
+                13,
+                390
+            )
+        );
 
-    return items;
-  }
+        add(
+            "normal",
+            "NORMAL",
+            buttonRect(
+                2,
+                5,
+                360,
+                54,
+                13,
+                390
+            )
+        );
+
+        add(
+            "hard",
+            "DIFÍCIL",
+            buttonRect(
+                3,
+                5,
+                360,
+                54,
+                13,
+                390
+            )
+        );
+
+        add(
+            "aiBack",
+            "VOLVER",
+            buttonRect(
+                4,
+                5,
+                360,
+                54,
+                13,
+                390
+            )
+        );
+
+        return items;
+    }
 
 
-  if (confirmOpen) {
+    // VICTORIA
 
-    add(
-      "confirmYes",
-      "SÍ",
-      {
-        x:
-          W / 2 -
-          200,
+    if (gameOver) {
 
-        y:
-          H / 2 +
-          40,
+        add(
+            "revenge",
+            "¿REVANCHA?",
+            {
+                x:
+                    W / 2 - 130,
 
-        w: 180,
-        h: 55
-      }
-    );
+                y:
+                    H / 2 + 55,
 
-    add(
-      "confirmNo",
-      "NO",
-      {
-        x:
-          W / 2 +
-          20,
+                w: 260,
+                h: 60
+            }
+        );
 
-        y:
-          H / 2 +
-          40,
+        add(
+            "victoryMenu",
+            "MENÚ INICIAL",
+            {
+                x:
+                    W / 2 - 130,
 
-        w: 180,
-        h: 55
-      }
-    );
+                y:
+                    H / 2 + 135,
 
-    return items;
-  }
+                w: 260,
+                h: 52
+            }
+        );
+
+        return items;
+    }
 
 
-  if (controlsOpen) {
+    // CONFIRMACION
 
-    return (
-      gameMode ===
-      "local"
+    if (confirmOpen) {
 
-        ? localControlItems(
+        add(
+            "confirmYes",
+            "SÍ",
+            {
+                x:
+                    W / 2 - 200,
+
+                y:
+                    H / 2 + 40,
+
+                w: 180,
+                h: 55
+            }
+        );
+
+        add(
+            "confirmNo",
+            "NO",
+            {
+                x:
+                    W / 2 + 20,
+
+                y:
+                    H / 2 + 40,
+
+                w: 180,
+                h: 55
+            }
+        );
+
+        return items;
+    }
+
+
+    // CONTROLES
+
+    if (controlsOpen) {
+
+        return (
+            gameMode ===
+            "local"
+
+                ? localControlItems(
+                    items,
+                    add
+                )
+
+                : aiControlItems(
+                    items,
+                    add
+                )
+        );
+    }
+
+
+    // FONDO
+
+    if (backgroundOpen) {
+
+        [
+            ["green", "VERDE"],
+            ["blue", "AZUL"],
+            ["black", "NEGRO"],
+            ["backgroundBack", "VOLVER"]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    text
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+                    text,
+
+                    buttonRect(
+                        index,
+                        4,
+                        280,
+                        55,
+                        15,
+                        380
+                    )
+                );
+            }
+        );
+
+        return items;
+    }
+
+
+    // FISICAS
+
+    if (physicsOpen) {
+
+        addSlider(
             items,
-            add
-          )
+            "ballSpeed",
+            "VELOCIDAD",
+            ballSpeedLevel,
+            1,
+            10,
+            {
+                x:
+                    W / 2 - 180,
 
-        : aiControlItems(
-            items,
-            add
-          )
-    );
-  }
+                y: 170,
 
-
-  if (backgroundOpen) {
-
-    [
-      [
-        "green",
-        "VERDE"
-      ],
-
-      [
-        "blue",
-        "AZUL"
-      ],
-
-      [
-        "black",
-        "NEGRO"
-      ],
-
-      [
-        "backgroundBack",
-        "VOLVER"
-      ]
-    ].forEach(
-      (
-        [
-          id,
-          text
-        ],
-        index
-      ) => {
+                w: 360,
+                h: 20
+            }
+        );
 
         add(
-          id,
-          text,
+            "progressive",
 
-          buttonRect(
-            index,
-            4,
-            280,
-            55,
-            15,
-            380
-          )
+            `VELOCIDAD PROGRESIVA: ${
+                progressiveSpeed
+                    ? "ON"
+                    : "OFF"
+            }`,
+
+            {
+                x:
+                    W / 2 - 230,
+
+                y: 240,
+
+                w: 460,
+                h: 55
+            }
         );
-      }
-    );
-
-    return items;
-  }
-
-
-  if (physicsOpen) {
-
-    addSlider(
-      items,
-      "ballSpeed",
-      "VELOCIDAD",
-      ballSpeedLevel,
-      1,
-      10,
-      {
-        x:
-          W / 2 -
-          180,
-
-        y: 170,
-        w: 360,
-        h: 20
-      }
-    );
-
-    add(
-      "progressive",
-
-      `VELOCIDAD PROGRESIVA: ${
-        progressiveSpeed
-          ? "ON"
-          : "OFF"
-      }`,
-
-      {
-        x:
-          W / 2 -
-          230,
-
-        y: 240,
-        w: 460,
-        h: 55
-      }
-    );
-
-    add(
-      "topspin",
-      "TOPSPIN · PRÓXIMAMENTE",
-      {
-        x:
-          W / 2 -
-          210,
-
-        y: 320,
-        w: 420,
-        h: 44
-      },
-      true
-    );
-
-    add(
-      "backspin",
-      "BACKSPIN · PRÓXIMAMENTE",
-      {
-        x:
-          W / 2 -
-          210,
-
-        y: 374,
-        w: 420,
-        h: 44
-      },
-      true
-    );
-
-    add(
-      "sidespin",
-      "SIDESPIN · PRÓXIMAMENTE",
-      {
-        x:
-          W / 2 -
-          210,
-
-        y: 428,
-        w: 420,
-        h: 44
-      },
-      true
-    );
-
-    add(
-      "physicsReset",
-      "RESTABLECER POR DEFECTO",
-      {
-        x:
-          W / 2 -
-          190,
-
-        y: 505,
-        w: 380,
-        h: 50
-      }
-    );
-
-    add(
-      "physicsBack",
-      "VOLVER",
-      {
-        x:
-          W / 2 -
-          110,
-
-        y: 570,
-        w: 220,
-        h: 50
-      }
-    );
-
-    return items;
-  }
-
-
-  if (settingsOpen) {
-
-    [
-      [
-        "controls",
-        "CONTROLES"
-      ],
-
-      [
-        "background",
-        "FONDO"
-      ],
-
-      [
-        "physics",
-        "FÍSICAS"
-      ],
-
-      [
-        "sound",
-
-        `SONIDO: ${
-          audioMuted
-            ? "OFF"
-            : "ON"
-        }`
-      ],
-
-      [
-        "settingsBack",
-        "VOLVER"
-      ]
-    ].forEach(
-      (
-        [
-          id,
-          text
-        ],
-        index
-      ) => {
 
         add(
-          id,
-          text,
+            "topspin",
+            "TOPSPIN · PRÓXIMAMENTE",
+            {
+                x:
+                    W / 2 - 210,
 
-          buttonRect(
-            index,
-            5,
-            300,
-            55,
-            14,
-            390
-          )
+                y: 320,
+
+                w: 420,
+                h: 44
+            },
+            true
         );
-      }
-    );
-
-    return items;
-  }
-
-
-  if (gamePaused) {
-
-    [
-      [
-        "continue",
-        "CONTINUAR"
-      ],
-
-      [
-        "restart",
-        "REINICIAR PARTIDA"
-      ],
-
-      [
-        "mainMenu",
-        "MENÚ INICIAL"
-      ],
-
-      [
-        "settings",
-        "AJUSTES"
-      ]
-    ].forEach(
-      (
-        [
-          id,
-          text
-        ],
-        index
-      ) => {
 
         add(
-          id,
-          text,
+            "backspin",
+            "BACKSPIN · PRÓXIMAMENTE",
+            {
+                x:
+                    W / 2 - 210,
 
-          buttonRect(
-            index,
-            4,
-            330,
-            58,
-            15,
-            390
-          )
+                y: 374,
+
+                w: 420,
+                h: 44
+            },
+            true
         );
-      }
-    );
-  }
 
-  return items;
+        add(
+            "sidespin",
+            "SIDESPIN · PRÓXIMAMENTE",
+            {
+                x:
+                    W / 2 - 210,
+
+                y: 428,
+
+                w: 420,
+                h: 44
+            },
+            true
+        );
+
+        add(
+            "physicsReset",
+            "RESTABLECER POR DEFECTO",
+            {
+                x:
+                    W / 2 - 190,
+
+                y: 505,
+
+                w: 380,
+                h: 50
+            }
+        );
+
+        add(
+            "physicsBack",
+            "VOLVER",
+            {
+                x:
+                    W / 2 - 110,
+
+                y: 570,
+
+                w: 220,
+                h: 50
+            }
+        );
+
+        return items;
+    }
+
+
+    // AJUSTES
+
+    if (settingsOpen) {
+
+        [
+            [
+                "controls",
+                "CONTROLES"
+            ],
+
+            [
+                "background",
+                "FONDO"
+            ],
+
+            [
+                "physics",
+                "FÍSICAS"
+            ],
+
+            [
+                "sound",
+
+                `SONIDO: ${
+                    audioMuted
+                        ? "OFF"
+                        : "ON"
+                }`
+            ],
+
+            [
+                "settingsBack",
+                "VOLVER"
+            ]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    text
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+                    text,
+
+                    buttonRect(
+                        index,
+                        5,
+                        300,
+                        55,
+                        14,
+                        390
+                    )
+                );
+            }
+        );
+
+        return items;
+    }
+
+
+    // PAUSA
+
+    if (gamePaused) {
+
+        [
+            [
+                "continue",
+                "CONTINUAR"
+            ],
+
+            [
+                "restart",
+                "REINICIAR PARTIDA"
+            ],
+
+            [
+                "mainMenu",
+                "MENÚ INICIAL"
+            ],
+
+            [
+                "settings",
+                "AJUSTES"
+            ]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    text
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+                    text,
+
+                    buttonRect(
+                        index,
+                        4,
+                        330,
+                        58,
+                        15,
+                        390
+                    )
+                );
+            }
+        );
+    }
+
+    return items;
 }
 
 
@@ -2074,324 +2201,337 @@ function interactiveItems() {
 // ============================================================
 
 function localControlItems(
-  items,
-  add
+    items,
+    add
 ) {
 
-  const columns = {
-    left: 140,
-    right: 720
-  };
+    const columns = {
+        left: 140,
+        right: 720
+    };
 
-  for (
-    const side of
-    [
-      "left",
-      "right"
-    ]
-  ) {
+    for (
+        const side of
+        [
+            "left",
+            "right"
+        ]
+    ) {
 
-    const x =
-      columns[side];
+        const x =
+            columns[side];
 
-    const controls =
-      localControls[
-        side
-      ];
-
-
-    add(
-      `${side}:up`,
-
-      waitingForKey ===
-      `${side}:up`
-
-        ? "PRESIONÁ..."
-        : formatKey(
-            controls.up
-          ),
-
-      {
-        x:
-          x + 125,
-
-        y: 175,
-        w: 180,
-        h: 42
-      }
-    );
+        const controls =
+            localControls[
+                side
+            ];
 
 
-    add(
-      `${side}:down`,
+        add(
+            `${side}:up`,
 
-      waitingForKey ===
-      `${side}:down`
+            waitingForKey ===
+            `${side}:up`
 
-        ? "PRESIONÁ..."
-        : formatKey(
-            controls.down
-          ),
+                ? "PRESIONÁ..."
+                : formatKey(
+                    controls.up
+                ),
 
-      {
-        x:
-          x + 125,
+            {
+                x:
+                    x + 125,
 
-        y: 235,
-        w: 180,
-        h: 42
-      }
-    );
+                y: 175,
 
-
-    add(
-      `${side}:mouse`,
-
-      controls.mouse
-        ? "ON"
-        : "OFF",
-
-      {
-        x:
-          x + 125,
-
-        y: 295,
-        w: 180,
-        h: 42
-      }
-    );
+                w: 180,
+                h: 42
+            }
+        );
 
 
-    add(
-      `${side}:sensMinus`,
-      "-",
-      {
-        x:
-          x + 125,
+        add(
+            `${side}:down`,
 
-        y: 365,
-        w: 45,
-        h: 42
-      }
-    );
+            waitingForKey ===
+            `${side}:down`
 
+                ? "PRESIONÁ..."
+                : formatKey(
+                    controls.down
+                ),
 
-    add(
-      `${side}:sensPlus`,
-      "+",
-      {
-        x:
-          x + 260,
+            {
+                x:
+                    x + 125,
 
-        y: 365,
-        w: 45,
-        h: 42
-      }
-    );
-  }
+                y: 235,
+
+                w: 180,
+                h: 42
+            }
+        );
 
 
-  add(
-    "localControlsReset",
-    "RESTABLECER POR DEFECTO",
-    {
-      x:
-        W / 2 -
-        185,
+        add(
+            `${side}:mouse`,
 
-      y: 520,
-      w: 370,
-      h: 50
+            controls.mouse
+                ? "ON"
+                : "OFF",
+
+            {
+                x:
+                    x + 125,
+
+                y: 295,
+
+                w: 180,
+                h: 42
+            }
+        );
+
+
+        add(
+            `${side}:sensMinus`,
+            "-",
+            {
+                x:
+                    x + 125,
+
+                y: 365,
+
+                w: 45,
+                h: 42
+            }
+        );
+
+
+        add(
+            `${side}:sensPlus`,
+            "+",
+            {
+                x:
+                    x + 260,
+
+                y: 365,
+
+                w: 45,
+                h: 42
+            }
+        );
     }
-  );
 
 
-  add(
-    "controlsBack",
-    "VOLVER",
-    {
-      x:
-        W / 2 -
-        110,
+    add(
+        "localControlsReset",
+        "RESTABLECER POR DEFECTO",
+        {
+            x:
+                W / 2 - 185,
 
-      y: 590,
-      w: 220,
-      h: 50
-    }
-  );
+            y: 520,
 
-  return items;
+            w: 370,
+            h: 50
+        }
+    );
+
+
+    add(
+        "controlsBack",
+        "VOLVER",
+        {
+            x:
+                W / 2 - 110,
+
+            y: 590,
+
+            w: 220,
+            h: 50
+        }
+    );
+
+    return items;
 }
 
 
 // ============================================================
-// CONTROLES IA
+// CONTROLES VS IA
 // ============================================================
 
 function aiControlItems(
-  items,
-  add
+    items,
+    add
 ) {
 
-  const x = 570;
+    const x =
+        570;
 
 
-  add(
-    "up1",
+    add(
+        "up1",
 
-    waitingForKey ===
-    "up1"
+        waitingForKey ===
+        "up1"
 
-      ? "PRESIONÁ..."
-      : formatKey(
-          aiControls.up1
-        ),
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.up1
+            ),
 
-    {
-      x,
-      y: 175,
-      w: 95,
-      h: 42
-    }
-  );
+        {
+            x,
+            y: 175,
 
-
-  add(
-    "up2",
-
-    waitingForKey ===
-    "up2"
-
-      ? "PRESIONÁ..."
-      : formatKey(
-          aiControls.up2
-        ),
-
-    {
-      x:
-        x + 105,
-
-      y: 175,
-      w: 95,
-      h: 42
-    }
-  );
+            w: 95,
+            h: 42
+        }
+    );
 
 
-  add(
-    "down1",
+    add(
+        "up2",
 
-    waitingForKey ===
-    "down1"
+        waitingForKey ===
+        "up2"
 
-      ? "PRESIONÁ..."
-      : formatKey(
-          aiControls.down1
-        ),
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.up2
+            ),
 
-    {
-      x,
-      y: 235,
-      w: 95,
-      h: 42
-    }
-  );
+        {
+            x:
+                x + 105,
 
+            y: 175,
 
-  add(
-    "down2",
-
-    waitingForKey ===
-    "down2"
-
-      ? "PRESIONÁ..."
-      : formatKey(
-          aiControls.down2
-        ),
-
-    {
-      x:
-        x + 105,
-
-      y: 235,
-      w: 95,
-      h: 42
-    }
-  );
+            w: 95,
+            h: 42
+        }
+    );
 
 
-  add(
-    "aiMouse",
+    add(
+        "down1",
 
-    aiControls.mouse
-      ? "ON"
-      : "OFF",
+        waitingForKey ===
+        "down1"
 
-    {
-      x,
-      y: 295,
-      w: 200,
-      h: 42
-    }
-  );
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.down1
+            ),
 
+        {
+            x,
+            y: 235,
 
-  add(
-    "aiSensMinus",
-    "-",
-    {
-      x,
-      y: 365,
-      w: 45,
-      h: 42
-    }
-  );
+            w: 95,
+            h: 42
+        }
+    );
 
 
-  add(
-    "aiSensPlus",
-    "+",
-    {
-      x:
-        x + 155,
+    add(
+        "down2",
 
-      y: 365,
-      w: 45,
-      h: 42
-    }
-  );
+        waitingForKey ===
+        "down2"
 
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.down2
+            ),
 
-  add(
-    "aiControlsReset",
-    "RESTABLECER POR DEFECTO",
-    {
-      x:
-        W / 2 -
-        185,
+        {
+            x:
+                x + 105,
 
-      y: 510,
-      w: 370,
-      h: 50
-    }
-  );
+            y: 235,
+
+            w: 95,
+            h: 42
+        }
+    );
 
 
-  add(
-    "controlsBack",
-    "VOLVER",
-    {
-      x:
-        W / 2 -
-        110,
+    add(
+        "aiMouse",
 
-      y: 580,
-      w: 220,
-      h: 50
-    }
-  );
+        aiControls.mouse
+            ? "ON"
+            : "OFF",
 
-  return items;
+        {
+            x,
+            y: 295,
+
+            w: 200,
+            h: 42
+        }
+    );
+
+
+    add(
+        "aiSensMinus",
+        "-",
+        {
+            x,
+            y: 365,
+
+            w: 45,
+            h: 42
+        }
+    );
+
+
+    add(
+        "aiSensPlus",
+        "+",
+        {
+            x:
+                x + 155,
+
+            y: 365,
+
+            w: 45,
+            h: 42
+        }
+    );
+
+
+    add(
+        "aiControlsReset",
+        "RESTABLECER POR DEFECTO",
+        {
+            x:
+                W / 2 - 185,
+
+            y: 510,
+
+            w: 370,
+            h: 50
+        }
+    );
+
+
+    add(
+        "controlsBack",
+        "VOLVER",
+        {
+            x:
+                W / 2 - 110,
+
+            y: 580,
+
+            w: 220,
+            h: 50
+        }
+    );
+
+    return items;
 }
 
 
@@ -2400,49 +2540,49 @@ function aiControlItems(
 // ============================================================
 
 function updateSlider(
-  slider,
-  mouseX
+    slider,
+    mouseX
 ) {
 
-  const ratio =
-    clamp(
-      (
-        mouseX -
-        slider.rect.x
-      ) /
-      slider.rect.w,
+    const ratio =
+        clamp(
+            (
+                mouseX -
+                slider.rect.x
+            ) /
+            slider.rect.w,
 
-      0,
-      1
-    );
-
-
-  if (
-    slider.id ===
-    "ballSpeed"
-  ) {
-
-    ballSpeedLevel =
-      clamp(
-        Math.round(
-          1 +
-          ratio *
-          9
-        ),
-
-        1,
-        10
-      );
+            0,
+            1
+        );
 
 
     if (
-      gameMode &&
-      !gameOver
+        slider.id ===
+        "ballSpeed"
     ) {
 
-      resetBall();
+        ballSpeedLevel =
+            clamp(
+                Math.round(
+                    1 +
+                    ratio *
+                    9
+                ),
+
+                1,
+                10
+            );
+
+
+        if (
+            gameMode &&
+            !gameOver
+        ) {
+
+            resetBall();
+        }
     }
-  }
 }
 
 
@@ -2452,521 +2592,529 @@ function updateSlider(
 
 function handleAction(id) {
 
-  initAudio();
+    initAudio();
 
-
-  if (
-    id ===
-    "online"
-  ) {
-    return;
-  }
-
-
-  if (
-    id ===
-    "local"
-  ) {
-
-    startGame(
-      "local"
-    );
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "ai"
-  ) {
-
-    aiMenuOpen =
-      true;
-
-    humanSide =
-      "left";
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "side"
-  ) {
-
-    humanSide =
-      otherSide(
-        humanSide
-      );
-
-    return;
-  }
-
-
-  if (
-    [
-      "easy",
-      "normal",
-      "hard"
-    ].includes(id)
-  ) {
-
-    startGame(
-      "ai",
-      humanSide,
-      id
-    );
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "aiBack"
-  ) {
-
-    aiMenuOpen =
-      false;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "continue"
-  ) {
-
-    gamePaused =
-      false;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "restart"
-  ) {
-
-    confirmOpen =
-      "restart";
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "mainMenu"
-  ) {
-
-    confirmOpen =
-      "menu";
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "settings"
-  ) {
-
-    settingsOpen =
-      true;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "confirmYes"
-  ) {
-
-    const action =
-      confirmOpen;
-
-    confirmOpen =
-      null;
 
     if (
-      action ===
-      "restart"
+        id ===
+        "online"
     ) {
-
-      resetMatch();
-
-    } else {
-
-      goToStartMenu();
+        return;
     }
 
-    return;
-  }
 
+    if (
+        id ===
+        "local"
+    ) {
 
-  if (
-    id ===
-    "confirmNo"
-  ) {
+        startGame(
+            "local"
+        );
 
-    confirmOpen =
-      null;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "controls"
-  ) {
-
-    controlsOpen =
-      true;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "background"
-  ) {
-
-    backgroundOpen =
-      true;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "physics"
-  ) {
-
-    physicsOpen =
-      true;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "sound"
-  ) {
-
-    audioMuted =
-      !audioMuted;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "settingsBack"
-  ) {
-
-    settingsOpen =
-      false;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "controlsBack"
-  ) {
-
-    controlsOpen =
-      false;
-
-    waitingForKey =
-      null;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "backgroundBack"
-  ) {
-
-    backgroundOpen =
-      false;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "physicsBack"
-  ) {
-
-    physicsOpen =
-      false;
-
-    return;
-  }
-
-
-  if (
-    [
-      "green",
-      "blue",
-      "black"
-    ].includes(id)
-  ) {
-
-    courtColor =
-      id;
-
-    return;
-  }
-
-
-  if (
-    gameMode ===
-    "local"
-  ) {
-
-    const [
-      side,
-      action
-    ] =
-      id.split(":");
+        return;
+    }
 
 
     if (
-      side &&
-      action &&
-      localControls[
-        side
-      ]
+        id ===
+        "ai"
     ) {
 
-      const controls =
-        localControls[
-          side
-        ];
+        aiMenuOpen =
+            true;
+
+        humanSide =
+            "left";
+
+        return;
+    }
 
 
-      if (
-        action ===
-          "up" ||
-        action ===
-          "down"
-      ) {
+    if (
+        id ===
+        "side"
+    ) {
+
+        humanSide =
+            otherSide(
+                humanSide
+            );
+
+        return;
+    }
+
+
+    if (
+        [
+            "easy",
+            "normal",
+            "hard"
+        ].includes(id)
+    ) {
+
+        startGame(
+            "ai",
+            humanSide,
+            id
+        );
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "aiBack"
+    ) {
+
+        aiMenuOpen =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "continue"
+    ) {
+
+        gamePaused =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "restart"
+    ) {
+
+        confirmOpen =
+            "restart";
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "mainMenu"
+    ) {
+
+        confirmOpen =
+            "menu";
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "settings"
+    ) {
+
+        settingsOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "confirmYes"
+    ) {
+
+        const action =
+            confirmOpen;
+
+        confirmOpen =
+            null;
+
+        if (
+            action ===
+            "restart"
+        ) {
+
+            resetMatch();
+
+        } else {
+
+            goToStartMenu();
+        }
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "confirmNo"
+    ) {
+
+        confirmOpen =
+            null;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "controls"
+    ) {
+
+        controlsOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "background"
+    ) {
+
+        backgroundOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "physics"
+    ) {
+
+        physicsOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "sound"
+    ) {
+
+        audioMuted =
+            !audioMuted;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "settingsBack"
+    ) {
+
+        settingsOpen =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "controlsBack"
+    ) {
+
+        controlsOpen =
+            false;
 
         waitingForKey =
-          id;
+            null;
 
         return;
-      }
+    }
 
 
-      if (
-        action ===
-        "mouse"
-      ) {
+    if (
+        id ===
+        "backgroundBack"
+    ) {
 
-        controls.mouse =
-          !controls.mouse;
+        backgroundOpen =
+            false;
 
         return;
-      }
+    }
 
 
-      if (
-        action ===
-        "sensMinus"
-      ) {
+    if (
+        id ===
+        "physicsBack"
+    ) {
 
-        controls.sensitivity =
-          round1(
-            clamp(
-              controls.sensitivity -
-              SENS.step,
-
-              SENS.min,
-              SENS.max
-            )
-          );
+        physicsOpen =
+            false;
 
         return;
-      }
+    }
 
 
-      if (
-        action ===
-        "sensPlus"
-      ) {
+    if (
+        [
+            "green",
+            "blue",
+            "black"
+        ].includes(id)
+    ) {
 
-        controls.sensitivity =
-          round1(
-            clamp(
-              controls.sensitivity +
-              SENS.step,
-
-              SENS.min,
-              SENS.max
-            )
-          );
+        courtColor =
+            id;
 
         return;
-      }
+    }
+
+
+    // CONTROLES PVP
+
+    if (
+        gameMode ===
+        "local"
+    ) {
+
+        const [
+            side,
+            action
+        ] =
+            id.split(":");
+
+
+        if (
+            side &&
+            action &&
+            localControls[
+                side
+            ]
+        ) {
+
+            const controls =
+                localControls[
+                    side
+                ];
+
+
+            if (
+                action ===
+                    "up" ||
+                action ===
+                    "down"
+            ) {
+
+                waitingForKey =
+                    id;
+
+                return;
+            }
+
+
+            if (
+                action ===
+                "mouse"
+            ) {
+
+                controls.mouse =
+                    !controls.mouse;
+
+                return;
+            }
+
+
+            if (
+                action ===
+                "sensMinus"
+            ) {
+
+                controls.sensitivity =
+                    round1(
+                        clamp(
+                            controls.sensitivity -
+                            SENS.step,
+
+                            SENS.min,
+                            SENS.max
+                        )
+                    );
+
+                return;
+            }
+
+
+            if (
+                action ===
+                "sensPlus"
+            ) {
+
+                controls.sensitivity =
+                    round1(
+                        clamp(
+                            controls.sensitivity +
+                            SENS.step,
+
+                            SENS.min,
+                            SENS.max
+                        )
+                    );
+
+                return;
+            }
+        }
+
+
+        if (
+            id ===
+            "localControlsReset"
+        ) {
+
+            resetLocalControls();
+
+            return;
+        }
+    }
+
+
+    // CONTROLES IA
+
+    if (
+        gameMode ===
+        "ai"
+    ) {
+
+        if (
+            [
+                "up1",
+                "up2",
+                "down1",
+                "down2"
+            ].includes(id)
+        ) {
+
+            waitingForKey =
+                id;
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiMouse"
+        ) {
+
+            aiControls.mouse =
+                !aiControls.mouse;
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiSensMinus"
+        ) {
+
+            aiControls.sensitivity =
+                round1(
+                    clamp(
+                        aiControls.sensitivity -
+                        SENS.step,
+
+                        SENS.min,
+                        SENS.max
+                    )
+                );
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiSensPlus"
+        ) {
+
+            aiControls.sensitivity =
+                round1(
+                    clamp(
+                        aiControls.sensitivity +
+                        SENS.step,
+
+                        SENS.min,
+                        SENS.max
+                    )
+                );
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiControlsReset"
+        ) {
+
+            resetAIControls();
+
+            return;
+        }
+    }
+
+
+    // FISICAS
+
+    if (
+        id ===
+        "progressive"
+    ) {
+
+        progressiveSpeed =
+            !progressiveSpeed;
+
+        return;
     }
 
 
     if (
-      id ===
-      "localControlsReset"
+        id ===
+        "physicsReset"
     ) {
 
-      resetLocalControls();
+        resetPhysics();
 
-      return;
+        return;
     }
-  }
 
 
-  if (
-    gameMode ===
-    "ai"
-  ) {
+    // FINAL
 
     if (
-      [
-        "up1",
-        "up2",
-        "down1",
-        "down2"
-      ].includes(id)
+        id ===
+        "revenge"
     ) {
 
-      waitingForKey =
-        id;
+        resetMatch();
 
-      return;
+        return;
     }
 
 
     if (
-      id ===
-      "aiMouse"
+        id ===
+        "victoryMenu"
     ) {
 
-      aiControls.mouse =
-        !aiControls.mouse;
-
-      return;
+        goToStartMenu();
     }
-
-
-    if (
-      id ===
-      "aiSensMinus"
-    ) {
-
-      aiControls.sensitivity =
-        round1(
-          clamp(
-            aiControls.sensitivity -
-            SENS.step,
-
-            SENS.min,
-            SENS.max
-          )
-        );
-
-      return;
-    }
-
-
-    if (
-      id ===
-      "aiSensPlus"
-    ) {
-
-      aiControls.sensitivity =
-        round1(
-          clamp(
-            aiControls.sensitivity +
-            SENS.step,
-
-            SENS.min,
-            SENS.max
-          )
-        );
-
-      return;
-    }
-
-
-    if (
-      id ===
-      "aiControlsReset"
-    ) {
-
-      resetAIControls();
-
-      return;
-    }
-  }
-
-
-  if (
-    id ===
-    "progressive"
-  ) {
-
-    progressiveSpeed =
-      !progressiveSpeed;
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "physicsReset"
-  ) {
-
-    resetPhysics();
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "revenge"
-  ) {
-
-    resetMatch();
-
-    return;
-  }
-
-
-  if (
-    id ===
-    "victoryMenu"
-  ) {
-
-    goToStartMenu();
-  }
 }
 
 
@@ -2975,142 +3123,140 @@ function handleAction(id) {
 // ============================================================
 
 function updateHover(
-  x,
-  y
+    x,
+    y
 ) {
 
-  hoveredButton =
-    null;
+    hoveredButton =
+        null;
 
-  for (
-    const item of
-    interactiveItems()
-  ) {
-
-    if (
-      !item.disabled &&
-      inside(
-        x,
-        y,
-        item.hitRect ||
-        item.rect
-      )
+    for (
+        const item of
+        interactiveItems()
     ) {
 
-      hoveredButton =
-        item.id;
+        if (
+            !item.disabled &&
+            inside(
+                x,
+                y,
+                item.hitRect ||
+                item.rect
+            )
+        ) {
 
-      break;
+            hoveredButton =
+                item.id;
+
+            break;
+        }
     }
-  }
 
-  canvas.style.cursor =
-    hoveredButton
-      ? "pointer"
-      : "default";
+    canvas.style.cursor =
+        hoveredButton
+            ? "pointer"
+            : "default";
 }
 
 
 // ============================================================
-// RENDER
+// RENDER BASE
 // ============================================================
 
 function drawTable() {
 
-  ctx.fillStyle =
-    TABLE.colors[
-      courtColor
-    ];
+    ctx.fillStyle =
+        TABLE.colors[
+            courtColor
+        ];
 
-  ctx.fillRect(
-    TABLE.left,
-    TABLE.top,
-    TABLE.right -
-    TABLE.left,
-    TABLE.bottom -
-    TABLE.top
-  );
+    ctx.fillRect(
+        TABLE.left,
+        TABLE.top,
+        TABLE.right -
+        TABLE.left,
+        TABLE.bottom -
+        TABLE.top
+    );
 
-  ctx.strokeStyle =
-    "#FFFFFF";
+    ctx.strokeStyle =
+        "#FFFFFF";
 
-  ctx.lineWidth =
-    4;
+    ctx.lineWidth =
+        4;
 
-  ctx.strokeRect(
-    TABLE.left,
-    TABLE.top,
-    TABLE.right -
-    TABLE.left,
-    TABLE.bottom -
-    TABLE.top
-  );
+    ctx.strokeRect(
+        TABLE.left,
+        TABLE.top,
+        TABLE.right -
+        TABLE.left,
+        TABLE.bottom -
+        TABLE.top
+    );
 
-  ctx.setLineDash([
-    20,
-    20
-  ]);
+    ctx.setLineDash([
+        20,
+        20
+    ]);
 
-  ctx.beginPath();
+    ctx.beginPath();
 
-  ctx.moveTo(
-    W / 2,
-    TABLE.top
-  );
+    ctx.moveTo(
+        W / 2,
+        TABLE.top
+    );
 
-  ctx.lineTo(
-    W / 2,
-    TABLE.bottom
-  );
+    ctx.lineTo(
+        W / 2,
+        TABLE.bottom
+    );
 
-  ctx.stroke();
+    ctx.stroke();
 
-  ctx.setLineDash([]);
+    ctx.setLineDash([]);
 }
-
 
 function drawPaddles() {
 
-  ctx.fillStyle =
-    "#FFFFFF";
+    ctx.fillStyle =
+        "#FFFFFF";
 
-  ctx.fillRect(
-    leftPaddle.x,
-    leftPaddle.y,
-    PADDLE.w,
-    PADDLE.h
-  );
+    ctx.fillRect(
+        leftPaddle.x,
+        leftPaddle.y,
+        PADDLE.w,
+        PADDLE.h
+    );
 
-  ctx.fillRect(
-    rightPaddle.x,
-    rightPaddle.y,
-    PADDLE.w,
-    PADDLE.h
-  );
+    ctx.fillRect(
+        rightPaddle.x,
+        rightPaddle.y,
+        PADDLE.w,
+        PADDLE.h
+    );
 }
-
 
 function drawBall() {
 
-  ctx.fillStyle =
-    "#FFFFFF";
+    ctx.fillStyle =
+        "#FFFFFF";
 
-  ctx.beginPath();
+    ctx.beginPath();
 
-  ctx.arc(
-    ball.x +
-    BALL.size / 2,
+    ctx.arc(
+        ball.x +
+        BALL.size / 2,
 
-    ball.y +
-    BALL.size / 2,
+        ball.y +
+        BALL.size / 2,
 
-    BALL.size / 2,
+        BALL.size / 2,
 
-    0,
-    Math.PI * 2
-  );
+        0,
+        Math.PI * 2
+    );
 
-  ctx.fill();
+    ctx.fill();
 }
 
 
@@ -3120,109 +3266,158 @@ function drawBall() {
 
 function drawScore() {
 
-  const scoreY =
-    TABLE.bottom -
-    20;
+    /*
+        Usamos baseline alfabética
+        para poder medir el borde visual
+        real de los números.
+    */
 
-  ctx.fillStyle =
-    "#FFFFFF";
+    const scoreBaselineY =
+        TABLE.bottom - 23;
 
-  ctx.font =
-    UI.score;
+    ctx.fillStyle =
+        "#FFFFFF";
 
-  ctx.textAlign =
-    "center";
+    ctx.font =
+        UI.score;
 
-  ctx.textBaseline =
-    "bottom";
+    ctx.textAlign =
+        "center";
 
-
-  ctx.fillText(
-    String(
-      leftScore
-    ).padStart(
-      2,
-      "0"
-    ),
-
-    W / 4,
-    scoreY
-  );
+    ctx.textBaseline =
+        "alphabetic";
 
 
-  ctx.fillText(
-    String(
-      rightScore
-    ).padStart(
-      2,
-      "0"
-    ),
+    const leftText =
+        String(
+            leftScore
+        ).padStart(
+            2,
+            "0"
+        );
 
-    W * 3 / 4,
-    scoreY
-  );
-
-
-  const side =
-    matchPointSide();
-
-
-  if (
-    !side ||
-    gameOver
-  ) {
-    return;
-  }
+    const rightText =
+        String(
+            rightScore
+        ).padStart(
+            2,
+            "0"
+        );
 
 
-  const blink =
-    0.25 +
-    0.75 *
-    (
-      (
-        Math.sin(
-          performance.now() /
-          260
-        ) +
-        1
-      ) /
-      2
+    ctx.fillText(
+        leftText,
+        W / 4,
+        scoreBaselineY
+    );
+
+    ctx.fillText(
+        rightText,
+        W * 3 / 4,
+        scoreBaselineY
     );
 
 
-  const matchY =
-    (
-      scoreY +
-      TABLE.bottom
-    ) /
-    2;
+    const side =
+        matchPointSide();
 
 
-  ctx.save();
-
-  ctx.globalAlpha =
-    blink;
-
-  ctx.font =
-    "bold 13px monospace";
-
-  ctx.textBaseline =
-    "middle";
+    if (
+        !side ||
+        gameOver
+    ) {
+        return;
+    }
 
 
-  ctx.fillText(
-    "MATCH",
+    /*
+        Obtenemos el borde visual
+        inferior REAL del contador.
+    */
 
-    side ===
-    "left"
+    const metrics =
+        ctx.measureText(
+            side === "left"
+                ? leftText
+                : rightText
+        );
 
-      ? W / 4
-      : W * 3 / 4,
 
-    matchY
-  );
+    const descent =
+        Number.isFinite(
+            metrics.actualBoundingBoxDescent
+        )
+            ? metrics.actualBoundingBoxDescent
+            : 2;
 
-  ctx.restore();
+
+    const scoreVisualBottom =
+        scoreBaselineY +
+        descent;
+
+
+    /*
+        MATCH queda exactamente
+        en el centro entre:
+
+        borde visual del número
+        y borde inferior de la mesa.
+    */
+
+    const matchY =
+        scoreVisualBottom +
+        (
+            TABLE.bottom -
+            scoreVisualBottom
+        ) /
+        2;
+
+
+    const blink =
+        0.25 +
+        0.75 *
+        (
+            (
+                Math.sin(
+                    performance.now() /
+                    260
+                ) +
+                1
+            ) /
+            2
+        );
+
+
+    ctx.save();
+
+    ctx.globalAlpha =
+        blink;
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.font =
+        "bold 13px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.textBaseline =
+        "middle";
+
+
+    ctx.fillText(
+        "MATCH",
+
+        side === "left"
+            ? W / 4
+            : W * 3 / 4,
+
+        matchY
+    );
+
+
+    ctx.restore();
 }
 
 
@@ -3231,242 +3426,239 @@ function drawScore() {
 // ============================================================
 
 function overlay(
-  alpha = 0.78
+    alpha = 0.78
 ) {
 
-  ctx.fillStyle =
-    `rgba(0,0,0,${alpha})`;
+    ctx.fillStyle =
+        `rgba(0,0,0,${alpha})`;
 
-  ctx.fillRect(
-    TABLE.left,
-    TABLE.top,
-    TABLE.right -
-    TABLE.left,
-    TABLE.bottom -
-    TABLE.top
-  );
+    ctx.fillRect(
+        TABLE.left,
+        TABLE.top,
+        TABLE.right -
+        TABLE.left,
+        TABLE.bottom -
+        TABLE.top
+    );
 }
-
 
 function title(
-  text,
-  y = 90,
-  font = UI.title
+    text,
+    y = 90,
+    font = UI.title
 ) {
 
-  ctx.fillStyle =
-    "#FFFFFF";
+    ctx.fillStyle =
+        "#FFFFFF";
 
-  ctx.font =
-    font;
+    ctx.font =
+        font;
 
-  ctx.textAlign =
-    "center";
+    ctx.textAlign =
+        "center";
 
-  ctx.textBaseline =
-    "middle";
+    ctx.textBaseline =
+        "middle";
 
-  ctx.fillText(
-    text,
-    W / 2,
-    y
-  );
+    ctx.fillText(
+        text,
+        W / 2,
+        y
+    );
 }
-
 
 function drawButton(item) {
 
-  const hover =
-    hoveredButton ===
-    item.id;
+    const hover =
+        hoveredButton ===
+        item.id;
 
-  const rect =
-    item.rect;
-
-
-  ctx.fillStyle =
-    item.disabled
-
-      ? "rgba(255,255,255,.03)"
-
-      : hover
-        ? "rgba(255,255,255,.13)"
-        : "rgba(0,0,0,.1)";
+    const rect =
+        item.rect;
 
 
-  ctx.fillRect(
-    rect.x,
-    rect.y,
-    rect.w,
-    rect.h
-  );
+    ctx.fillStyle =
+        item.disabled
+
+            ? "rgba(255,255,255,.03)"
+
+            : hover
+                ? "rgba(255,255,255,.13)"
+                : "rgba(0,0,0,.1)";
 
 
-  ctx.strokeStyle =
-    item.disabled
-
-      ? "rgba(255,255,255,.35)"
-
-      : "#FFFFFF";
-
-
-  ctx.lineWidth =
-    hover
-      ? 5
-      : 3;
-
-
-  ctx.strokeRect(
-    rect.x,
-    rect.y,
-    rect.w,
-    rect.h
-  );
-
-
-  ctx.fillStyle =
-    item.disabled
-
-      ? "rgba(255,255,255,.5)"
-
-      : "#FFFFFF";
-
-
-  ctx.font =
-    UI.button;
-
-  ctx.textAlign =
-    "center";
-
-  ctx.textBaseline =
-    "middle";
-
-
-  ctx.fillText(
-    item.text,
-
-    rect.x +
-    rect.w / 2,
-
-    rect.y +
-    rect.h / 2
-  );
-}
-
-
-function drawSlider(item) {
-
-  const hover =
-    hoveredButton ===
-      item.id ||
-    activeSlider ===
-      item.id;
-
-
-  const {
-    x,
-    y,
-    w,
-    h
-  } =
-    item.rect;
-
-
-  const ratio =
-    (
-      item.value -
-      item.min
-    ) /
-    (
-      item.max -
-      item.min
+    ctx.fillRect(
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h
     );
 
 
-  const knobX =
-    x +
-    ratio *
-    w;
+    ctx.strokeStyle =
+        item.disabled
+
+            ? "rgba(255,255,255,.35)"
+
+            : "#FFFFFF";
 
 
-  ctx.fillStyle =
-    "#FFFFFF";
-
-  ctx.font =
-    "bold 20px monospace";
-
-  ctx.textBaseline =
-    "middle";
-
-  ctx.textAlign =
-    "left";
+    ctx.lineWidth =
+        hover
+            ? 5
+            : 3;
 
 
-  ctx.fillText(
-    item.label,
-    x,
-    y - 25
-  );
+    ctx.strokeRect(
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h
+    );
 
 
-  ctx.textAlign =
-    "right";
+    ctx.fillStyle =
+        item.disabled
+
+            ? "rgba(255,255,255,.5)"
+
+            : "#FFFFFF";
 
 
-  ctx.fillText(
-    String(
-      item.value
-    ),
+    ctx.font =
+        UI.button;
 
-    x + w,
-    y - 25
-  );
+    ctx.textAlign =
+        "center";
 
-
-  ctx.strokeStyle =
-    "#FFFFFF";
-
-  ctx.lineWidth =
-    hover
-      ? 4
-      : 2;
+    ctx.textBaseline =
+        "middle";
 
 
-  ctx.strokeRect(
-    x,
-    y,
-    w,
-    h
-  );
+    ctx.fillText(
+        item.text,
+
+        rect.x +
+        rect.w / 2,
+
+        rect.y +
+        rect.h / 2
+    );
+}
+
+function drawSlider(item) {
+
+    const hover =
+        hoveredButton ===
+            item.id ||
+        activeSlider ===
+            item.id;
 
 
-  ctx.fillStyle =
-    "#FFFFFF";
+    const {
+        x,
+        y,
+        w,
+        h
+    } =
+        item.rect;
 
 
-  ctx.fillRect(
-    x,
-    y,
-    ratio * w,
-    h
-  );
+    const ratio =
+        (
+            item.value -
+            item.min
+        ) /
+        (
+            item.max -
+            item.min
+        );
 
 
-  ctx.beginPath();
+    const knobX =
+        x +
+        ratio *
+        w;
 
 
-  ctx.arc(
-    knobX,
-    y + h / 2,
-    hover
-      ? 10
-      : 8,
-    0,
-    Math.PI * 2
-  );
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.font =
+        "bold 20px monospace";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.textAlign =
+        "left";
 
 
-  ctx.fill();
+    ctx.fillText(
+        item.label,
+        x,
+        y - 25
+    );
+
+
+    ctx.textAlign =
+        "right";
+
+
+    ctx.fillText(
+        String(
+            item.value
+        ),
+
+        x + w,
+        y - 25
+    );
+
+
+    ctx.strokeStyle =
+        "#FFFFFF";
+
+    ctx.lineWidth =
+        hover
+            ? 4
+            : 2;
+
+
+    ctx.strokeRect(
+        x,
+        y,
+        w,
+        h
+    );
+
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+
+    ctx.fillRect(
+        x,
+        y,
+        ratio * w,
+        h
+    );
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+        knobX,
+        y + h / 2,
+        hover
+            ? 10
+            : 8,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.fill();
 }
 
 
@@ -3476,251 +3668,236 @@ function drawSlider(item) {
 
 function drawStart() {
 
-  ctx.fillStyle =
-    "#000000";
-
-  ctx.fillRect(
-    0,
-    0,
-    W,
-    H
-  );
-
-
-  if (!aiMenuOpen) {
-
-    title(
-      "ARGENPONG",
-      145,
-      "bold 64px monospace"
-    );
-
-
-    ctx.font =
-      "42px monospace";
-
     ctx.fillStyle =
-      "#FFFFFF";
+        "#000000";
 
-    ctx.textAlign =
-      "center";
-
-
-    ctx.fillText(
-      "🏓",
-      W / 2,
-      220
-    );
-
-  } else {
-
-    title(
-      "ELEGÍ TU LADO",
-      125,
-      "bold 42px monospace"
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
     );
 
 
-    ctx.font =
-      "18px monospace";
+    if (!aiMenuOpen) {
 
-    ctx.fillStyle =
-      "#FFFFFF";
-
-    ctx.textAlign =
-      "center";
-
-
-    ctx.fillText(
-      "Después seleccioná la dificultad",
-      W / 2,
-      180
-    );
-  }
+        title(
+            "ARGENPONG",
+            145,
+            "bold 64px monospace"
+        );
 
 
-  const items =
-    interactiveItems();
+        ctx.font =
+            "42px monospace";
+
+        ctx.fillStyle =
+            "#FFFFFF";
+
+        ctx.textAlign =
+            "center";
 
 
-  items.forEach(
-    drawButton
-  );
+        ctx.fillText(
+            "🏓",
+            W / 2,
+            220
+        );
+
+    } else {
+
+        title(
+            "ELEGÍ TU LADO",
+            125,
+            "bold 42px monospace"
+        );
 
 
-  if (!aiMenuOpen) {
+        ctx.font =
+            "18px monospace";
 
-    const online =
-      items.find(
-        item =>
-          item.id ===
-          "online"
-      );
+        ctx.fillStyle =
+            "#FFFFFF";
 
-
-    if (online) {
-
-      ctx.fillStyle =
-        "rgba(255,255,255,.65)";
-
-      ctx.font =
-        "bold 14px monospace";
-
-      ctx.textAlign =
-        "center";
+        ctx.textAlign =
+            "center";
 
 
-      ctx.fillText(
-        "PRÓXIMAMENTE",
-        W / 2,
-        online.rect.y +
-        online.rect.h +
-        22
-      );
+        ctx.fillText(
+            "Después seleccioná la dificultad",
+            W / 2,
+            180
+        );
     }
-  }
+
+
+    const items =
+        interactiveItems();
+
+
+    items.forEach(
+        drawButton
+    );
+
+
+    if (!aiMenuOpen) {
+
+        const online =
+            items.find(
+                item =>
+                    item.id ===
+                    "online"
+            );
+
+
+        if (online) {
+
+            ctx.fillStyle =
+                "rgba(255,255,255,.65)";
+
+            ctx.font =
+                "bold 14px monospace";
+
+            ctx.textAlign =
+                "center";
+
+
+            ctx.fillText(
+                "PRÓXIMAMENTE",
+                W / 2,
+                online.rect.y +
+                online.rect.h +
+                22
+            );
+        }
+    }
 }
 
 
 // ============================================================
-// MENÚS
+// MENUS
 // ============================================================
 
 function drawPause() {
 
-  overlay(
-    0.72
-  );
+    overlay(0.72);
 
-  title(
-    "PAUSA",
-    110
-  );
-
-  interactiveItems()
-    .forEach(
-      drawButton
+    title(
+        "PAUSA",
+        110
     );
-}
 
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
 
 function drawSettings() {
 
-  overlay(
-    0.8
-  );
+    overlay(0.8);
 
-  title(
-    "AJUSTES",
-    75
-  );
-
-  interactiveItems()
-    .forEach(
-      drawButton
+    title(
+        "AJUSTES",
+        75
     );
-}
 
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
 
 function drawBackground() {
 
-  overlay(
-    0.82
-  );
+    overlay(0.82);
 
-  title(
-    "FONDO",
-    75
-  );
-
-  interactiveItems()
-    .forEach(
-      drawButton
+    title(
+        "FONDO",
+        75
     );
-}
 
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
 
 function drawConfirm() {
 
-  overlay(
-    0.84
-  );
+    overlay(0.84);
 
 
-  title(
-    confirmOpen ===
-    "restart"
+    title(
+        confirmOpen ===
+        "restart"
 
-      ? "¿REINICIAR PARTIDA?"
-      : "¿VOLVER AL MENÚ?",
+            ? "¿REINICIAR PARTIDA?"
+            : "¿VOLVER AL MENÚ?",
 
-    H / 2 -
-    80,
+        H / 2 - 80,
 
-    "bold 42px monospace"
-  );
-
-
-  ctx.font =
-    "20px monospace";
-
-  ctx.fillStyle =
-    "#FFFFFF";
-
-  ctx.textAlign =
-    "center";
-
-
-  ctx.fillText(
-    "Se perderá la partida actual.",
-    W / 2,
-    H / 2 - 25
-  );
-
-
-  interactiveItems()
-    .forEach(
-      drawButton
+        "bold 42px monospace"
     );
-}
 
+
+    ctx.font =
+        "20px monospace";
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.textAlign =
+        "center";
+
+
+    ctx.fillText(
+        "Se perderá la partida actual.",
+        W / 2,
+        H / 2 - 25
+    );
+
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
 
 function drawPhysics() {
 
-  overlay(
-    0.84
-  );
+    overlay(0.84);
 
-  title(
-    "FÍSICAS",
-    65
-  );
-
-
-  const items =
-    interactiveItems();
-
-
-  items
-    .filter(
-      item =>
-        item.type ===
-        "slider"
-    )
-    .forEach(
-      drawSlider
+    title(
+        "FÍSICAS",
+        65
     );
 
 
-  items
-    .filter(
-      item =>
-        item.type ===
-        "button"
-    )
-    .forEach(
-      drawButton
-    );
+    const items =
+        interactiveItems();
+
+
+    items
+        .filter(
+            item =>
+                item.type ===
+                "slider"
+        )
+        .forEach(
+            drawSlider
+        );
+
+
+    items
+        .filter(
+            item =>
+                item.type ===
+                "button"
+        )
+        .forEach(
+            drawButton
+        );
 }
 
 
@@ -3730,228 +3907,210 @@ function drawPhysics() {
 
 function drawControls() {
 
-  overlay(
-    0.84
-  );
+    overlay(0.84);
 
 
-  if (
-    gameMode ===
-    "local"
-  ) {
+    if (
+        gameMode ===
+        "local"
+    ) {
 
-    drawLocalControls();
+        drawLocalControls();
 
-  } else {
+    } else {
 
-    drawAIControls();
-  }
+        drawAIControls();
+    }
 }
-
 
 function drawLocalControls() {
 
-  title(
-    "CONTROLES",
-    65
-  );
+    title(
+        "CONTROLES",
+        65
+    );
 
 
-  const columns = {
-    left: 140,
-    right: 720
-  };
+    const columns = {
+        left: 140,
+        right: 720
+    };
 
 
-  ctx.fillStyle =
-    "#FFFFFF";
-
-  ctx.font =
-    "bold 30px monospace";
-
-  ctx.textAlign =
-    "center";
-
-
-  ctx.fillText(
-    "IZQUIERDA",
-    360,
-    125
-  );
-
-
-  ctx.fillText(
-    "DERECHA",
-    940,
-    125
-  );
-
-
-  for (
-    const side of
-    [
-      "left",
-      "right"
-    ]
-  ) {
-
-    const x =
-      columns[side];
-
-    const controls =
-      localControls[
-        side
-      ];
-
+    ctx.fillStyle =
+        "#FFFFFF";
 
     ctx.font =
-      "bold 20px monospace";
+        "bold 30px monospace";
 
     ctx.textAlign =
-      "left";
+        "center";
 
 
     ctx.fillText(
-      "ARRIBA",
-      x,
-      202
-    );
-
-
-    ctx.fillText(
-      "ABAJO",
-      x,
-      262
+        "IZQUIERDA",
+        360,
+        125
     );
 
 
     ctx.fillText(
-      "MOUSE",
-      x,
-      322
+        "DERECHA",
+        940,
+        125
     );
 
 
-    ctx.fillText(
-      "SENS.",
-      x,
-      392
-    );
+    for (
+        const side of
+        [
+            "left",
+            "right"
+        ]
+    ) {
+
+        const x =
+            columns[side];
+
+        const controls =
+            localControls[
+                side
+            ];
 
 
-    ctx.textAlign =
-      "center";
+        ctx.font =
+            "bold 20px monospace";
 
-    ctx.font =
-      "bold 18px monospace";
-
-
-    ctx.fillText(
-      controls.sensitivity
-        .toFixed(1),
-
-      x + 215,
-      392
-    );
-  }
+        ctx.textAlign =
+            "left";
 
 
-  interactiveItems()
-    .forEach(
-      drawButton
-    );
+        ctx.fillText(
+            "ARRIBA",
+            x,
+            202
+        );
+
+
+        ctx.fillText(
+            "ABAJO",
+            x,
+            262
+        );
+
+
+        ctx.fillText(
+            "MOUSE",
+            x,
+            322
+        );
+
+
+        ctx.fillText(
+            "SENS.",
+            x,
+            392
+        );
+
+
+        ctx.textAlign =
+            "center";
+
+        ctx.font =
+            "bold 18px monospace";
+
+
+        ctx.fillText(
+            controls.sensitivity
+                .toFixed(1),
+
+            x + 215,
+            392
+        );
+    }
+
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
 }
-
 
 function drawAIControls() {
 
-  title(
-    "CONTROLES",
-    65
-  );
-
-
-  ctx.fillStyle =
-    "#FFFFFF";
-
-  ctx.font =
-    "bold 30px monospace";
-
-  ctx.textAlign =
-    "center";
-
-
-  ctx.fillText(
-    "JUGADOR",
-    W / 2,
-    125
-  );
-
-
-  ctx.font =
-    "bold 20px monospace";
-
-  ctx.textAlign =
-    "left";
-
-
-  [
-    [
-      "ARRIBA",
-      202
-    ],
-
-    [
-      "ABAJO",
-      262
-    ],
-
-    [
-      "MOUSE",
-      322
-    ],
-
-    [
-      "SENS.",
-      392
-    ]
-  ].forEach(
-    (
-      [
-        text,
-        y
-      ]
-    ) => {
-
-      ctx.fillText(
-        text,
-        390,
-        y
-      );
-    }
-  );
-
-
-  ctx.textAlign =
-    "center";
-
-  ctx.font =
-    "bold 18px monospace";
-
-
-  ctx.fillText(
-    aiControls.sensitivity
-      .toFixed(1),
-
-    670,
-    392
-  );
-
-
-  interactiveItems()
-    .forEach(
-      drawButton
+    title(
+        "CONTROLES",
+        65
     );
+
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.font =
+        "bold 30px monospace";
+
+    ctx.textAlign =
+        "center";
+
+
+    ctx.fillText(
+        "JUGADOR",
+        W / 2,
+        125
+    );
+
+
+    ctx.font =
+        "bold 20px monospace";
+
+    ctx.textAlign =
+        "left";
+
+
+    [
+        ["ARRIBA", 202],
+        ["ABAJO", 262],
+        ["MOUSE", 322],
+        ["SENS.", 392]
+
+    ].forEach(
+        (
+            [
+                text,
+                y
+            ]
+        ) => {
+
+            ctx.fillText(
+                text,
+                390,
+                y
+            );
+        }
+    );
+
+
+    ctx.textAlign =
+        "center";
+
+    ctx.font =
+        "bold 18px monospace";
+
+
+    ctx.fillText(
+        aiControls.sensitivity
+            .toFixed(1),
+
+        670,
+        392
+    );
+
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
 }
 
 
@@ -3961,29 +4120,26 @@ function drawAIControls() {
 
 function drawVictory() {
 
-  overlay(
-    0.68
-  );
+    overlay(0.68);
 
 
-  title(
-    winner ===
-    "left"
+    title(
+        winner ===
+        "left"
 
-      ? "LA IZQUIERDA GANA"
-      : "LA DERECHA GANA",
+            ? "LA IZQUIERDA GANA"
+            : "LA DERECHA GANA",
 
-    H / 2 -
-    50,
+        H / 2 - 50,
 
-    UI.winner
-  );
-
-
-  interactiveItems()
-    .forEach(
-      drawButton
+        UI.winner
     );
+
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
 }
 
 
@@ -3993,80 +4149,80 @@ function drawVictory() {
 
 function drawGame() {
 
-  ctx.clearRect(
-    0,
-    0,
-    W,
-    H
-  );
+    ctx.clearRect(
+        0,
+        0,
+        W,
+        H
+    );
 
 
-  if (startMenuOpen) {
+    if (startMenuOpen) {
 
-    drawStart();
+        drawStart();
 
-    return;
-  }
-
-
-  drawTable();
-  drawPaddles();
-  drawBall();
-  drawScore();
+        return;
+    }
 
 
-  if (gameOver) {
-
-    drawVictory();
-
-    return;
-  }
+    drawTable();
+    drawPaddles();
+    drawBall();
+    drawScore();
 
 
-  if (confirmOpen) {
+    if (gameOver) {
 
-    drawConfirm();
+        drawVictory();
 
-    return;
-  }
-
-
-  if (controlsOpen) {
-
-    drawControls();
-
-    return;
-  }
+        return;
+    }
 
 
-  if (backgroundOpen) {
+    if (confirmOpen) {
 
-    drawBackground();
+        drawConfirm();
 
-    return;
-  }
-
-
-  if (physicsOpen) {
-
-    drawPhysics();
-
-    return;
-  }
+        return;
+    }
 
 
-  if (settingsOpen) {
+    if (controlsOpen) {
 
-    drawSettings();
+        drawControls();
 
-    return;
-  }
+        return;
+    }
 
 
-  if (gamePaused) {
+    if (backgroundOpen) {
 
-    drawPause();
-  }
+        drawBackground();
+
+        return;
+    }
+
+
+    if (physicsOpen) {
+
+        drawPhysics();
+
+        return;
+    }
+
+
+    if (settingsOpen) {
+
+        drawSettings();
+
+        return;
+    }
+
+
+    if (gamePaused) {
+
+        drawPause();
+    }
 }
 
 
@@ -4076,13 +4232,13 @@ function drawGame() {
 
 function loop() {
 
-  updatePaddles();
-  updateBall();
-  drawGame();
+    updatePaddles();
+    updateBall();
+    drawGame();
 
-  requestAnimationFrame(
-    loop
-  );
+    requestAnimationFrame(
+        loop
+    );
 }
 
 
