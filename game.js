@@ -11,7 +11,7 @@ const PADDLE = { w: 20, h: 120, margin: 40, baseSpeed: 8 };
 
 const BALL = {
     size: 20,
-    speedLevels: [4, 5, 6, 7.2, 8.6, 10.2, 12, 14.2, 17, 20],
+    speedLevels: [4, 5, 6, 7.2, 8.6, 10.5, 12.8, 15.5, 19, 24],
     defaultLevel: 5,
     baseYRatio: 0.7,
     progressiveFactor: 1.04
@@ -27,27 +27,11 @@ const UI = {
     winner: "bold 52px monospace"
 };
 
-const SENS = {
-    min: 0.1,
-    max: 1,
-    step: 0.1,
-    default: 0.5
-};
+const SENS = { min: 0.1, max: 1, step: 0.1, default: 0.5 };
 
 const LOCAL_DEFAULTS = {
-    left: {
-        up: "w",
-        down: "s",
-        mouse: false,
-        sensitivity: SENS.default
-    },
-
-    right: {
-        up: "ArrowUp",
-        down: "ArrowDown",
-        mouse: false,
-        sensitivity: SENS.default
-    }
+    left: { up: "w", down: "s", mouse: false, sensitivity: SENS.default },
+    right: { up: "ArrowUp", down: "ArrowDown", mouse: false, sensitivity: SENS.default }
 };
 
 const AI_DEFAULTS = {
@@ -60,50 +44,28 @@ const AI_DEFAULTS = {
 };
 
 const AI_LEVELS = {
-    easy: {
-        label: "FÁCIL",
-        reaction: 18,
-        maxSpeed: 5.2,
-        error: 75
-    },
-
-    normal: {
-        label: "NORMAL",
-        reaction: 9,
-        maxSpeed: 7.2,
-        error: 36
-    },
-
-    hard: {
-        label: "DIFÍCIL",
-        reaction: 4,
-        maxSpeed: 9.6,
-        error: 14
-    }
+    easy: { label: "FÁCIL", returns: 5 },
+    normal: { label: "NORMAL", returns: 15 },
+    hard: { label: "DIFÍCIL", returns: 30 }
 };
 
 let courtColor = "black";
-
 let audioContext = null;
 let audioMuted = false;
-
 let ballSpeedLevel = BALL.defaultLevel;
 let progressiveSpeed = false;
 
 let leftScore = 0;
 let rightScore = 0;
-
 let servingPlayer = "left";
 
 let gameOver = false;
 let winner = null;
-
 let gamePaused = false;
 let gameMode = null;
 
 let startMenuOpen = true;
 let aiMenuOpen = false;
-
 let settingsOpen = false;
 let controlsOpen = false;
 let backgroundOpen = false;
@@ -115,9 +77,7 @@ let waitingForKey = null;
 
 let humanSide = "left";
 let aiDifficulty = "normal";
-
-let aiTargetY = H / 2;
-let aiReactionCounter = 0;
+let aiReturns = 0;
 
 let previousMouseY = null;
 let activeSlider = null;
@@ -127,10 +87,7 @@ const localControls = {
     right: { ...LOCAL_DEFAULTS.right }
 };
 
-const aiControls = {
-    ...AI_DEFAULTS
-};
-
+const aiControls = { ...AI_DEFAULTS };
 const keys = {};
 
 const leftPaddle = {
@@ -184,6 +141,12 @@ function otherSide(side) {
         : "left";
 }
 
+function currentBallSpeed() {
+    return BALL.speedLevels[
+        ballSpeedLevel - 1
+    ];
+}
+
 function mousePos(event) {
     const rect =
         canvas.getBoundingClientRect();
@@ -214,12 +177,6 @@ function formatKey(key) {
         names[key] ||
         key.toUpperCase()
     );
-}
-
-function currentBallSpeed() {
-    return BALL.speedLevels[
-        ballSpeedLevel - 1
-    ];
 }
 
 
@@ -387,15 +344,14 @@ function resetBall() {
             BALL.baseYRatio
         );
 
-    aiReactionCounter = 0;
+    aiReturns = 0;
 }
 
 function resetMatch() {
     leftScore = 0;
     rightScore = 0;
 
-    servingPlayer =
-        "left";
+    servingPlayer = "left";
 
     gameOver = false;
     winner = null;
@@ -433,12 +389,11 @@ function goToStartMenu() {
     aiMenuOpen = false;
 
     gamePaused = false;
-
     gameOver = false;
+
     winner = null;
 
     confirmOpen = null;
-
     hoveredButton = null;
     waitingForKey = null;
 
@@ -507,6 +462,7 @@ function handlePoint() {
         winner =
             leftScore >
             rightScore
+
                 ? "left"
                 : "right";
 
@@ -622,46 +578,39 @@ function increaseBallSpeed() {
 // ============================================================
 
 function localMove() {
-    const left =
-        localControls.left;
+    for (
+        const side of
+        ["left", "right"]
+    ) {
+        const controls =
+            localControls[side];
 
-    const right =
-        localControls.right;
+        const paddle =
+            sidePaddle(side);
 
-    const leftSpeed =
-        PADDLE.baseSpeed *
-        (
-            0.45 +
-            left.sensitivity *
-            1.35
-        );
+        const speed =
+            PADDLE.baseSpeed *
+            (
+                0.45 +
+                controls.sensitivity *
+                1.35
+            );
 
-    const rightSpeed =
-        PADDLE.baseSpeed *
-        (
-            0.45 +
-            right.sensitivity *
-            1.35
-        );
+        if (
+            keys[
+                controls.up
+            ]
+        ) {
+            paddle.y -= speed;
+        }
 
-    if (keys[left.up]) {
-        leftPaddle.y -=
-            leftSpeed;
-    }
-
-    if (keys[left.down]) {
-        leftPaddle.y +=
-            leftSpeed;
-    }
-
-    if (keys[right.up]) {
-        rightPaddle.y -=
-            rightSpeed;
-    }
-
-    if (keys[right.down]) {
-        rightPaddle.y +=
-            rightSpeed;
+        if (
+            keys[
+                controls.down
+            ]
+        ) {
+            paddle.y += speed;
+        }
     }
 }
 
@@ -721,69 +670,46 @@ function clampPaddles() {
 // IA
 // ============================================================
 
-function predictBallY(targetX) {
-    if (
-        Math.abs(ball.vx) <
-        0.001
-    ) {
-        return H / 2;
-    }
+function aiMovementSensitivity() {
+    const targetReturns =
+        AI_LEVELS[
+            aiDifficulty
+        ].returns;
 
-    const time =
-        (
-            targetX -
-            ball.x
-        ) /
-        ball.vx;
+    const progress =
+        clamp(
+            aiReturns /
+            targetReturns,
+            0,
+            1
+        );
 
-    if (time <= 0) {
-        return H / 2;
-    }
-
-    const minY =
-        TABLE.top;
-
-    const maxY =
-        TABLE.bottom -
-        BALL.size;
-
-    const span =
-        maxY -
-        minY;
-
-    const period =
-        span * 2;
-
-    let predictedY =
-        ball.y +
-        ball.vy *
-        time -
-        minY;
-
-    predictedY =
-        (
-            (
-                predictedY %
-                period
-            ) +
-            period
-        ) %
-        period;
-
-    if (
-        predictedY >
-        span
-    ) {
-        predictedY =
-            period -
-            predictedY;
-    }
-
-    return (
-        predictedY +
-        minY +
-        BALL.size / 2
+    return Math.max(
+        0.08,
+        1 -
+        progress *
+        0.92
     );
+}
+
+function registerAIReturn(side) {
+    if (
+        gameMode !==
+        "ai"
+    ) {
+        return;
+    }
+
+    if (
+        side !==
+        otherSide(
+            humanSide
+        )
+    ) {
+        return;
+    }
+
+    aiReturns++;
 }
 
 function updateAI() {
@@ -794,68 +720,40 @@ function updateAI() {
         return;
     }
 
-    const aiSide =
-        otherSide(
-            humanSide
-        );
-
     const paddle =
         sidePaddle(
-            aiSide
+            otherSide(
+                humanSide
+            )
         );
 
-    const config =
-        AI_LEVELS[
-            aiDifficulty
-        ];
+    const target =
+        ball.y +
+        BALL.size / 2;
 
-    const ballComing =
-        aiSide === "left"
-            ? ball.vx < 0
-            : ball.vx > 0;
+    const center =
+        paddle.y +
+        PADDLE.h / 2;
 
-    if (
-        aiReactionCounter-- <=
-        0
-    ) {
-        const targetX =
-            aiSide === "left"
-                ? paddle.x +
-                  PADDLE.w
-                : paddle.x;
-
-        const predicted =
-            ballComing
-                ? predictBallY(
-                    targetX
-                )
-                : H / 2;
-
-        aiTargetY =
-            predicted +
-            (
-                Math.random() *
-                2 -
-                1
-            ) *
-            config.error;
-
-        aiReactionCounter =
-            config.reaction;
-    }
+    const sensitivity =
+        aiMovementSensitivity();
 
     const delta =
-        aiTargetY -
-        (
-            paddle.y +
-            PADDLE.h / 2
-        );
+        target -
+        center;
+
+    const maxStep =
+        12 *
+        sensitivity;
 
     paddle.y +=
         clamp(
-            delta,
-            -config.maxSpeed,
-            config.maxSpeed
+            delta *
+            0.22 *
+            sensitivity,
+
+            -maxStep,
+            maxStep
         );
 }
 
@@ -941,15 +839,19 @@ function updateBall() {
 
     if (
         ball.vx < 0 &&
+
         ball.x <=
             leftPaddle.x +
             PADDLE.w &&
+
         ball.x +
             BALL.size >=
             leftPaddle.x &&
+
         ball.y +
             BALL.size >=
             leftPaddle.y &&
+
         ball.y <=
             leftPaddle.y +
             PADDLE.h
@@ -963,21 +865,29 @@ function updateBall() {
                 ball.vx
             );
 
+        registerAIReturn(
+            "left"
+        );
+
         increaseBallSpeed();
         paddleSound();
     }
 
     if (
         ball.vx > 0 &&
+
         ball.x +
             BALL.size >=
             rightPaddle.x &&
+
         ball.x <=
             rightPaddle.x +
             PADDLE.w &&
+
         ball.y +
             BALL.size >=
             rightPaddle.y &&
+
         ball.y <=
             rightPaddle.y +
             PADDLE.h
@@ -990,6 +900,10 @@ function updateBall() {
             -Math.abs(
                 ball.vx
             );
+
+        registerAIReturn(
+            "right"
+        );
 
         increaseBallSpeed();
         paddleSound();
@@ -1278,6 +1192,25 @@ canvas.addEventListener(
             x,
             y
         );
+
+        if (activeSlider) {
+            const slider =
+                interactiveItems()
+                    .find(
+                        item =>
+                            item.id ===
+                                activeSlider &&
+                            item.type ===
+                                "slider"
+                    );
+
+            if (slider) {
+                updateSlider(
+                    slider,
+                    x
+                );
+            }
+        }
     }
 );
 
@@ -1354,35 +1287,6 @@ canvas.addEventListener(
         ) {
             handleAction(
                 hit.id
-            );
-        }
-    }
-);
-
-canvas.addEventListener(
-    "mousemove",
-    event => {
-        if (!activeSlider) {
-            return;
-        }
-
-        const { x } =
-            mousePos(event);
-
-        const slider =
-            interactiveItems()
-                .find(
-                    item =>
-                        item.id ===
-                            activeSlider &&
-                        item.type ===
-                            "slider"
-                );
-
-        if (slider) {
-            updateSlider(
-                slider,
-                x
             );
         }
     }
@@ -1475,9 +1379,6 @@ function interactiveItems() {
         });
     };
 
-
-    // INICIO
-
     if (
         startMenuOpen &&
         !aiMenuOpen
@@ -1512,9 +1413,6 @@ function interactiveItems() {
 
         return items;
     }
-
-
-    // IA
 
     if (
         startMenuOpen &&
@@ -1596,9 +1494,6 @@ function interactiveItems() {
         return items;
     }
 
-
-    // VICTORIA
-
     if (gameOver) {
         add(
             "revenge",
@@ -1624,9 +1519,6 @@ function interactiveItems() {
 
         return items;
     }
-
-
-    // CONFIRMACIÓN
 
     if (confirmOpen) {
         add(
@@ -1654,9 +1546,6 @@ function interactiveItems() {
         return items;
     }
 
-
-    // CONTROLES
-
     if (controlsOpen) {
         if (
             gameMode ===
@@ -1673,9 +1562,6 @@ function interactiveItems() {
             add
         );
     }
-
-
-    // FONDO
 
     if (backgroundOpen) {
         [
@@ -1712,9 +1598,6 @@ function interactiveItems() {
 
         return items;
     }
-
-
-    // FÍSICAS
 
     if (physicsOpen) {
         addSlider(
@@ -1810,9 +1693,6 @@ function interactiveItems() {
         return items;
     }
 
-
-    // AJUSTES
-
     if (settingsOpen) {
         add(
             "controls",
@@ -1887,9 +1767,6 @@ function interactiveItems() {
 
         return items;
     }
-
-
-    // PAUSA
 
     if (gamePaused) {
         add(
@@ -2433,9 +2310,6 @@ function handleAction(id) {
         return;
     }
 
-
-    // CONTROLES PVP
-
     if (
         gameMode ===
         "local"
@@ -2523,9 +2397,6 @@ function handleAction(id) {
         }
     }
 
-
-    // CONTROLES IA
-
     if (
         gameMode ===
         "ai"
@@ -2598,9 +2469,6 @@ function handleAction(id) {
         }
     }
 
-
-    // FÍSICAS
-
     if (
         id ===
         "progressive"
@@ -2619,9 +2487,6 @@ function handleAction(id) {
 
         return;
     }
-
-
-    // FINAL
 
     if (
         id ===
@@ -2838,20 +2703,16 @@ function drawScore() {
                 2
             );
 
-        const matchY =
-            TABLE.bottom -
-            8;
-
         ctx.save();
 
         ctx.globalAlpha =
             blink;
 
         ctx.font =
-            "bold 14px monospace";
+            "bold 13px monospace";
 
         ctx.textBaseline =
-            "bottom";
+            "middle";
 
         ctx.fillText(
             "MATCH",
@@ -2862,7 +2723,8 @@ function drawScore() {
                 ? W / 4
                 : W * 3 / 4,
 
-            matchY
+            TABLE.bottom -
+            9
         );
 
         ctx.restore();
@@ -3038,6 +2900,7 @@ function drawSlider(item) {
         String(
             item.value
         ),
+
         x + w,
         y - 25
     );
@@ -3072,7 +2935,9 @@ function drawSlider(item) {
     ctx.arc(
         knobX,
         y + h / 2,
-        hover ? 10 : 8,
+        hover
+            ? 10
+            : 8,
         0,
         Math.PI * 2
     );
@@ -3259,11 +3124,6 @@ function drawBackground() {
             drawButton
         );
 }
-
-
-// ============================================================
-// FÍSICAS
-// ============================================================
 
 function drawPhysics() {
     overlay(0.84);
@@ -3577,7 +3437,6 @@ function drawGame() {
 function loop() {
     updatePaddles();
     updateBall();
-
     drawGame();
 
     requestAnimationFrame(
