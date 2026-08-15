@@ -3,35 +3,13 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 const TABLE = {
-    margin: 10,
-    left: 10,
-    right: W - 10,
-    top: 10,
-    bottom: H - 10,
-    colors: {
-        green: "#1f5f3a",
-        blue: "#174a78",
-        black: "#000000"
-    }
+    left: 10, right: W - 10, top: 10, bottom: H - 10,
+    colors: { green: "#1f5f3a", blue: "#174a78", black: "#000000" }
 };
 
-const PADDLE = {
-    w: 20,
-    h: 120,
-    margin: 40,
-    baseSpeed: 8
-};
-
-const BALL = {
-    size: 20,
-    baseX: 7,
-    baseY: 5
-};
-
-const MATCH = {
-    win: 11,
-    margin: 2
-};
+const PADDLE = { w: 20, h: 120, margin: 40, baseSpeed: 8 };
+const BALL = { size: 20, baseX: 7, baseY: 5 };
+const MATCH = { win: 11, margin: 2 };
 
 const UI = {
     title: "bold 48px monospace",
@@ -55,7 +33,22 @@ const SENS = {
     default: 0.5
 };
 
-const DEFAULT_PLAYER_CONTROLS = {
+const LOCAL_DEFAULTS = {
+    left: {
+        up: "w",
+        down: "s",
+        mouse: false,
+        sensitivity: SENS.default
+    },
+    right: {
+        up: "ArrowUp",
+        down: "ArrowDown",
+        mouse: false,
+        sensitivity: SENS.default
+    }
+};
+
+const AI_DEFAULTS = {
     up1: "w",
     up2: "ArrowUp",
     down1: "s",
@@ -71,14 +64,12 @@ const AI_LEVELS = {
         maxSpeed: 5.2,
         error: 75
     },
-
     normal: {
         label: "NORMAL",
         reaction: 9,
         maxSpeed: 7.2,
         error: 36
     },
-
     hard: {
         label: "DIFÍCIL",
         reaction: 4,
@@ -87,13 +78,7 @@ const AI_LEVELS = {
     }
 };
 
-
-// ============================================================
-// ESTADO
-// ============================================================
-
 let courtColor = "black";
-
 let audioContext = null;
 let audioMuted = false;
 
@@ -102,7 +87,6 @@ let progressiveSpeed = false;
 
 let leftScore = 0;
 let rightScore = 0;
-
 let servingPlayer = "left";
 
 let gameOver = false;
@@ -120,7 +104,6 @@ let backgroundOpen = false;
 let physicsOpen = false;
 
 let confirmOpen = null;
-
 let hoveredButton = null;
 let waitingForKey = null;
 
@@ -130,19 +113,19 @@ let aiDifficulty = "normal";
 let aiTargetY = H / 2;
 let aiReactionCounter = 0;
 
-const playerControls = {
-    ...DEFAULT_PLAYER_CONTROLS
-};
-
-const keys = {};
-
 let mouseY = H / 2;
 let previousMouseY = null;
 
+const localControls = {
+    left: { ...LOCAL_DEFAULTS.left },
+    right: { ...LOCAL_DEFAULTS.right }
+};
 
-// ============================================================
-// OBJETOS
-// ============================================================
+const aiControls = {
+    ...AI_DEFAULTS
+};
+
+const keys = {};
 
 const leftPaddle = {
     x: PADDLE.margin,
@@ -150,63 +133,53 @@ const leftPaddle = {
 };
 
 const rightPaddle = {
-    x:
-        W -
-        PADDLE.margin -
-        PADDLE.w,
-
+    x: W - PADDLE.margin - PADDLE.w,
     y: (H - PADDLE.h) / 2
 };
 
 const ball = {
     x: (W - BALL.size) / 2,
     y: (H - BALL.size) / 2,
-
     vx: BALL.baseX,
     vy: BALL.baseY
 };
 
 
 // ============================================================
-// UTILIDADES
+// UTILS
 // ============================================================
 
-function clamp(value, min, max) {
-
-    return Math.max(
-        min,
-        Math.min(
-            max,
-            value
-        )
-    );
+function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
 }
 
-function round1(value) {
-
-    return Math.round(
-        value * 10
-    ) / 10;
+function round1(v) {
+    return Math.round(v * 10) / 10;
 }
 
-function inside(
-    mouseX,
-    mouseY,
-    rect
-) {
-
+function inside(x, y, r) {
     return (
-        mouseX >= rect.x &&
-        mouseX <= rect.x + rect.w &&
-        mouseY >= rect.y &&
-        mouseY <= rect.y + rect.h
+        x >= r.x &&
+        x <= r.x + r.w &&
+        y >= r.y &&
+        y <= r.y + r.h
     );
+}
+
+function sidePaddle(side) {
+    return side === "left"
+        ? leftPaddle
+        : rightPaddle;
+}
+
+function otherSide(side) {
+    return side === "left"
+        ? "right"
+        : "left";
 }
 
 function mousePos(event) {
-
-    const rect =
-        canvas.getBoundingClientRect();
+    const rect = canvas.getBoundingClientRect();
 
     return {
         x:
@@ -222,7 +195,6 @@ function mousePos(event) {
 }
 
 function formatKey(key) {
-
     const names = {
         ArrowUp: "↑",
         ArrowDown: "↓",
@@ -231,24 +203,7 @@ function formatKey(key) {
         " ": "SPACE"
     };
 
-    return (
-        names[key] ||
-        key.toUpperCase()
-    );
-}
-
-function sidePaddle(side) {
-
-    return side === "left"
-        ? leftPaddle
-        : rightPaddle;
-}
-
-function otherSide(side) {
-
-    return side === "left"
-        ? "right"
-        : "left";
+    return names[key] || key.toUpperCase();
 }
 
 
@@ -257,32 +212,17 @@ function otherSide(side) {
 // ============================================================
 
 function initAudio() {
-
     if (!audioContext) {
-
-        audioContext =
-            new AudioContext();
+        audioContext = new AudioContext();
     }
 
-    if (
-        audioContext.state ===
-        "suspended"
-    ) {
-
+    if (audioContext.state === "suspended") {
         audioContext.resume();
     }
 }
 
-function sound(
-    frequency,
-    duration,
-    volume
-) {
-
-    if (
-        audioMuted ||
-        !audioContext
-    ) {
+function sound(frequency, duration, volume) {
+    if (audioMuted || !audioContext) {
         return;
     }
 
@@ -292,83 +232,71 @@ function sound(
     const gain =
         audioContext.createGain();
 
-    oscillator.type =
-        "square";
+    oscillator.type = "square";
 
-    oscillator.frequency
-        .setValueAtTime(
-            frequency,
-            audioContext.currentTime
-        );
+    oscillator.frequency.setValueAtTime(
+        frequency,
+        audioContext.currentTime
+    );
 
-    gain.gain
-        .setValueAtTime(
-            volume,
-            audioContext.currentTime
-        );
+    gain.gain.setValueAtTime(
+        volume,
+        audioContext.currentTime
+    );
 
-    gain.gain
-        .exponentialRampToValueAtTime(
-            0.001,
-            audioContext.currentTime +
-            duration
-        );
+    gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioContext.currentTime + duration
+    );
 
     oscillator.connect(gain);
-
-    gain.connect(
-        audioContext.destination
-    );
+    gain.connect(audioContext.destination);
 
     oscillator.start();
 
     oscillator.stop(
-        audioContext.currentTime +
-        duration
+        audioContext.currentTime + duration
     );
 }
 
-const wallSound =
-    () =>
-        sound(
-            500,
-            0.06,
-            0.08
-        );
+const wallSound = () =>
+    sound(500, 0.06, 0.08);
 
-const paddleSound =
-    () =>
-        sound(
-            800,
-            0.07,
-            0.1
-        );
+const paddleSound = () =>
+    sound(800, 0.07, 0.1);
 
-const pointSound =
-    () =>
-        sound(
-            180,
-            0.2,
-            0.12
-        );
+const pointSound = () =>
+    sound(180, 0.2, 0.12);
 
 
 // ============================================================
 // RESET
 // ============================================================
 
-function resetPlayerControls() {
+function resetLocalControls() {
+    Object.assign(
+        localControls.left,
+        LOCAL_DEFAULTS.left
+    );
 
     Object.assign(
-        playerControls,
-        DEFAULT_PLAYER_CONTROLS
+        localControls.right,
+        LOCAL_DEFAULTS.right
+    );
+
+    waitingForKey = null;
+}
+
+function resetAIControls() {
+    Object.assign(
+        aiControls,
+        AI_DEFAULTS
     );
 
     waitingForKey = null;
 }
 
 function resetPaddles() {
-
     leftPaddle.y =
         (H - PADDLE.h) / 2;
 
@@ -377,7 +305,6 @@ function resetPaddles() {
 }
 
 function resetBall() {
-
     ball.x =
         (W - BALL.size) / 2;
 
@@ -390,18 +317,13 @@ function resetBall() {
             : -Math.abs(ballSpeed);
 
     ball.vy =
-        (
-            ball.vy < 0
-                ? -1
-                : 1
-        ) *
+        (ball.vy < 0 ? -1 : 1) *
         BALL.baseY;
 
     aiReactionCounter = 0;
 }
 
 function resetMatch() {
-
     leftScore = 0;
     rightScore = 0;
 
@@ -422,7 +344,6 @@ function startGame(
     side = "left",
     difficulty = "normal"
 ) {
-
     gameMode = mode;
 
     humanSide = side;
@@ -440,7 +361,6 @@ function startGame(
 }
 
 function goToStartMenu() {
-
     startMenuOpen = true;
     aiMenuOpen = false;
 
@@ -449,26 +369,24 @@ function goToStartMenu() {
     gameOver = false;
     winner = null;
 
+    confirmOpen = null;
+    hoveredButton = null;
+    waitingForKey = null;
+
     settingsOpen = false;
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
-
-    confirmOpen = null;
-
-    hoveredButton = null;
-    waitingForKey = null;
 
     gameMode = null;
 }
 
 
 // ============================================================
-// PARTIDO
+// MATCH
 // ============================================================
 
 function checkWinner() {
-
     if (
         leftScore < MATCH.win &&
         rightScore < MATCH.win
@@ -478,53 +396,38 @@ function checkWinner() {
 
     return (
         Math.abs(
-            leftScore -
-            rightScore
-        ) >=
-        MATCH.margin
+            leftScore - rightScore
+        ) >= MATCH.margin
     );
 }
 
 function updateServe() {
-
     if (
         leftScore >= 10 &&
         rightScore >= 10
     ) {
-
         servingPlayer =
-            otherSide(
-                servingPlayer
-            );
+            otherSide(servingPlayer);
 
         return;
     }
 
     servingPlayer =
         Math.floor(
-            (
-                leftScore +
-                rightScore
-            ) /
-            2
+            (leftScore + rightScore) / 2
         ) %
         2 ===
         0
-
             ? "left"
             : "right";
 }
 
 function handlePoint() {
-
     if (checkWinner()) {
-
         gameOver = true;
 
         winner =
-            leftScore >
-            rightScore
-
+            leftScore > rightScore
                 ? "left"
                 : "right";
 
@@ -541,16 +444,12 @@ function handlePoint() {
 // ============================================================
 
 function wouldWinNext(side) {
-
     let left = leftScore;
     let right = rightScore;
 
     if (side === "left") {
-
         left++;
-
     } else {
-
         right++;
     }
 
@@ -559,39 +458,23 @@ function wouldWinNext(side) {
             left >= MATCH.win ||
             right >= MATCH.win
         ) &&
-        Math.abs(
-            left -
-            right
-        ) >=
-        MATCH.margin
+        Math.abs(left - right) >=
+            MATCH.margin
     );
 }
 
 function matchPointSide() {
-
     const left =
-        wouldWinNext(
-            "left"
-        );
+        wouldWinNext("left");
 
     const right =
-        wouldWinNext(
-            "right"
-        );
+        wouldWinNext("right");
 
-    if (
-        left &&
-        !right
-    ) {
-
+    if (left && !right) {
         return "left";
     }
 
-    if (
-        right &&
-        !left
-    ) {
-
+    if (right && !left) {
         return "right";
     }
 
@@ -600,11 +483,10 @@ function matchPointSide() {
 
 
 // ============================================================
-// VELOCIDAD PROGRESIVA
+// PHYSICS
 // ============================================================
 
 function increaseBallSpeed() {
-
     if (!progressiveSpeed) {
         return;
     }
@@ -613,267 +495,102 @@ function increaseBallSpeed() {
         1 +
         PHYSICS.progressiveIncrement;
 
-    const directionX =
-        Math.sign(
-            ball.vx
-        ) || 1;
-
-    const directionY =
-        Math.sign(
-            ball.vy
-        ) || 1;
-
     ball.vx =
-        directionX *
+        (Math.sign(ball.vx) || 1) *
         Math.min(
             Math.abs(ball.vx) *
             multiplier,
-
             PHYSICS.max
         );
 
     ball.vy =
-        directionY *
+        (Math.sign(ball.vy) || 1) *
         Math.min(
             Math.abs(ball.vy) *
             multiplier,
-
             PHYSICS.max
         );
 }
 
 
 // ============================================================
-// JUGADOR
+// PADDLES
 // ============================================================
 
-function humanMoveSide(side) {
+function localMove() {
+    const left =
+        localControls.left;
 
+    const right =
+        localControls.right;
+
+    const leftSpeed =
+        PADDLE.baseSpeed *
+        (
+            0.45 +
+            left.sensitivity *
+            1.35
+        );
+
+    const rightSpeed =
+        PADDLE.baseSpeed *
+        (
+            0.45 +
+            right.sensitivity *
+            1.35
+        );
+
+    if (keys[left.up]) {
+        leftPaddle.y -=
+            leftSpeed;
+    }
+
+    if (keys[left.down]) {
+        leftPaddle.y +=
+            leftSpeed;
+    }
+
+    if (keys[right.up]) {
+        rightPaddle.y -=
+            rightSpeed;
+    }
+
+    if (keys[right.down]) {
+        rightPaddle.y +=
+            rightSpeed;
+    }
+}
+
+function humanMoveAI() {
     const paddle =
-        sidePaddle(side);
+        sidePaddle(humanSide);
 
     const speed =
         PADDLE.baseSpeed *
         (
             0.45 +
-            playerControls.sensitivity *
+            aiControls.sensitivity *
             1.35
         );
 
     const up =
-        keys[playerControls.up1] ||
-        keys[playerControls.up2];
+        keys[aiControls.up1] ||
+        keys[aiControls.up2];
 
     const down =
-        keys[playerControls.down1] ||
-        keys[playerControls.down2];
+        keys[aiControls.down1] ||
+        keys[aiControls.down2];
 
     if (up) {
-
         paddle.y -= speed;
     }
 
     if (down) {
-
         paddle.y += speed;
     }
 }
 
-
-// ============================================================
-// PVP LOCAL
-// ============================================================
-
-function localMove() {
-
-    if (keys.w) {
-
-        leftPaddle.y -=
-            PADDLE.baseSpeed;
-    }
-
-    if (keys.s) {
-
-        leftPaddle.y +=
-            PADDLE.baseSpeed;
-    }
-
-    if (keys.ArrowUp) {
-
-        rightPaddle.y -=
-            PADDLE.baseSpeed;
-    }
-
-    if (keys.ArrowDown) {
-
-        rightPaddle.y +=
-            PADDLE.baseSpeed;
-    }
-}
-
-
-// ============================================================
-// IA
-// ============================================================
-
-function predictBallY(targetX) {
-
-    if (
-        Math.abs(ball.vx) <
-        0.001
-    ) {
-
-        return H / 2;
-    }
-
-    const time =
-        (
-            targetX -
-            ball.x
-        ) /
-        ball.vx;
-
-    if (time <= 0) {
-
-        return H / 2;
-    }
-
-    const minY =
-        TABLE.top;
-
-    const maxY =
-        TABLE.bottom -
-        BALL.size;
-
-    const span =
-        maxY -
-        minY;
-
-    let predictedY =
-        ball.y +
-        ball.vy *
-        time -
-        minY;
-
-    const period =
-        span * 2;
-
-    predictedY =
-        (
-            (
-                predictedY %
-                period
-            ) +
-            period
-        ) %
-        period;
-
-    if (
-        predictedY >
-        span
-    ) {
-
-        predictedY =
-            period -
-            predictedY;
-    }
-
-    return (
-        predictedY +
-        minY +
-        BALL.size / 2
-    );
-}
-
-function updateAI() {
-
-    if (
-        gameMode !== "ai"
-    ) {
-        return;
-    }
-
-    const aiSide =
-        otherSide(
-            humanSide
-        );
-
-    const paddle =
-        sidePaddle(
-            aiSide
-        );
-
-    const config =
-        AI_LEVELS[
-            aiDifficulty
-        ];
-
-    const ballComing =
-        aiSide === "left"
-            ? ball.vx < 0
-            : ball.vx > 0;
-
-    if (
-        aiReactionCounter-- <=
-        0
-    ) {
-
-        const targetX =
-            aiSide === "left"
-
-                ? paddle.x +
-                  PADDLE.w
-
-                : paddle.x;
-
-        const predicted =
-            ballComing
-
-                ? predictBallY(
-                    targetX
-                )
-
-                : H / 2;
-
-        const error =
-            (
-                Math.random() *
-                2 -
-                1
-            ) *
-            config.error;
-
-        aiTargetY =
-            predicted +
-            error;
-
-        aiReactionCounter =
-            config.reaction;
-    }
-
-    const center =
-        paddle.y +
-        PADDLE.h / 2;
-
-    const delta =
-        aiTargetY -
-        center;
-
-    paddle.y +=
-        clamp(
-            delta,
-            -config.maxSpeed,
-            config.maxSpeed
-        );
-}
-
-
-// ============================================================
-// PALETAS
-// ============================================================
-
 function clampPaddles() {
-
     const maxY =
         TABLE.bottom -
         PADDLE.h;
@@ -893,13 +610,146 @@ function clampPaddles() {
         );
 }
 
-function updatePaddles() {
+
+// ============================================================
+// AI
+// ============================================================
+
+function predictBallY(targetX) {
+    if (
+        Math.abs(ball.vx) <
+        0.001
+    ) {
+        return H / 2;
+    }
+
+    const time =
+        (targetX - ball.x) /
+        ball.vx;
+
+    if (time <= 0) {
+        return H / 2;
+    }
+
+    const minY =
+        TABLE.top;
+
+    const maxY =
+        TABLE.bottom -
+        BALL.size;
+
+    const span =
+        maxY - minY;
+
+    const period =
+        span * 2;
+
+    let predictedY =
+        ball.y +
+        ball.vy *
+        time -
+        minY;
+
+    predictedY =
+        (
+            (
+                predictedY %
+                period
+            ) +
+            period
+        ) %
+        period;
 
     if (
+        predictedY >
+        span
+    ) {
+        predictedY =
+            period -
+            predictedY;
+    }
+
+    return (
+        predictedY +
+        minY +
+        BALL.size / 2
+    );
+}
+
+function updateAI() {
+    if (
+        gameMode !== "ai"
+    ) {
+        return;
+    }
+
+    const aiSide =
+        otherSide(humanSide);
+
+    const paddle =
+        sidePaddle(aiSide);
+
+    const config =
+        AI_LEVELS[
+            aiDifficulty
+        ];
+
+    const ballComing =
+        aiSide === "left"
+            ? ball.vx < 0
+            : ball.vx > 0;
+
+    if (
+        aiReactionCounter-- <=
+        0
+    ) {
+        const targetX =
+            aiSide === "left"
+                ? paddle.x +
+                  PADDLE.w
+                : paddle.x;
+
+        const predicted =
+            ballComing
+                ? predictBallY(
+                    targetX
+                )
+                : H / 2;
+
+        aiTargetY =
+            predicted +
+            (
+                Math.random() *
+                2 -
+                1
+            ) *
+            config.error;
+
+        aiReactionCounter =
+            config.reaction;
+    }
+
+    const delta =
+        aiTargetY -
+        (
+            paddle.y +
+            PADDLE.h / 2
+        );
+
+    paddle.y +=
+        clamp(
+            delta,
+            -config.maxSpeed,
+            config.maxSpeed
+        );
+}
+
+function updatePaddles() {
+    if (
         startMenuOpen ||
-        aiMenuOpen ||
         gamePaused ||
-        gameOver
+        gameOver ||
+        !gameMode
     ) {
         return;
     }
@@ -907,18 +757,13 @@ function updatePaddles() {
     if (
         gameMode === "local"
     ) {
-
         localMove();
     }
 
     if (
         gameMode === "ai"
     ) {
-
-        humanMoveSide(
-            humanSide
-        );
-
+        humanMoveAI();
         updateAI();
     }
 
@@ -927,14 +772,12 @@ function updatePaddles() {
 
 
 // ============================================================
-// PELOTA
+// BALL
 // ============================================================
 
 function updateBall() {
-
     if (
         startMenuOpen ||
-        aiMenuOpen ||
         gamePaused ||
         gameOver ||
         !gameMode
@@ -945,129 +788,93 @@ function updateBall() {
     ball.x += ball.vx;
     ball.y += ball.vy;
 
-
-    // PARED SUPERIOR
-
     if (
         ball.y <=
         TABLE.top
     ) {
-
         ball.y =
             TABLE.top;
 
         ball.vy =
-            Math.abs(
-                ball.vy
-            );
+            Math.abs(ball.vy);
 
         increaseBallSpeed();
         wallSound();
     }
-
-
-    // PARED INFERIOR
 
     if (
         ball.y +
         BALL.size >=
         TABLE.bottom
     ) {
-
         ball.y =
             TABLE.bottom -
             BALL.size;
 
         ball.vy =
-            -Math.abs(
-                ball.vy
-            );
+            -Math.abs(ball.vy);
 
         increaseBallSpeed();
         wallSound();
     }
 
-
-    // PALETA IZQUIERDA
-
     if (
         ball.vx < 0 &&
-
         ball.x <=
             leftPaddle.x +
             PADDLE.w &&
-
         ball.x +
             BALL.size >=
             leftPaddle.x &&
-
         ball.y +
             BALL.size >=
             leftPaddle.y &&
-
         ball.y <=
             leftPaddle.y +
             PADDLE.h
     ) {
-
         ball.x =
             leftPaddle.x +
             PADDLE.w;
 
         ball.vx =
-            Math.abs(
-                ball.vx
-            );
+            Math.abs(ball.vx);
 
         increaseBallSpeed();
         paddleSound();
     }
 
-
-    // PALETA DERECHA
-
     if (
         ball.vx > 0 &&
-
         ball.x +
             BALL.size >=
             rightPaddle.x &&
-
         ball.x <=
             rightPaddle.x +
             PADDLE.w &&
-
         ball.y +
             BALL.size >=
             rightPaddle.y &&
-
         ball.y <=
             rightPaddle.y +
             PADDLE.h
     ) {
-
         ball.x =
             rightPaddle.x -
             BALL.size;
 
         ball.vx =
-            -Math.abs(
-                ball.vx
-            );
+            -Math.abs(ball.vx);
 
         increaseBallSpeed();
         paddleSound();
     }
-
-
-    // PUNTO DERECHA
 
     if (
         ball.x +
         BALL.size <
         TABLE.left
     ) {
-
         rightScore++;
 
         pointSound();
@@ -1076,14 +883,10 @@ function updateBall() {
         return;
     }
 
-
-    // PUNTO IZQUIERDA
-
     if (
         ball.x >
         TABLE.right
     ) {
-
         leftScore++;
 
         pointSound();
@@ -1093,24 +896,21 @@ function updateBall() {
 
 
 // ============================================================
-// TECLADO
+// INPUT
 // ============================================================
 
 window.addEventListener(
     "keydown",
     event => {
-
         initAudio();
 
         if (waitingForKey) {
-
             event.preventDefault();
 
             if (
                 event.key ===
                 "Escape"
             ) {
-
                 waitingForKey =
                     null;
 
@@ -1119,10 +919,10 @@ window.addEventListener(
                 return;
             }
 
-            playerControls[
-                waitingForKey
-            ] =
-                event.key;
+            setRebindKey(
+                waitingForKey,
+                event.key
+            );
 
             waitingForKey =
                 null;
@@ -1130,15 +930,11 @@ window.addEventListener(
             return;
         }
 
-
-        // MUTE
-
         if (
             event.key
                 .toLowerCase() ===
             "m"
         ) {
-
             event.preventDefault();
 
             audioMuted =
@@ -1147,14 +943,10 @@ window.addEventListener(
             return;
         }
 
-
-        // ESC
-
         if (
             event.key ===
             "Escape"
         ) {
-
             event.preventDefault();
 
             handleEscape();
@@ -1164,7 +956,6 @@ window.addEventListener(
 
         if (
             startMenuOpen ||
-            aiMenuOpen ||
             gamePaused ||
             gameOver
         ) {
@@ -1180,7 +971,6 @@ window.addEventListener(
                     "Arrow"
                 )
         ) {
-
             event.preventDefault();
         }
     }
@@ -1189,19 +979,39 @@ window.addEventListener(
 window.addEventListener(
     "keyup",
     event => {
-
         keys[event.key] =
             false;
     }
 );
 
+function setRebindKey(
+    id,
+    key
+) {
+    if (
+        gameMode === "local"
+    ) {
+        const [
+            side,
+            action
+        ] =
+            id.split(":");
 
-// ============================================================
-// ESC
-// ============================================================
+        localControls[
+            side
+        ][
+            action
+        ] =
+            key;
+
+        return;
+    }
+
+    aiControls[id] =
+        key;
+}
 
 function closeMenusToGame() {
-
     if (
         !gameMode ||
         startMenuOpen
@@ -1217,18 +1027,15 @@ function closeMenusToGame() {
     physicsOpen = false;
 
     confirmOpen = null;
-
     waitingForKey = null;
     hoveredButton = null;
 }
 
 function handleEscape() {
-
     if (startMenuOpen) {
-
         if (aiMenuOpen) {
-
-            aiMenuOpen = false;
+            aiMenuOpen =
+                false;
         }
 
         return;
@@ -1246,61 +1053,93 @@ function handleEscape() {
         physicsOpen ||
         confirmOpen
     ) {
-
         closeMenusToGame();
 
         return;
     }
 
-    gamePaused = true;
+    gamePaused =
+        true;
 }
-
-
-// ============================================================
-// MOUSE
-// ============================================================
 
 canvas.addEventListener(
     "mousemove",
     event => {
-
         const {
             x,
             y
         } =
-            mousePos(
-                event
-            );
+            mousePos(event);
 
         mouseY = y;
 
         if (
             !startMenuOpen &&
-            !aiMenuOpen &&
             !gamePaused &&
             !gameOver &&
-            gameMode === "ai" &&
-            playerControls.mouse &&
-            previousMouseY !== null
+            previousMouseY !==
+                null
         ) {
-
-            const paddle =
-                sidePaddle(
-                    humanSide
-                );
-
             const delta =
                 y -
                 previousMouseY;
 
-            paddle.y +=
-                delta *
-                (
-                    0.55 +
-                    playerControls
-                        .sensitivity *
-                    1.65
-                );
+            if (
+                gameMode ===
+                    "ai" &&
+                aiControls.mouse
+            ) {
+                const paddle =
+                    sidePaddle(
+                        humanSide
+                    );
+
+                paddle.y +=
+                    delta *
+                    (
+                        0.55 +
+                        aiControls
+                            .sensitivity *
+                        1.65
+                    );
+            }
+
+            if (
+                gameMode ===
+                "local"
+            ) {
+                if (
+                    localControls
+                        .left
+                        .mouse
+                ) {
+                    leftPaddle.y +=
+                        delta *
+                        (
+                            0.55 +
+                            localControls
+                                .left
+                                .sensitivity *
+                            1.65
+                        );
+                }
+
+                if (
+                    localControls
+                        .right
+                        .mouse
+                ) {
+                    rightPaddle.y +=
+                        delta *
+                        (
+                            0.55 +
+                            localControls
+                                .right
+                                .sensitivity *
+                            1.65
+                        );
+                }
+            }
 
             clampPaddles();
         }
@@ -1317,14 +1156,11 @@ canvas.addEventListener(
 canvas.addEventListener(
     "click",
     event => {
-
         const {
             x,
             y
         } =
-            mousePos(
-                event
-            );
+            mousePos(event);
 
         const hit =
             interactiveItems()
@@ -1341,7 +1177,6 @@ canvas.addEventListener(
             hit &&
             !hit.disabled
         ) {
-
             handleAction(
                 hit.id
             );
@@ -1351,7 +1186,7 @@ canvas.addEventListener(
 
 
 // ============================================================
-// MENÚS
+// UI
 // ============================================================
 
 function buttonRect(
@@ -1362,7 +1197,6 @@ function buttonRect(
     gap = 16,
     centerY = 390
 ) {
-
     const total =
         count *
         height +
@@ -1374,11 +1208,7 @@ function buttonRect(
 
     return {
         x:
-            (
-                W -
-                width
-            ) /
-            2,
+            (W - width) / 2,
 
         y:
             centerY -
@@ -1395,7 +1225,6 @@ function buttonRect(
 }
 
 function interactiveItems() {
-
     const items = [];
 
     const add = (
@@ -1404,7 +1233,6 @@ function interactiveItems() {
         rect,
         disabled = false
     ) => {
-
         items.push({
             id,
             text,
@@ -1413,14 +1241,10 @@ function interactiveItems() {
         });
     };
 
-
-    // MENÚ INICIAL
-
     if (
         startMenuOpen &&
         !aiMenuOpen
     ) {
-
         add(
             "local",
             "PVP LOCAL",
@@ -1441,7 +1265,7 @@ function interactiveItems() {
 
         add(
             "online",
-            "PVP ONLINE · PRÓXIMAMENTE",
+            "PVP ONLINE",
             buttonRect(
                 2,
                 3
@@ -1452,32 +1276,25 @@ function interactiveItems() {
         return items;
     }
 
-
-    // MENÚ IA
-
     if (
         startMenuOpen &&
         aiMenuOpen
     ) {
-
         add(
             "side",
-
             `LADO: ${
                 humanSide ===
                 "left"
-
                     ? "IZQUIERDA"
                     : "DERECHA"
             }`,
-
             buttonRect(
                 0,
                 5,
                 360,
                 54,
                 13,
-                400
+                390
             )
         );
 
@@ -1490,7 +1307,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                400
+                390
             )
         );
 
@@ -1503,7 +1320,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                400
+                390
             )
         );
 
@@ -1516,7 +1333,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                400
+                390
             )
         );
 
@@ -1529,18 +1346,14 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                400
+                390
             )
         );
 
         return items;
     }
 
-
-    // VICTORIA
-
     if (gameOver) {
-
         add(
             "revenge",
             "¿REVANCHA?",
@@ -1566,11 +1379,7 @@ function interactiveItems() {
         return items;
     }
 
-
-    // CONFIRMACIÓN
-
     if (confirmOpen) {
-
         add(
             "confirmYes",
             "SÍ",
@@ -1596,159 +1405,44 @@ function interactiveItems() {
         return items;
     }
 
-
-    // CONTROLES
-
     if (controlsOpen) {
+        if (
+            gameMode ===
+            "local"
+        ) {
+            return localControlItems(
+                items,
+                add
+            );
+        }
 
-        const x =
-            W / 2 -
-            170;
-
-        add(
-            "up1",
-            formatKey(
-                playerControls.up1
-            ),
-            {
-                x,
-                y: 185,
-                w: 150,
-                h: 44
-            }
+        return aiControlItems(
+            items,
+            add
         );
-
-        add(
-            "up2",
-            formatKey(
-                playerControls.up2
-            ),
-            {
-                x: x + 170,
-                y: 185,
-                w: 150,
-                h: 44
-            }
-        );
-
-        add(
-            "down1",
-            formatKey(
-                playerControls.down1
-            ),
-            {
-                x,
-                y: 250,
-                w: 150,
-                h: 44
-            }
-        );
-
-        add(
-            "down2",
-            formatKey(
-                playerControls.down2
-            ),
-            {
-                x: x + 170,
-                y: 250,
-                w: 150,
-                h: 44
-            }
-        );
-
-        add(
-            "mouse",
-
-            `MOUSE: ${
-                playerControls.mouse
-                    ? "ON"
-                    : "OFF"
-            }`,
-
-            {
-                x,
-                y: 315,
-                w: 320,
-                h: 50
-            }
-        );
-
-        add(
-            "sensMinus",
-            "-",
-            {
-                x,
-                y: 390,
-                w: 55,
-                h: 46
-            }
-        );
-
-        add(
-            "sensPlus",
-            "+",
-            {
-                x: x + 265,
-                y: 390,
-                w: 55,
-                h: 46
-            }
-        );
-
-        add(
-            "controlsReset",
-            "RESTABLECER POR DEFECTO",
-            {
-                x: W / 2 - 190,
-                y: 500,
-                w: 380,
-                h: 52
-            }
-        );
-
-        add(
-            "controlsBack",
-            "VOLVER",
-            {
-                x: W / 2 - 110,
-                y: 575,
-                w: 220,
-                h: 50
-            }
-        );
-
-        return items;
     }
 
-
-    // FONDO
-
     if (backgroundOpen) {
-
-        const labels = [
+        [
             "VERDE",
             "AZUL",
             "NEGRO",
             "VOLVER"
-        ];
-
-        const ids = [
-            "green",
-            "blue",
-            "black",
-            "backgroundBack"
-        ];
-
-        labels.forEach(
+        ].forEach(
             (
                 text,
                 index
             ) => {
-
                 add(
-                    ids[index],
+                    [
+                        "green",
+                        "blue",
+                        "black",
+                        "backgroundBack"
+                    ][index],
+
                     text,
+
                     buttonRect(
                         index,
                         4,
@@ -1764,11 +1458,7 @@ function interactiveItems() {
         return items;
     }
 
-
-    // FÍSICAS
-
     if (physicsOpen) {
-
         add(
             "speedPlus",
             `VELOCIDAD +   ${ballSpeed}`,
@@ -1797,13 +1487,11 @@ function interactiveItems() {
 
         add(
             "progressive",
-
             `PROGRESIVA: ${
                 progressiveSpeed
                     ? "ON"
                     : "OFF"
             }`,
-
             buttonRect(
                 2,
                 4,
@@ -1830,11 +1518,7 @@ function interactiveItems() {
         return items;
     }
 
-
-    // AJUSTES
-
     if (settingsOpen) {
-
         add(
             "controls",
             "CONTROLES",
@@ -1876,13 +1560,11 @@ function interactiveItems() {
 
         add(
             "sound",
-
             `SONIDO: ${
                 audioMuted
                     ? "OFF"
                     : "ON"
             }`,
-
             buttonRect(
                 3,
                 5,
@@ -1909,11 +1591,7 @@ function interactiveItems() {
         return items;
     }
 
-
-    // PAUSA
-
     if (gamePaused) {
-
         add(
             "continue",
             "CONTINUAR",
@@ -1970,44 +1648,284 @@ function interactiveItems() {
     return items;
 }
 
+function localControlItems(
+    items,
+    add
+) {
+    const columns = {
+        left: 140,
+        right: 720
+    };
+
+    for (
+        const side of
+        [
+            "left",
+            "right"
+        ]
+    ) {
+        const x =
+            columns[side];
+
+        const controls =
+            localControls[side];
+
+        add(
+            `${side}:up`,
+            waitingForKey ===
+            `${side}:up`
+                ? "PRESIONÁ..."
+                : formatKey(
+                    controls.up
+                ),
+            {
+                x: x + 125,
+                y: 175,
+                w: 180,
+                h: 42
+            }
+        );
+
+        add(
+            `${side}:down`,
+            waitingForKey ===
+            `${side}:down`
+                ? "PRESIONÁ..."
+                : formatKey(
+                    controls.down
+                ),
+            {
+                x: x + 125,
+                y: 235,
+                w: 180,
+                h: 42
+            }
+        );
+
+        add(
+            `${side}:mouse`,
+            `MOUSE: ${
+                controls.mouse
+                    ? "ON"
+                    : "OFF"
+            }`,
+            {
+                x: x + 125,
+                y: 295,
+                w: 180,
+                h: 42
+            }
+        );
+
+        add(
+            `${side}:sensMinus`,
+            "-",
+            {
+                x: x + 125,
+                y: 365,
+                w: 45,
+                h: 42
+            }
+        );
+
+        add(
+            `${side}:sensPlus`,
+            "+",
+            {
+                x: x + 260,
+                y: 365,
+                w: 45,
+                h: 42
+            }
+        );
+    }
+
+    add(
+        "localControlsReset",
+        "RESTABLECER POR DEFECTO",
+        {
+            x: W / 2 - 185,
+            y: 520,
+            w: 370,
+            h: 50
+        }
+    );
+
+    add(
+        "controlsBack",
+        "VOLVER",
+        {
+            x: W / 2 - 110,
+            y: 590,
+            w: 220,
+            h: 50
+        }
+    );
+
+    return items;
+}
+
+function aiControlItems(
+    items,
+    add
+) {
+    const x =
+        W / 2 - 170;
+
+    add(
+        "up1",
+        waitingForKey ===
+        "up1"
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.up1
+            ),
+        {
+            x,
+            y: 185,
+            w: 150,
+            h: 44
+        }
+    );
+
+    add(
+        "up2",
+        waitingForKey ===
+        "up2"
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.up2
+            ),
+        {
+            x: x + 170,
+            y: 185,
+            w: 150,
+            h: 44
+        }
+    );
+
+    add(
+        "down1",
+        waitingForKey ===
+        "down1"
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.down1
+            ),
+        {
+            x,
+            y: 250,
+            w: 150,
+            h: 44
+        }
+    );
+
+    add(
+        "down2",
+        waitingForKey ===
+        "down2"
+            ? "PRESIONÁ..."
+            : formatKey(
+                aiControls.down2
+            ),
+        {
+            x: x + 170,
+            y: 250,
+            w: 150,
+            h: 44
+        }
+    );
+
+    add(
+        "aiMouse",
+        `MOUSE: ${
+            aiControls.mouse
+                ? "ON"
+                : "OFF"
+        }`,
+        {
+            x,
+            y: 315,
+            w: 320,
+            h: 50
+        }
+    );
+
+    add(
+        "aiSensMinus",
+        "-",
+        {
+            x,
+            y: 390,
+            w: 55,
+            h: 46
+        }
+    );
+
+    add(
+        "aiSensPlus",
+        "+",
+        {
+            x: x + 265,
+            y: 390,
+            w: 55,
+            h: 46
+        }
+    );
+
+    add(
+        "aiControlsReset",
+        "RESTABLECER POR DEFECTO",
+        {
+            x: W / 2 - 190,
+            y: 500,
+            w: 380,
+            h: 52
+        }
+    );
+
+    add(
+        "controlsBack",
+        "VOLVER",
+        {
+            x: W / 2 - 110,
+            y: 575,
+            w: 220,
+            h: 50
+        }
+    );
+
+    return items;
+}
+
 
 // ============================================================
-// ACCIONES
+// ACTIONS
 // ============================================================
 
 function handleAction(id) {
-
     initAudio();
 
     if (id === "online") {
-
         return;
     }
 
     if (id === "local") {
-
-        startGame(
-            "local"
-        );
-
+        startGame("local");
         return;
     }
 
     if (id === "ai") {
-
         aiMenuOpen = true;
         humanSide = "left";
-
         return;
     }
 
     if (id === "side") {
-
         humanSide =
             otherSide(
                 humanSide
             );
-
         return;
     }
 
@@ -2018,71 +1936,51 @@ function handleAction(id) {
             "hard"
         ].includes(id)
     ) {
-
         startGame(
             "ai",
             humanSide,
             id
         );
-
         return;
     }
 
     if (id === "aiBack") {
-
         aiMenuOpen = false;
-
         return;
     }
 
     if (id === "continue") {
-
         gamePaused = false;
-
         return;
     }
 
     if (id === "restart") {
-
-        confirmOpen =
-            "restart";
-
+        confirmOpen = "restart";
         return;
     }
 
     if (id === "mainMenu") {
-
-        confirmOpen =
-            "menu";
-
+        confirmOpen = "menu";
         return;
     }
 
     if (id === "settings") {
-
-        settingsOpen =
-            true;
-
+        settingsOpen = true;
         return;
     }
 
     if (id === "confirmYes") {
-
         const action =
             confirmOpen;
 
-        confirmOpen =
-            null;
+        confirmOpen = null;
 
         if (
             action ===
             "restart"
         ) {
-
             resetMatch();
-
         } else {
-
             goToStartMenu();
         }
 
@@ -2090,195 +1988,257 @@ function handleAction(id) {
     }
 
     if (id === "confirmNo") {
-
-        confirmOpen =
-            null;
-
+        confirmOpen = null;
         return;
     }
 
     if (id === "controls") {
-
-        controlsOpen =
-            true;
-
+        controlsOpen = true;
         return;
     }
 
     if (id === "background") {
-
-        backgroundOpen =
-            true;
-
+        backgroundOpen = true;
         return;
     }
 
     if (id === "physics") {
-
-        physicsOpen =
-            true;
-
+        physicsOpen = true;
         return;
     }
 
     if (id === "sound") {
-
         audioMuted =
             !audioMuted;
-
         return;
     }
 
     if (id === "settingsBack") {
-
-        settingsOpen =
-            false;
-
+        settingsOpen = false;
         return;
     }
 
     if (id === "controlsBack") {
-
-        controlsOpen =
-            false;
-
-        waitingForKey =
-            null;
-
+        controlsOpen = false;
+        waitingForKey = null;
         return;
     }
 
     if (id === "backgroundBack") {
-
-        backgroundOpen =
-            false;
-
+        backgroundOpen = false;
         return;
     }
 
     if (id === "physicsBack") {
-
-        physicsOpen =
-            false;
-
-        return;
-    }
-
-    if (
-        id === "green" ||
-        id === "blue" ||
-        id === "black"
-    ) {
-
-        courtColor = id;
-
+        physicsOpen = false;
         return;
     }
 
     if (
         [
-            "up1",
-            "up2",
-            "down1",
-            "down2"
+            "green",
+            "blue",
+            "black"
         ].includes(id)
     ) {
-
-        waitingForKey = id;
-
+        courtColor = id;
         return;
     }
 
-    if (id === "mouse") {
+    if (
+        gameMode ===
+        "local"
+    ) {
+        const parts =
+            id.split(":");
 
-        playerControls.mouse =
-            !playerControls.mouse;
+        if (
+            parts.length === 2
+        ) {
+            const [
+                side,
+                action
+            ] =
+                parts;
 
-        return;
+            const controls =
+                localControls[
+                    side
+                ];
+
+            if (
+                action === "up" ||
+                action === "down"
+            ) {
+                waitingForKey =
+                    id;
+                return;
+            }
+
+            if (
+                action ===
+                "mouse"
+            ) {
+                controls.mouse =
+                    !controls.mouse;
+                return;
+            }
+
+            if (
+                action ===
+                "sensMinus"
+            ) {
+                controls.sensitivity =
+                    round1(
+                        clamp(
+                            controls.sensitivity -
+                            SENS.step,
+                            SENS.min,
+                            SENS.max
+                        )
+                    );
+                return;
+            }
+
+            if (
+                action ===
+                "sensPlus"
+            ) {
+                controls.sensitivity =
+                    round1(
+                        clamp(
+                            controls.sensitivity +
+                            SENS.step,
+                            SENS.min,
+                            SENS.max
+                        )
+                    );
+                return;
+            }
+        }
+
+        if (
+            id ===
+            "localControlsReset"
+        ) {
+            resetLocalControls();
+            return;
+        }
     }
 
-    if (id === "sensMinus") {
+    if (
+        gameMode ===
+        "ai"
+    ) {
+        if (
+            [
+                "up1",
+                "up2",
+                "down1",
+                "down2"
+            ].includes(id)
+        ) {
+            waitingForKey = id;
+            return;
+        }
 
-        playerControls.sensitivity =
-            round1(
-                clamp(
-                    playerControls
-                        .sensitivity -
-                    SENS.step,
+        if (
+            id ===
+            "aiMouse"
+        ) {
+            aiControls.mouse =
+                !aiControls.mouse;
+            return;
+        }
 
-                    SENS.min,
-                    SENS.max
-                )
-            );
+        if (
+            id ===
+            "aiSensMinus"
+        ) {
+            aiControls.sensitivity =
+                round1(
+                    clamp(
+                        aiControls.sensitivity -
+                        SENS.step,
+                        SENS.min,
+                        SENS.max
+                    )
+                );
+            return;
+        }
 
-        return;
+        if (
+            id ===
+            "aiSensPlus"
+        ) {
+            aiControls.sensitivity =
+                round1(
+                    clamp(
+                        aiControls.sensitivity +
+                        SENS.step,
+                        SENS.min,
+                        SENS.max
+                    )
+                );
+            return;
+        }
+
+        if (
+            id ===
+            "aiControlsReset"
+        ) {
+            resetAIControls();
+            return;
+        }
     }
 
-    if (id === "sensPlus") {
-
-        playerControls.sensitivity =
-            round1(
-                clamp(
-                    playerControls
-                        .sensitivity +
-                    SENS.step,
-
-                    SENS.min,
-                    SENS.max
-                )
-            );
-
-        return;
-    }
-
-    if (id === "controlsReset") {
-
-        resetPlayerControls();
-
-        return;
-    }
-
-    if (id === "speedPlus") {
-
+    if (
+        id ===
+        "speedPlus"
+    ) {
         ballSpeed =
             Math.min(
                 PHYSICS.max,
                 ballSpeed +
                 PHYSICS.step
             );
-
         return;
     }
 
-    if (id === "speedMinus") {
-
+    if (
+        id ===
+        "speedMinus"
+    ) {
         ballSpeed =
             Math.max(
                 PHYSICS.min,
                 ballSpeed -
                 PHYSICS.step
             );
-
         return;
     }
 
-    if (id === "progressive") {
-
+    if (
+        id ===
+        "progressive"
+    ) {
         progressiveSpeed =
             !progressiveSpeed;
-
         return;
     }
 
-    if (id === "revenge") {
-
+    if (
+        id ===
+        "revenge"
+    ) {
         resetMatch();
-
         return;
     }
 
-    if (id === "victoryMenu") {
-
+    if (
+        id ===
+        "victoryMenu"
+    ) {
         goToStartMenu();
     }
 }
@@ -2288,19 +2248,13 @@ function handleAction(id) {
 // HOVER
 // ============================================================
 
-function updateHover(
-    x,
-    y
-) {
-
-    hoveredButton =
-        null;
+function updateHover(x, y) {
+    hoveredButton = null;
 
     for (
         const item of
         interactiveItems()
     ) {
-
         if (
             !item.disabled &&
             inside(
@@ -2309,7 +2263,6 @@ function updateHover(
                 item.rect
             )
         ) {
-
             hoveredButton =
                 item.id;
 
@@ -2325,11 +2278,10 @@ function updateHover(
 
 
 // ============================================================
-// MOTOR GRÁFICO
+// RENDER
 // ============================================================
 
 function drawTable() {
-
     ctx.fillStyle =
         TABLE.colors[
             courtColor
@@ -2363,8 +2315,6 @@ function drawTable() {
         20
     ]);
 
-    ctx.lineWidth = 4;
-
     ctx.beginPath();
 
     ctx.moveTo(
@@ -2383,7 +2333,6 @@ function drawTable() {
 }
 
 function drawPaddles() {
-
     ctx.fillStyle =
         "#FFFFFF";
 
@@ -2403,7 +2352,6 @@ function drawPaddles() {
 }
 
 function drawBall() {
-
     ctx.fillStyle =
         "#FFFFFF";
 
@@ -2412,12 +2360,9 @@ function drawBall() {
     ctx.arc(
         ball.x +
         BALL.size / 2,
-
         ball.y +
         BALL.size / 2,
-
         BALL.size / 2,
-
         0,
         Math.PI * 2
     );
@@ -2426,7 +2371,6 @@ function drawBall() {
 }
 
 function drawScore() {
-
     ctx.fillStyle =
         "#FFFFFF";
 
@@ -2446,7 +2390,6 @@ function drawScore() {
             2,
             "0"
         ),
-
         W / 4,
         TABLE.bottom - 20
     );
@@ -2458,7 +2401,6 @@ function drawScore() {
             2,
             "0"
         ),
-
         W * 3 / 4,
         TABLE.bottom - 20
     );
@@ -2470,36 +2412,49 @@ function drawScore() {
         matchPoint &&
         !gameOver
     ) {
+        const blink =
+            0.25 +
+            0.75 *
+            (
+                (
+                    Math.sin(
+                        performance.now() /
+                        260
+                    ) +
+                    1
+                ) /
+                2
+            );
+
+        ctx.save();
+
+        ctx.globalAlpha =
+            blink;
 
         ctx.font =
-            "bold 20px monospace";
+            "bold 15px monospace";
+
+        ctx.textBaseline =
+            "alphabetic";
 
         ctx.fillText(
-            `MATCH POINT · ${
-                matchPoint ===
-                "left"
-
-                    ? "IZQUIERDA"
-                    : "DERECHA"
-            }`,
-
-            W / 2,
-            TABLE.bottom - 82
+            "MATCH POINT",
+            matchPoint ===
+            "left"
+                ? W / 4
+                : W * 3 / 4,
+            TABLE.bottom - 4
         );
+
+        ctx.restore();
     }
 }
 
 function overlay(
     alpha = 0.78
 ) {
-
     ctx.fillStyle =
-        `rgba(
-            0,
-            0,
-            0,
-            ${alpha}
-        )`;
+        `rgba(0,0,0,${alpha})`;
 
     ctx.fillRect(
         TABLE.left,
@@ -2516,7 +2471,6 @@ function title(
     y = 90,
     font = UI.title
 ) {
-
     ctx.fillStyle =
         "#FFFFFF";
 
@@ -2536,30 +2490,29 @@ function title(
 }
 
 function drawButton(item) {
-
     const hover =
         hoveredButton ===
         item.id;
 
+    const rect =
+        item.rect;
+
     ctx.fillStyle =
         item.disabled
-
             ? "rgba(255,255,255,.03)"
-
             : hover
                 ? "rgba(255,255,255,.13)"
                 : "rgba(0,0,0,.1)";
 
     ctx.fillRect(
-        item.rect.x,
-        item.rect.y,
-        item.rect.w,
-        item.rect.h
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h
     );
 
     ctx.strokeStyle =
         item.disabled
-
             ? "rgba(255,255,255,.35)"
             : "#FFFFFF";
 
@@ -2569,15 +2522,14 @@ function drawButton(item) {
             : 3;
 
     ctx.strokeRect(
-        item.rect.x,
-        item.rect.y,
-        item.rect.w,
-        item.rect.h
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h
     );
 
     ctx.fillStyle =
         item.disabled
-
             ? "rgba(255,255,255,.5)"
             : "#FFFFFF";
 
@@ -2592,22 +2544,19 @@ function drawButton(item) {
 
     ctx.fillText(
         item.text,
-
-        item.rect.x +
-        item.rect.w / 2,
-
-        item.rect.y +
-        item.rect.h / 2
+        rect.x +
+        rect.w / 2,
+        rect.y +
+        rect.h / 2
     );
 }
 
 
 // ============================================================
-// MENÚ INICIAL
+// START MENU
 // ============================================================
 
 function drawStart() {
-
     ctx.fillStyle =
         "#000000";
 
@@ -2618,65 +2567,94 @@ function drawStart() {
         H
     );
 
-    title(
-        "ARGENPONG",
-        145,
-        "bold 64px monospace"
-    );
-
-    ctx.font =
-        "42px monospace";
-
-    ctx.fillStyle =
-        "#FFFFFF";
-
-    ctx.textAlign =
-        "center";
-
-    ctx.fillText(
-        "🏓",
-        W / 2,
-        220
-    );
-
-    if (aiMenuOpen) {
-
+    if (!aiMenuOpen) {
         title(
-            "VS IA",
-            105
+            "ARGENPONG",
+            145,
+            "bold 64px monospace"
         );
 
         ctx.font =
-            "bold 20px monospace";
+            "42px monospace";
+
+        ctx.fillStyle =
+            "#FFFFFF";
+
+        ctx.textAlign =
+            "center";
 
         ctx.fillText(
-            "Elegí tu lado y después la dificultad",
+            "🏓",
+            W / 2,
+            220
+        );
+    } else {
+        title(
+            "ELEGÍ TU LADO",
+            125,
+            "bold 42px monospace"
+        );
+
+        ctx.font =
+            "18px monospace";
+
+        ctx.fillStyle =
+            "#FFFFFF";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.fillText(
+            "Después seleccioná la dificultad",
             W / 2,
             180
         );
     }
 
-    interactiveItems()
-        .forEach(
-            drawButton
-        );
+    const items =
+        interactiveItems();
+
+    items.forEach(
+        drawButton
+    );
+
+    if (!aiMenuOpen) {
+        const online =
+            items.find(
+                item =>
+                    item.id ===
+                    "online"
+            );
+
+        if (online) {
+            ctx.fillStyle =
+                "rgba(255,255,255,.65)";
+
+            ctx.font =
+                "bold 14px monospace";
+
+            ctx.textAlign =
+                "center";
+
+            ctx.fillText(
+                "PRÓXIMAMENTE",
+                W / 2,
+                online.rect.y +
+                online.rect.h +
+                22
+            );
+        }
+    }
 }
 
 
 // ============================================================
-// PAUSA
+// MENUS
 // ============================================================
 
 function drawPause() {
-
-    overlay(
-        0.72
-    );
-
-    title(
-        "PAUSA",
-        110
-    );
+    overlay(0.72);
+    title("PAUSA", 110);
 
     interactiveItems()
         .forEach(
@@ -2684,26 +2662,15 @@ function drawPause() {
         );
 }
 
-
-// ============================================================
-// CONFIRMACIÓN
-// ============================================================
-
 function drawConfirm() {
-
-    overlay(
-        0.84
-    );
+    overlay(0.84);
 
     title(
         confirmOpen ===
         "restart"
-
             ? "¿REINICIAR PARTIDA?"
             : "¿VOLVER AL MENÚ?",
-
         H / 2 - 80,
-
         "bold 42px monospace"
     );
 
@@ -2728,65 +2695,29 @@ function drawConfirm() {
         );
 }
 
-
-// ============================================================
-// AJUSTES
-// ============================================================
-
 function drawSettings() {
-
-    overlay(
-        0.8
-    );
-
-    title(
-        "AJUSTES",
-        75
-    );
+    overlay(0.8);
+    title("AJUSTES", 75);
 
     interactiveItems()
         .forEach(
             drawButton
         );
 }
-
-
-// ============================================================
-// FONDO
-// ============================================================
 
 function drawBackground() {
-
-    overlay(
-        0.82
-    );
-
-    title(
-        "FONDO",
-        75
-    );
+    overlay(0.82);
+    title("FONDO", 75);
 
     interactiveItems()
         .forEach(
             drawButton
         );
 }
-
-
-// ============================================================
-// FÍSICAS
-// ============================================================
 
 function drawPhysics() {
-
-    overlay(
-        0.82
-    );
-
-    title(
-        "FÍSICAS",
-        75
-    );
+    overlay(0.82);
+    title("FÍSICAS", 75);
 
     interactiveItems()
         .forEach(
@@ -2796,15 +2727,118 @@ function drawPhysics() {
 
 
 // ============================================================
-// CONTROLES
+// CONTROLS
 // ============================================================
 
 function drawControls() {
+    overlay(0.84);
 
-    overlay(
-        0.84
+    if (
+        gameMode ===
+        "local"
+    ) {
+        drawLocalControls();
+    } else {
+        drawAIControls();
+    }
+}
+
+function drawLocalControls() {
+    title(
+        "CONTROLES",
+        65
     );
 
+    const columns = {
+        left: 140,
+        right: 720
+    };
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.font =
+        "bold 30px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.fillText(
+        "IZQUIERDA",
+        360,
+        125
+    );
+
+    ctx.fillText(
+        "DERECHA",
+        940,
+        125
+    );
+
+    for (
+        const side of
+        [
+            "left",
+            "right"
+        ]
+    ) {
+        const x =
+            columns[side];
+
+        const controls =
+            localControls[side];
+
+        ctx.font =
+            "bold 20px monospace";
+
+        ctx.textAlign =
+            "left";
+
+        ctx.fillText(
+            "ARRIBA",
+            x,
+            202
+        );
+
+        ctx.fillText(
+            "ABAJO",
+            x,
+            262
+        );
+
+        ctx.fillText(
+            "MOUSE",
+            x,
+            322
+        );
+
+        ctx.fillText(
+            "SENS.",
+            x,
+            392
+        );
+
+        ctx.textAlign =
+            "center";
+
+        ctx.font =
+            "bold 18px monospace";
+
+        ctx.fillText(
+            controls.sensitivity
+                .toFixed(1),
+            x + 215,
+            392
+        );
+    }
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
+function drawAIControls() {
     title(
         "CONTROLES DEL JUGADOR",
         70
@@ -2841,10 +2875,8 @@ function drawControls() {
         "bold 24px monospace";
 
     ctx.fillText(
-        playerControls
-            .sensitivity
+        aiControls.sensitivity
             .toFixed(1),
-
         W / 2,
         414
     );
@@ -2857,24 +2889,17 @@ function drawControls() {
 
 
 // ============================================================
-// VICTORIA
+// VICTORY
 // ============================================================
 
 function drawVictory() {
-
-    overlay(
-        0.68
-    );
+    overlay(0.68);
 
     title(
-        winner ===
-        "left"
-
+        winner === "left"
             ? "LA IZQUIERDA GANA"
             : "LA DERECHA GANA",
-
         H / 2 - 50,
-
         UI.winner
     );
 
@@ -2886,11 +2911,10 @@ function drawVictory() {
 
 
 // ============================================================
-// RENDER
+// MAIN RENDER
 // ============================================================
 
 function drawGame() {
-
     ctx.clearRect(
         0,
         0,
@@ -2899,9 +2923,7 @@ function drawGame() {
     );
 
     if (startMenuOpen) {
-
         drawStart();
-
         return;
     }
 
@@ -2911,49 +2933,36 @@ function drawGame() {
     drawScore();
 
     if (gameOver) {
-
         drawVictory();
-
         return;
     }
 
     if (confirmOpen) {
-
         drawConfirm();
-
         return;
     }
 
     if (controlsOpen) {
-
         drawControls();
-
         return;
     }
 
     if (backgroundOpen) {
-
         drawBackground();
-
         return;
     }
 
     if (physicsOpen) {
-
         drawPhysics();
-
         return;
     }
 
     if (settingsOpen) {
-
         drawSettings();
-
         return;
     }
 
     if (gamePaused) {
-
         drawPause();
     }
 }
@@ -2964,21 +2973,14 @@ function drawGame() {
 // ============================================================
 
 function loop() {
-
     updatePaddles();
     updateBall();
-
     drawGame();
 
     requestAnimationFrame(
         loop
     );
 }
-
-
-// ============================================================
-// INICIO
-// ============================================================
 
 resetBall();
 loop();
