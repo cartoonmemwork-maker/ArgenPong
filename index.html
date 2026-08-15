@@ -30,7 +30,2026 @@
             align-items: center;
             justify-content: center;
             background-color: #000000;
-            overflow: hidden;
+            overflow: hidden;// ============================================================
+// ARGENPONG — GAME.JS
+// ============================================================
+
+// ============================================================
+// CONFIG
+// ============================================================
+
+const CONFIG = {
+    canvas: {
+        width: 1280,
+        height: 720
+    },
+
+    table: {
+        margin: 10,
+        colors: {
+            green: "#1f5f3a",
+            blue: "#174a78",
+            black: "#000000"
+        },
+        defaultColor: "black",
+        centerLine: {
+            width: 4,
+            dash: 20,
+            gap: 20
+        }
+    },
+
+    paddle: {
+        width: 20,
+        height: 120,
+        margin: 40,
+        speed: 8,
+        sensitivity: {
+            min: 0.5,
+            max: 2,
+            step: 0.1
+        }
+    },
+
+    ball: {
+        size: 20,
+        speedX: 7,
+        speedY: 5
+    },
+
+    physics: {
+        speedMin: 3,
+        speedMax: 15,
+        speedStep: 1,
+        sensitivityMin: 0.5,
+        sensitivityMax: 2,
+        sensitivityStep: 0.1,
+        progressiveIncrement: 0.05,
+        progressiveMaxMultiplier: 3
+    },
+
+    match: {
+        winScore: 11,
+        winMargin: 2
+    },
+
+    menu: {
+        titleFont: "bold 48px monospace",
+        buttonFont: "bold 24px monospace",
+        buttonWidth: 300,
+        buttonHeight: 60,
+        buttonGap: 20
+    },
+
+    controlsMenu: {
+        buttonWidth: 180,
+        buttonHeight: 42,
+        leftX: 140,
+        rightX: 680,
+        startY: 170,
+        rowGap: 58
+    },
+
+    settingsMenu: {
+        buttonWidth: 280,
+        buttonHeight: 55,
+        buttonGap: 15,
+        startY: 150
+    },
+
+    backgroundMenu: {
+        buttonWidth: 280,
+        buttonHeight: 55,
+        buttonGap: 15,
+        startY: 160
+    },
+
+    physicsMenu: {
+        buttonWidth: 300,
+        buttonHeight: 55,
+        buttonGap: 15,
+        startY: 150
+    },
+
+    score: {
+        font: "bold 48px monospace"
+    },
+
+    victory: {
+        winnerFont: "bold 52px monospace",
+        revengeFont: "bold 28px monospace",
+        buttonWidth: 260,
+        buttonHeight: 60
+    }
+};
+
+
+// ============================================================
+// CANVAS
+// ============================================================
+
+const canvas = document.getElementById("gameCanvas");
+const context = canvas.getContext("2d");
+
+const { width: CANVAS_WIDTH, height: CANVAS_HEIGHT } = CONFIG.canvas;
+
+const COURT_LEFT = CONFIG.table.margin;
+const COURT_RIGHT = CANVAS_WIDTH - CONFIG.table.margin;
+const COURT_TOP = CONFIG.table.margin;
+const COURT_BOTTOM = CANVAS_HEIGHT - CONFIG.table.margin;
+
+
+// ============================================================
+// STATE
+// ============================================================
+
+let courtColor = CONFIG.table.defaultColor;
+
+let gamePaused = false;
+let gameOver = false;
+let winner = null;
+
+let settingsOpen = false;
+let controlsOpen = false;
+let backgroundOpen = false;
+let physicsOpen = false;
+
+let hoveredButton = null;
+let waitingForKey = null;
+
+let leftScore = 0;
+let rightScore = 0;
+
+let servingPlayer = "left";
+
+let audioContext = null;
+let audioMuted = false;
+
+let mouseY = CANVAS_HEIGHT / 2;
+
+
+// ============================================================
+// PLAYER INPUT
+// ============================================================
+
+const playerControls = {
+    left: {
+        up: "w",
+        down: "s",
+        mouse: false,
+        sensitivity: 1
+    },
+
+    right: {
+        up: "ArrowUp",
+        down: "ArrowDown",
+        mouse: false,
+        sensitivity: 1
+    }
+};
+
+const keys = {};
+
+
+// ============================================================
+// PADDLES
+// ============================================================
+
+const leftPaddle = {
+    x: CONFIG.paddle.margin,
+    y: (CANVAS_HEIGHT - CONFIG.paddle.height) / 2
+};
+
+const rightPaddle = {
+    x:
+        CANVAS_WIDTH -
+        CONFIG.paddle.margin -
+        CONFIG.paddle.width,
+
+    y: (CANVAS_HEIGHT - CONFIG.paddle.height) / 2
+};
+
+
+// ============================================================
+// BALL / PHYSICS STATE
+// ============================================================
+
+let ballSpeed = CONFIG.ball.speedX;
+let progressiveSpeed = false;
+let progressiveSensitivity = 1;
+
+const ball = {
+    x: (CANVAS_WIDTH - CONFIG.ball.size) / 2,
+    y: (CANVAS_HEIGHT - CONFIG.ball.size) / 2,
+    velocityX: CONFIG.ball.speedX,
+    velocityY: CONFIG.ball.speedY
+};
+
+
+// ============================================================
+// UTILITIES
+// ============================================================
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+
+function isInsideButton(mouseX, mouseY, x, y, width, height) {
+    return (
+        mouseX >= x &&
+        mouseX <= x + width &&
+        mouseY >= y &&
+        mouseY <= y + height
+    );
+}
+
+
+function formatKey(key) {
+    if (key === "ArrowUp") return "↑";
+    if (key === "ArrowDown") return "↓";
+    if (key === " ") return "SPACE";
+
+    return key.toUpperCase();
+}
+
+
+function getPauseButtonY(index) {
+    return (
+        CANVAS_HEIGHT / 2 -
+        70 +
+        index *
+            (
+                CONFIG.menu.buttonHeight +
+                CONFIG.menu.buttonGap
+            )
+    );
+}
+
+
+function getControlRowY(index) {
+    return (
+        CONFIG.controlsMenu.startY +
+        index * CONFIG.controlsMenu.rowGap
+    );
+}
+
+
+function getCanvasMousePosition(event) {
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+        x:
+            (event.clientX - rect.left) *
+            (CANVAS_WIDTH / rect.width),
+
+        y:
+            (event.clientY - rect.top) *
+            (CANVAS_HEIGHT / rect.height)
+    };
+}
+
+
+// ============================================================
+// AUDIO
+// ============================================================
+
+function initializeAudio() {
+    if (!audioContext) {
+        audioContext = new AudioContext();
+    }
+
+    if (audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+}
+
+
+function playSound(frequency, duration, volume) {
+    if (audioMuted || !audioContext) return;
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = "square";
+
+    oscillator.frequency.setValueAtTime(
+        frequency,
+        audioContext.currentTime
+    );
+
+    gainNode.gain.setValueAtTime(
+        volume,
+        audioContext.currentTime
+    );
+
+    gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioContext.currentTime + duration
+    );
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + duration);
+}
+
+
+function playWallSound() {
+    playSound(500, 0.06, 0.08);
+}
+
+
+function playPaddleSound() {
+    playSound(800, 0.07, 0.1);
+}
+
+
+function playMissSound() {
+    playSound(180, 0.2, 0.12);
+}
+
+
+function toggleMute() {
+    audioMuted = !audioMuted;
+}
+
+
+// ============================================================
+// PHYSICS
+// ============================================================
+
+function increaseBallSpeed() {
+    if (!progressiveSpeed) return;
+
+    const factor =
+        1 +
+        CONFIG.physics.progressiveIncrement *
+            progressiveSensitivity;
+
+    const currentSpeed = Math.sqrt(
+        ball.velocityX ** 2 +
+        ball.velocityY ** 2
+    );
+
+    const newSpeed = Math.min(
+        currentSpeed * factor,
+        ballSpeed * CONFIG.physics.progressiveMaxMultiplier
+    );
+
+    const directionX =
+        ball.velocityX >= 0 ? 1 : -1;
+
+    const directionY =
+        ball.velocityY >= 0 ? 1 : -1;
+
+    const ratio =
+        Math.abs(ball.velocityY) /
+        Math.max(Math.abs(ball.velocityX), 0.001);
+
+    const newVX =
+        newSpeed / Math.sqrt(1 + ratio * ratio);
+
+    const newVY = newVX * ratio;
+
+    ball.velocityX = newVX * directionX;
+    ball.velocityY = newVY * directionY;
+}
+
+
+function resetBall() {
+    ball.x = (CANVAS_WIDTH - CONFIG.ball.size) / 2;
+    ball.y = (CANVAS_HEIGHT - CONFIG.ball.size) / 2;
+
+    ball.velocityY = CONFIG.ball.speedY;
+
+    ball.velocityX =
+        servingPlayer === "left"
+            ? Math.abs(ballSpeed)
+            : -Math.abs(ballSpeed);
+}
+
+
+// ============================================================
+// INPUT — KEYBOARD
+// ============================================================
+
+window.addEventListener("keydown", event => {
+    initializeAudio();
+
+    const key = event.key.toLowerCase();
+
+    if (key === "m") {
+        event.preventDefault();
+        toggleMute();
+        return;
+    }
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+
+        if (waitingForKey) {
+            waitingForKey = null;
+            return;
+        }
+
+        handleEscape();
+        return;
+    }
+
+    if (waitingForKey) {
+        event.preventDefault();
+
+        if (
+            event.key !== "Escape" &&
+            event.key !== "m"
+        ) {
+            const player =
+                playerControls[waitingForKey.player];
+
+            player[waitingForKey.action] = event.key;
+            waitingForKey = null;
+        }
+
+        return;
+    }
+
+    if (gamePaused || gameOver) return;
+
+    const left = playerControls.left;
+    const right = playerControls.right;
+
+    if (key === left.up.toLowerCase()) {
+        keys.leftUp = true;
+    }
+
+    if (key === left.down.toLowerCase()) {
+        keys.leftDown = true;
+    }
+
+    if (event.key === right.up) {
+        keys.rightUp = true;
+        event.preventDefault();
+    }
+
+    if (event.key === right.down) {
+        keys.rightDown = true;
+        event.preventDefault();
+    }
+});
+
+
+window.addEventListener("keyup", event => {
+    const key = event.key.toLowerCase();
+
+    const left = playerControls.left;
+    const right = playerControls.right;
+
+    if (key === left.up.toLowerCase()) {
+        keys.leftUp = false;
+    }
+
+    if (key === left.down.toLowerCase()) {
+        keys.leftDown = false;
+    }
+
+    if (event.key === right.up) {
+        keys.rightUp = false;
+    }
+
+    if (event.key === right.down) {
+        keys.rightDown = false;
+    }
+});
+
+
+// ============================================================
+// INPUT — MOUSE
+// ============================================================
+
+canvas.addEventListener("mousemove", event => {
+    const position = getCanvasMousePosition(event);
+
+    mouseY = position.y;
+    updateHover(position.x, position.y);
+});
+
+
+// ============================================================
+// INPUT — CLICK
+// ============================================================
+
+canvas.addEventListener("click", event => {
+    const { x, y } = getCanvasMousePosition(event);
+
+    if (gameOver) {
+        if (
+            isInsideButton(
+                x,
+                y,
+                getRevengeButtonX(),
+                getRevengeButtonY(),
+                CONFIG.victory.buttonWidth,
+                CONFIG.victory.buttonHeight
+            )
+        ) {
+            restartGame();
+        }
+
+        return;
+    }
+
+    if (backgroundOpen) {
+        handleBackgroundClick(x, y);
+        return;
+    }
+
+    if (physicsOpen) {
+        handlePhysicsClick(x, y);
+        return;
+    }
+
+    if (controlsOpen) {
+        handleControlsClick(x, y);
+        return;
+    }
+
+    if (settingsOpen) {
+        handleSettingsClick(x, y);
+        return;
+    }
+
+    if (gamePaused) {
+        handlePauseMenuClick(x, y);
+    }
+});
+
+
+// ============================================================
+// NAVIGATION — ESC
+// ============================================================
+
+function handleEscape() {
+    if (gameOver) return;
+
+    waitingForKey = null;
+
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+
+    gamePaused = !gamePaused;
+}
+
+
+// ============================================================
+// NAVIGATION — PAUSE
+// ============================================================
+
+function handlePauseMenuClick(mouseX, mouseY) {
+    const x =
+        (CANVAS_WIDTH - CONFIG.menu.buttonWidth) / 2;
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            getPauseButtonY(0),
+            CONFIG.menu.buttonWidth,
+            CONFIG.menu.buttonHeight
+        )
+    ) {
+        gamePaused = false;
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            getPauseButtonY(1),
+            CONFIG.menu.buttonWidth,
+            CONFIG.menu.buttonHeight
+        )
+    ) {
+        settingsOpen = true;
+    }
+}
+
+
+// ============================================================
+// NAVIGATION — SETTINGS
+// ============================================================
+
+const SETTINGS_ITEMS = [
+    ["controls", "CONTROLES"],
+    ["background", "FONDO"],
+    ["physics", "FÍSICAS"],
+    ["back", "VOLVER"]
+];
+
+
+function handleSettingsClick(mouseX, mouseY) {
+    const config = CONFIG.settingsMenu;
+
+    const x =
+        (CANVAS_WIDTH - config.buttonWidth) / 2;
+
+    SETTINGS_ITEMS.forEach(([id], index) => {
+        const y =
+            config.startY +
+            index *
+                (config.buttonHeight + config.buttonGap);
+
+        if (
+            !isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                y,
+                config.buttonWidth,
+                config.buttonHeight
+            )
+        ) {
+            return;
+        }
+
+        if (id === "controls") controlsOpen = true;
+        if (id === "background") backgroundOpen = true;
+        if (id === "physics") physicsOpen = true;
+        if (id === "back") settingsOpen = false;
+    });
+}
+
+
+// ============================================================
+// NAVIGATION — BACKGROUND
+// ============================================================
+
+const BACKGROUND_ITEMS = [
+    ["VERDE", "green"],
+    ["AZUL", "blue"],
+    ["NEGRO", "black"]
+];
+
+
+function handleBackgroundClick(mouseX, mouseY) {
+    const config = CONFIG.backgroundMenu;
+
+    const x =
+        (CANVAS_WIDTH - config.buttonWidth) / 2;
+
+    BACKGROUND_ITEMS.forEach(([label, color], index) => {
+        const y =
+            config.startY +
+            index *
+                (config.buttonHeight + config.buttonGap);
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                y,
+                config.buttonWidth,
+                config.buttonHeight
+            )
+        ) {
+            courtColor = color;
+        }
+    });
+
+    const backY =
+        config.startY +
+        3 * (config.buttonHeight + config.buttonGap);
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            backY,
+            config.buttonWidth,
+            config.buttonHeight
+        )
+    ) {
+        backgroundOpen = false;
+    }
+}
+
+
+// ============================================================
+// NAVIGATION — PHYSICS
+// ============================================================
+
+function handlePhysicsClick(mouseX, mouseY) {
+    const config = CONFIG.physicsMenu;
+
+    const x =
+        (CANVAS_WIDTH - config.buttonWidth) / 2;
+
+    const rows = [
+        config.startY,
+
+        config.startY +
+            config.buttonHeight +
+            config.buttonGap,
+
+        config.startY +
+            2 *
+                (config.buttonHeight +
+                    config.buttonGap),
+
+        config.startY +
+            3 *
+                (config.buttonHeight +
+                    config.buttonGap)
+    ];
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            rows[0],
+            config.buttonWidth,
+            config.buttonHeight
+        )
+    ) {
+        ballSpeed = clamp(
+            ballSpeed + CONFIG.physics.speedStep,
+            CONFIG.physics.speedMin,
+            CONFIG.physics.speedMax
+        );
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            rows[1],
+            config.buttonWidth,
+            config.buttonHeight
+        )
+    ) {
+        progressiveSpeed = !progressiveSpeed;
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            rows[2],
+            config.buttonWidth,
+            config.buttonHeight
+        )
+    ) {
+        progressiveSensitivity = clamp(
+            progressiveSensitivity +
+                CONFIG.physics.sensitivityStep,
+
+            CONFIG.physics.sensitivityMin,
+            CONFIG.physics.sensitivityMax
+        );
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            rows[3],
+            config.buttonWidth,
+            config.buttonHeight
+        )
+    ) {
+        physicsOpen = false;
+    }
+}
+
+
+// ============================================================
+// NAVIGATION — CONTROLS
+// ============================================================
+
+function handleControlsClick(mouseX, mouseY) {
+    const config = CONFIG.controlsMenu;
+
+    const players = [
+        {
+            name: "left",
+            x: config.leftX
+        },
+        {
+            name: "right",
+            x: config.rightX
+        }
+    ];
+
+    for (const player of players) {
+        const data = playerControls[player.name];
+        const x = player.x + 125;
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(0),
+                config.buttonWidth,
+                config.buttonHeight
+            )
+        ) {
+            waitingForKey = {
+                player: player.name,
+                action: "up"
+            };
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(1),
+                config.buttonWidth,
+                config.buttonHeight
+            )
+        ) {
+            waitingForKey = {
+                player: player.name,
+                action: "down"
+            };
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(2),
+                config.buttonWidth,
+                config.buttonHeight
+            )
+        ) {
+            data.mouse = !data.mouse;
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(3),
+                45,
+                config.buttonHeight
+            )
+        ) {
+            data.sensitivity = clamp(
+                data.sensitivity -
+                    CONFIG.paddle.sensitivity.step,
+
+                CONFIG.paddle.sensitivity.min,
+                CONFIG.paddle.sensitivity.max
+            );
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x + 135,
+                getControlRowY(3),
+                45,
+                config.buttonHeight
+            )
+        ) {
+            data.sensitivity = clamp(
+                data.sensitivity +
+                    CONFIG.paddle.sensitivity.step,
+
+                CONFIG.paddle.sensitivity.min,
+                CONFIG.paddle.sensitivity.max
+            );
+
+            return;
+        }
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            (CANVAS_WIDTH - 220) / 2,
+            625,
+            220,
+            50
+        )
+    ) {
+        controlsOpen = false;
+    }
+}
+
+
+// ============================================================
+// GAME — PADDLES
+// ============================================================
+
+function updatePaddles() {
+    if (gamePaused || gameOver) return;
+
+    updateKeyboardPaddle(
+        leftPaddle,
+        keys.leftUp,
+        keys.leftDown,
+        playerControls.left.sensitivity
+    );
+
+    updateKeyboardPaddle(
+        rightPaddle,
+        keys.rightUp,
+        keys.rightDown,
+        playerControls.right.sensitivity
+    );
+
+    updateMousePaddle(
+        leftPaddle,
+        playerControls.left
+    );
+
+    updateMousePaddle(
+        rightPaddle,
+        playerControls.right
+    );
+
+    const top = COURT_TOP;
+    const bottom =
+        COURT_BOTTOM - CONFIG.paddle.height;
+
+    leftPaddle.y = clamp(
+        leftPaddle.y,
+        top,
+        bottom
+    );
+
+    rightPaddle.y = clamp(
+        rightPaddle.y,
+        top,
+        bottom
+    );
+}
+
+
+function updateKeyboardPaddle(
+    paddle,
+    moveUp,
+    moveDown,
+    sensitivity
+) {
+    const amount =
+        CONFIG.paddle.speed * sensitivity;
+
+    if (moveUp) paddle.y -= amount;
+    if (moveDown) paddle.y += amount;
+}
+
+
+function updateMousePaddle(paddle, controls) {
+    if (!controls.mouse) return;
+
+    const target =
+        mouseY - CONFIG.paddle.height / 2;
+
+    paddle.y +=
+        (target - paddle.y) *
+        0.15 *
+        controls.sensitivity;
+}
+
+
+// ============================================================
+// GAME — BALL
+// ============================================================
+
+function updateBall() {
+    if (gamePaused || gameOver) return;
+
+    ball.x += ball.velocityX;
+    ball.y += ball.velocityY;
+
+    handleBallWallCollision();
+    handlePaddleCollision();
+    handlePointDetection();
+}
+
+
+function handleBallWallCollision() {
+    const size = CONFIG.ball.size;
+
+    if (ball.y <= COURT_TOP) {
+        ball.y = COURT_TOP;
+        ball.velocityY *= -1;
+
+        increaseBallSpeed();
+        playWallSound();
+    }
+
+    if (ball.y + size >= COURT_BOTTOM) {
+        ball.y = COURT_BOTTOM - size;
+        ball.velocityY *= -1;
+
+        increaseBallSpeed();
+        playWallSound();
+    }
+}
+
+
+function handlePaddleCollision() {
+    const size = CONFIG.ball.size;
+
+    if (
+        ball.velocityX < 0 &&
+        ball.x <= leftPaddle.x + CONFIG.paddle.width &&
+        ball.x + size >= leftPaddle.x &&
+        ball.y + size >= leftPaddle.y &&
+        ball.y <=
+            leftPaddle.y + CONFIG.paddle.height
+    ) {
+        ball.x =
+            leftPaddle.x + CONFIG.paddle.width;
+
+        ball.velocityX *= -1;
+
+        increaseBallSpeed();
+        playPaddleSound();
+    }
+
+    if (
+        ball.velocityX > 0 &&
+        ball.x + size >= rightPaddle.x &&
+        ball.x <= rightPaddle.x + CONFIG.paddle.width &&
+        ball.y + size >= rightPaddle.y &&
+        ball.y <=
+            rightPaddle.y + CONFIG.paddle.height
+    ) {
+        ball.x =
+            rightPaddle.x - size;
+
+        ball.velocityX *= -1;
+
+        increaseBallSpeed();
+        playPaddleSound();
+    }
+}
+
+
+function handlePointDetection() {
+    const size = CONFIG.ball.size;
+
+    if (ball.x + size < COURT_LEFT) {
+        rightScore++;
+
+        playMissSound();
+        handlePoint();
+
+        return;
+    }
+
+    if (ball.x > COURT_RIGHT) {
+        leftScore++;
+
+        playMissSound();
+        handlePoint();
+    }
+}
+
+
+// ============================================================
+// GAME — MATCH
+// ============================================================
+
+function handlePoint() {
+    if (checkGameWinner()) {
+        gameOver = true;
+
+        winner =
+            leftScore > rightScore
+                ? "left"
+                : "right";
+
+        return;
+    }
+
+    updateServe();
+    resetBall();
+}
+
+
+function checkGameWinner() {
+    if (
+        leftScore < CONFIG.match.winScore &&
+        rightScore < CONFIG.match.winScore
+    ) {
+        return false;
+    }
+
+    return (
+        Math.abs(leftScore - rightScore) >=
+        CONFIG.match.winMargin
+    );
+}
+
+
+function updateServe() {
+    const totalPoints =
+        leftScore + rightScore;
+
+    if (
+        leftScore >= 10 &&
+        rightScore >= 10
+    ) {
+        servingPlayer =
+            servingPlayer === "left"
+                ? "right"
+                : "left";
+
+        return;
+    }
+
+    const block =
+        Math.floor(totalPoints / 2);
+
+    servingPlayer =
+        block % 2 === 0
+            ? "left"
+            : "right";
+}
+
+
+function restartGame() {
+    leftScore = 0;
+    rightScore = 0;
+
+    servingPlayer = "left";
+
+    gameOver = false;
+    winner = null;
+
+    gamePaused = false;
+
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+
+    resetPaddlePositions();
+    resetBall();
+}
+
+
+function resetPaddlePositions() {
+    const y =
+        (CANVAS_HEIGHT -
+            CONFIG.paddle.height) / 2;
+
+    leftPaddle.y = y;
+    rightPaddle.y = y;
+}
+
+
+// ============================================================
+// UI — HOVER
+// ============================================================
+
+function updateHover(mouseX, mouseY) {
+    hoveredButton = null;
+
+    if (gameOver) {
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                getRevengeButtonX(),
+                getRevengeButtonY(),
+                CONFIG.victory.buttonWidth,
+                CONFIG.victory.buttonHeight
+            )
+        ) {
+            hoveredButton = "revenge";
+        }
+
+        return;
+    }
+
+    if (
+        gamePaused &&
+        !settingsOpen &&
+        !controlsOpen &&
+        !backgroundOpen &&
+        !physicsOpen
+    ) {
+        const x =
+            (CANVAS_WIDTH -
+                CONFIG.menu.buttonWidth) / 2;
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getPauseButtonY(0),
+                CONFIG.menu.buttonWidth,
+                CONFIG.menu.buttonHeight
+            )
+        ) {
+            hoveredButton = "continue";
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getPauseButtonY(1),
+                CONFIG.menu.buttonWidth,
+                CONFIG.menu.buttonHeight
+            )
+        ) {
+            hoveredButton = "settings";
+        }
+    }
+}
+
+
+// ============================================================
+// UI — BUTTONS
+// ============================================================
+
+function drawMenuButton(
+    text,
+    x,
+    y,
+    width,
+    height,
+    buttonId = null
+) {
+    const hover =
+        hoveredButton === buttonId;
+
+    context.lineWidth = hover ? 5 : 3;
+    context.strokeStyle = "#FFFFFF";
+
+    if (hover) {
+        context.fillStyle =
+            "rgba(255,255,255,0.12)";
+
+        context.fillRect(
+            x,
+            y,
+            width,
+            height
+        );
+    }
+
+    context.strokeRect(
+        x,
+        y,
+        width,
+        height
+    );
+
+    context.fillStyle = "#FFFFFF";
+    context.font = CONFIG.menu.buttonFont;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        text,
+        x + width / 2,
+        y + height / 2
+    );
+
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
+}
+
+
+function drawOverlay(alpha = 0.8) {
+    context.fillStyle =
+        `rgba(0,0,0,${alpha})`;
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
+    );
+}
+
+
+function drawTitle(text, y) {
+    context.fillStyle = "#FFFFFF";
+    context.font = CONFIG.menu.titleFont;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        text,
+        CANVAS_WIDTH / 2,
+        y
+    );
+}
+
+
+// ============================================================
+// UI — PAUSE
+// ============================================================
+
+function drawPauseMenu() {
+    drawOverlay(0.7);
+    drawTitle(
+        "PAUSA",
+        CANVAS_HEIGHT / 2 - 150
+    );
+
+    const x =
+        (CANVAS_WIDTH -
+            CONFIG.menu.buttonWidth) / 2;
+
+    drawMenuButton(
+        "CONTINUAR",
+        x,
+        getPauseButtonY(0),
+        CONFIG.menu.buttonWidth,
+        CONFIG.menu.buttonHeight,
+        "continue"
+    );
+
+    drawMenuButton(
+        "AJUSTES",
+        x,
+        getPauseButtonY(1),
+        CONFIG.menu.buttonWidth,
+        CONFIG.menu.buttonHeight,
+        "settings"
+    );
+}
+
+
+// ============================================================
+// UI — SETTINGS
+// ============================================================
+
+function drawSettingsMenu() {
+    drawOverlay();
+    drawTitle("AJUSTES", 70);
+
+    const config = CONFIG.settingsMenu;
+
+    const x =
+        (CANVAS_WIDTH -
+            config.buttonWidth) / 2;
+
+    SETTINGS_ITEMS.forEach(([id, label], index) => {
+        drawMenuButton(
+            label,
+            x,
+            config.startY +
+                index *
+                    (config.buttonHeight +
+                        config.buttonGap),
+            config.buttonWidth,
+            config.buttonHeight,
+            id
+        );
+    });
+}
+
+
+// ============================================================
+// UI — BACKGROUND
+// ============================================================
+
+function drawBackgroundMenu() {
+    drawOverlay();
+    drawTitle("FONDO", 70);
+
+    const config = CONFIG.backgroundMenu;
+
+    const x =
+        (CANVAS_WIDTH -
+            config.buttonWidth) / 2;
+
+    BACKGROUND_ITEMS.forEach(
+        ([label, color], index) => {
+            drawMenuButton(
+                label,
+                x,
+                config.startY +
+                    index *
+                        (
+                            config.buttonHeight +
+                            config.buttonGap
+                        ),
+                config.buttonWidth,
+                config.buttonHeight,
+                `bg-${color}`
+            );
+        }
+    );
+
+    drawMenuButton(
+        "VOLVER",
+        x,
+        config.startY +
+            3 *
+                (
+                    config.buttonHeight +
+                    config.buttonGap
+                ),
+        config.buttonWidth,
+        config.buttonHeight,
+        "backgroundBack"
+    );
+}
+
+
+// ============================================================
+// UI — PHYSICS
+// ============================================================
+
+function drawPhysicsMenu() {
+    drawOverlay();
+    drawTitle("FÍSICAS", 70);
+
+    const config = CONFIG.physicsMenu;
+
+    const x =
+        (CANVAS_WIDTH -
+            config.buttonWidth) / 2;
+
+    const rows = [
+        config.startY,
+
+        config.startY +
+            config.buttonHeight +
+            config.buttonGap,
+
+        config.startY +
+            2 *
+                (
+                    config.buttonHeight +
+                    config.buttonGap
+                ),
+
+        config.startY +
+            3 *
+                (
+                    config.buttonHeight +
+                    config.buttonGap
+                )
+    ];
+
+    drawMenuButton(
+        `VELOCIDAD  ${ballSpeed}`,
+        x,
+        rows[0],
+        config.buttonWidth,
+        config.buttonHeight,
+        "physicsSpeed"
+    );
+
+    drawMenuButton(
+        progressiveSpeed
+            ? "PROGRESIVA  ON"
+            : "PROGRESIVA  OFF",
+        x,
+        rows[1],
+        config.buttonWidth,
+        config.buttonHeight,
+        "physicsProgressive"
+    );
+
+    drawMenuButton(
+        `SENS.  ${progressiveSensitivity.toFixed(1)}`,
+        x,
+        rows[2],
+        config.buttonWidth,
+        config.buttonHeight,
+        "physicsSensitivity"
+    );
+
+    drawMenuButton(
+        "VOLVER",
+        x,
+        rows[3],
+        config.buttonWidth,
+        config.buttonHeight,
+        "physicsBack"
+    );
+}
+
+
+// ============================================================
+// UI — CONTROLS
+// ============================================================
+
+function drawControlLabel(text, x, y) {
+    context.fillStyle = "#FFFFFF";
+    context.font = "bold 20px monospace";
+    context.textAlign = "left";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        text,
+        x,
+        y + CONFIG.controlsMenu.buttonHeight / 2
+    );
+}
+
+
+function drawControlButton(
+    text,
+    x,
+    y,
+    width,
+    height,
+    buttonId
+) {
+    const hover =
+        hoveredButton === buttonId;
+
+    context.lineWidth = hover ? 4 : 2;
+    context.strokeStyle = "#FFFFFF";
+
+    if (hover) {
+        context.fillStyle =
+            "rgba(255,255,255,0.12)";
+
+        context.fillRect(
+            x,
+            y,
+            width,
+            height
+        );
+    }
+
+    context.strokeRect(
+        x,
+        y,
+        width,
+        height
+    );
+
+    context.fillStyle = "#FFFFFF";
+    context.font = "bold 18px monospace";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        text,
+        x + width / 2,
+        y + height / 2
+    );
+}
+
+
+function drawControlsMenu() {
+    drawOverlay();
+    drawTitle("CONTROLES", 65);
+
+    const config = CONFIG.controlsMenu;
+
+    const players = [
+        {
+            name: "left",
+            label: "IZQUIERDA",
+            x: config.leftX
+        },
+        {
+            name: "right",
+            label: "DERECHA",
+            x: config.rightX
+        }
+    ];
+
+    for (const player of players) {
+        const data =
+            playerControls[player.name];
+
+        const x = player.x;
+
+        context.fillStyle = "#FFFFFF";
+        context.font = "bold 30px monospace";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+
+        context.fillText(
+            player.label,
+            x + 210,
+            120
+        );
+
+        drawControlRow(
+            player.name,
+            data,
+            "ARRIBA",
+            "up",
+            0
+        );
+
+        drawControlRow(
+            player.name,
+            data,
+            "ABAJO",
+            "down",
+            1
+        );
+
+        drawControlRow(
+            player.name,
+            data,
+            "MOUSE",
+            "mouse",
+            2
+        );
+
+        drawSensitivityRow(
+            player.name,
+            data,
+            3
+        );
+    }
+
+    context.fillStyle = "#FFFFFF";
+    context.font = "16px monospace";
+    context.textAlign = "center";
+
+    context.fillText(
+        "Hacé click en una tecla para reasignarla · ESC cancela",
+        CANVAS_WIDTH / 2,
+        545
+    );
+
+    drawMenuButton(
+        "VOLVER",
+        (CANVAS_WIDTH - 220) / 2,
+        625,
+        220,
+        50,
+        "controlsBack"
+    );
+}
+
+
+function drawControlRow(
+    playerName,
+    data,
+    label,
+    action,
+    row
+) {
+    const config = CONFIG.controlsMenu;
+
+    const x =
+        playerName === "left"
+            ? config.leftX
+            : config.rightX;
+
+    drawControlLabel(
+        label,
+        x,
+        getControlRowY(row)
+    );
+
+    let text;
+
+    if (
+        waitingForKey &&
+        waitingForKey.player === playerName &&
+        waitingForKey.action === action
+    ) {
+        text = "PRESIONÁ...";
+    } else if (action === "mouse") {
+        text = data.mouse ? "ON" : "OFF";
+    } else {
+        text = formatKey(data[action]);
+    }
+
+    drawControlButton(
+        text,
+        x + 125,
+        getControlRowY(row),
+        config.buttonWidth,
+        config.buttonHeight,
+        `${playerName}-${action}`
+    );
+}
+
+
+function drawSensitivityRow(
+    playerName,
+    data,
+    row
+) {
+    const config = CONFIG.controlsMenu;
+
+    const x =
+        playerName === "left"
+            ? config.leftX
+            : config.rightX;
+
+    const y = getControlRowY(row);
+
+    drawControlLabel(
+        "SENS.",
+        x,
+        y
+    );
+
+    drawControlButton(
+        "-",
+        x + 125,
+        y,
+        45,
+        config.buttonHeight,
+        `${playerName}-sens-minus`
+    );
+
+    drawControlButton(
+        data.sensitivity.toFixed(1),
+        x + 175,
+        y,
+        80,
+        config.buttonHeight,
+        null
+    );
+
+    drawControlButton(
+        "+",
+        x + 260,
+        y,
+        45,
+        config.buttonHeight,
+        `${playerName}-sens-plus`
+    );
+}
+
+
+// ============================================================
+// RENDER — TABLE
+// ============================================================
+
+function drawTable() {
+    context.fillStyle =
+        CONFIG.table.colors[courtColor];
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
+    );
+
+    context.strokeStyle = "#FFFFFF";
+    context.lineWidth = 4;
+
+    context.strokeRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT - COURT_LEFT,
+        COURT_BOTTOM - COURT_TOP
+    );
+
+    context.lineWidth =
+        CONFIG.table.centerLine.width;
+
+    context.setLineDash([
+        CONFIG.table.centerLine.dash,
+        CONFIG.table.centerLine.gap
+    ]);
+
+    context.beginPath();
+
+    context.moveTo(
+        CANVAS_WIDTH / 2,
+        COURT_TOP
+    );
+
+    context.lineTo(
+        CANVAS_WIDTH / 2,
+        COURT_BOTTOM
+    );
+
+    context.stroke();
+
+    context.setLineDash([]);
+}
+
+
+// ============================================================
+// RENDER — GAME OBJECTS
+// ============================================================
+
+function drawPaddles() {
+    context.fillStyle = "#FFFFFF";
+
+    context.fillRect(
+        leftPaddle.x,
+        leftPaddle.y,
+        CONFIG.paddle.width,
+        CONFIG.paddle.height
+    );
+
+    context.fillRect(
+        rightPaddle.x,
+        rightPaddle.y,
+        CONFIG.paddle.width,
+        CONFIG.paddle.height
+    );
+}
+
+
+function drawBall() {
+    const radius = CONFIG.ball.size / 2;
+
+    context.fillStyle = "#FFFFFF";
+    context.beginPath();
+
+    context.arc(
+        ball.x + radius,
+        ball.y + radius,
+        radius,
+        0,
+        Math.PI * 2
+    );
+
+    context.fill();
+}
+
+
+function drawScore() {
+    context.fillStyle = "#FFFFFF";
+    context.font = CONFIG.score.font;
+    context.textAlign = "center";
+    context.textBaseline = "bottom";
+
+    context.fillText(
+        String(leftScore).padStart(2, "0"),
+        CANVAS_WIDTH / 4,
+        COURT_BOTTOM - 20
+    );
+
+    context.fillText(
+        String(rightScore).padStart(2, "0"),
+        CANVAS_WIDTH * 3 / 4,
+        COURT_BOTTOM - 20
+    );
+
+    context.textAlign = "start";
+    context.textBaseline = "alphabetic";
+}
+
+
+// ============================================================
+// RENDER — VICTORY
+// ============================================================
+
+function getRevengeButtonX() {
+    return (
+        (CANVAS_WIDTH -
+            CONFIG.victory.buttonWidth) / 2
+    );
+}
+
+
+function getRevengeButtonY() {
+    return CANVAS_HEIGHT / 2 + 55;
+}
+
+
+function drawVictoryScreen() {
+    drawOverlay(0.65);
+
+    context.fillStyle = "#FFFFFF";
+    context.font =
+        CONFIG.victory.winnerFont;
+
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    context.fillText(
+        winner === "left"
+            ? "LA IZQUIERDA GANA"
+            : "LA DERECHA GANA",
+
+        CANVAS_WIDTH / 2,
+        CANVAS_HEIGHT / 2 - 35
+    );
+
+    drawMenuButton(
+        "¿REVANCHA?",
+        getRevengeButtonX(),
+        getRevengeButtonY(),
+        CONFIG.victory.buttonWidth,
+        CONFIG.victory.buttonHeight,
+        "revenge"
+    );
+}
+
+
+// ============================================================
+// RENDER — FRAME
+// ============================================================
+
+function drawGame() {
+    context.clearRect(
+        0,
+        0,
+        CANVAS_WIDTH,
+        CANVAS_HEIGHT
+    );
+
+    drawTable();
+    drawPaddles();
+    drawBall();
+    drawScore();
+
+    if (
+        gamePaused &&
+        !settingsOpen &&
+        !controlsOpen &&
+        !backgroundOpen &&
+        !physicsOpen &&
+        !gameOver
+    ) {
+        drawPauseMenu();
+    }
+
+    if (
+        settingsOpen &&
+        !controlsOpen &&
+        !backgroundOpen &&
+        !physicsOpen &&
+        !gameOver
+    ) {
+        drawSettingsMenu();
+    }
+
+    if (backgroundOpen && !gameOver) {
+        drawBackgroundMenu();
+    }
+
+    if (physicsOpen && !gameOver) {
+        drawPhysicsMenu();
+    }
+
+    if (controlsOpen && !gameOver) {
+        drawControlsMenu();
+    }
+
+    if (gameOver) {
+        drawVictoryScreen();
+    }
+}
+
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+
+function gameLoop() {
+    updatePaddles();
+    updateBall();
+    drawGame();
+
+    requestAnimationFrame(gameLoop);
+}
+
+
+// ============================================================
+// START
+// ============================================================
+
+gameLoop();
         }
 
         /* Área del juego en proporción 16:9 */
