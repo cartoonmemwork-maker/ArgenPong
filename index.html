@@ -3,700 +3,1870 @@ const CANVAS_HEIGHT = 720;
 const canvas = document.getElementById("gameCanvas");
 const context = canvas.getContext("2d");
 
-const TABLE = {
-    margin: 10,
-    left: 10,
-    right: CANVAS_WIDTH - 10,
-    top: 10,
-    bottom: CANVAS_HEIGHT - 10,
-    colors: {
-        green: "#1f5f3a",
-        blue: "#174a78",
-        black: "#000000"
-    }
+const COURT_MARGIN = 10;
+const COURT_LEFT = COURT_MARGIN;
+const COURT_RIGHT = CANVAS_WIDTH - COURT_MARGIN;
+const COURT_TOP = COURT_MARGIN;
+const COURT_BOTTOM = CANVAS_HEIGHT - COURT_MARGIN;
+
+const COURT_COLORS = {
+    green: "#1f5f3a",
+    blue: "#174a78",
+    black: "#000000"
 };
 
-const PADDLE = {
-    width: 20,
-    height: 120,
-    margin: 40,
-    minSpeed: 4,
-    maxSpeed: 18,
-    sensitivityMin: 0.1,
-    sensitivityMax: 1,
-    sensitivityStep: 0.1,
-    defaultSensitivity: 0.5
+let courtColor = "black";
+
+const PADDLE_WIDTH = 20;
+const PADDLE_HEIGHT = 120;
+const PADDLE_MARGIN = 40;
+const PADDLE_SPEED = 8;
+
+const PADDLE_SENSITIVITY_MIN = 0.5;
+const PADDLE_SENSITIVITY_MAX = 2.0;
+const PADDLE_SENSITIVITY_STEP = 0.1;
+
+const BALL_SIZE = 20;
+const BALL_SPEED_X = 7;
+const BALL_SPEED_Y = 5;
+
+let ballSpeed = BALL_SPEED_X;
+let progressiveSpeed = false;
+let progressiveSensitivity = 1.0;
+
+const PHYSICS_SPEED_MIN = 3;
+const PHYSICS_SPEED_MAX = 15;
+const PHYSICS_SPEED_STEP = 1;
+const PHYSICS_SENSITIVITY_MIN = 0.5;
+const PHYSICS_SENSITIVITY_MAX = 2.0;
+const PHYSICS_SENSITIVITY_STEP = 0.1;
+const PROGRESSIVE_INCREMENT = 0.05;
+
+const CENTER_LINE_WIDTH = 4;
+const CENTER_LINE_DASH = 20;
+const CENTER_LINE_GAP = 20;
+
+const SCORE_FONT = "bold 48px monospace";
+const SCORE_Y = COURT_BOTTOM - 20;
+
+const GAME_WIN_SCORE = 11;
+const WIN_MARGIN = 2;
+
+const WINNER_FONT = "bold 52px monospace";
+const REVENGE_FONT = "bold 28px monospace";
+
+const REVENGE_BUTTON_WIDTH = 260;
+const REVENGE_BUTTON_HEIGHT = 60;
+
+const REVENGE_BUTTON_X =
+    (CANVAS_WIDTH - REVENGE_BUTTON_WIDTH) / 2;
+
+const REVENGE_BUTTON_Y =
+    CANVAS_HEIGHT / 2 + 55;
+
+const MENU_TITLE_FONT = "bold 48px monospace";
+const MENU_BUTTON_FONT = "bold 24px monospace";
+
+const MENU_BUTTON_WIDTH = 300;
+const MENU_BUTTON_HEIGHT = 60;
+const MENU_BUTTON_GAP = 20;
+
+const MENU_START_Y =
+    CANVAS_HEIGHT / 2 - 70;
+
+let gamePaused = false;
+let settingsOpen = false;
+let controlsOpen = false;
+let backgroundOpen = false;
+let physicsOpen = false;
+let restartConfirmOpen = false;
+
+let hoveredButton = null;
+
+let audioContext = null;
+let audioMuted = false;
+
+let leftScore = 0;
+let rightScore = 0;
+
+let servingPlayer = "left";
+
+let gameOver = false;
+let winner = null;
+
+const leftPaddle = {
+    x: PADDLE_MARGIN,
+    y: (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2
 };
 
-const BALL = {
-    size: 20,
-
-    // Curva progresiva inspirada en la aceleración de Tetris.
-    speedLevels: [
-        4,
-        5,
-        6,
-        7.2,
-        8.6,
-        10.2,
-        12,
-        14.2,
-        17,
-        20
-    ],
-
-    defaultLevel: 5,
-    progressiveFactor: 1.04
+const rightPaddle = {
+    x: CANVAS_WIDTH - PADDLE_MARGIN - PADDLE_WIDTH,
+    y: (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2
 };
 
-const MATCH = {
-    winScore: 11,
-    winMargin: 2
+const ball = {
+    x: (CANVAS_WIDTH - BALL_SIZE) / 2,
+    y: (CANVAS_HEIGHT - BALL_SIZE) / 2,
+    velocityX: BALL_SPEED_X,
+    velocityY: BALL_SPEED_Y
 };
 
-const CENTER_LINE = {
-    width: 4,
-    dash: 20,
-    gap: 20
-};
-
-const UI = {
-    titleFont: "bold 48px monospace",
-    buttonFont: "bold 24px monospace",
-    smallFont: "bold 18px monospace",
-    scoreFont: "bold 48px monospace",
-    winnerFont: "bold 52px monospace",
-
-    buttonWidth: 300,
-    buttonHeight: 58,
-    buttonGap: 16
-};
-
-const DEFAULTS = {
-    tableColor: "black",
-    sound: true,
-
-    ballSpeedLevel: BALL.defaultLevel,
-    progressiveSpeed: false,
-
-    controls: {
-        left: {
-            up: "w",
-            down: "s",
-            mouse: false,
-            sensitivity: PADDLE.defaultSensitivity
-        },
-
-        right: {
-            up: "ArrowUp",
-            down: "ArrowDown",
-            mouse: false,
-            sensitivity: PADDLE.defaultSensitivity
-        }
-    }
-};
-
-const state = {
-    screen: "start",
-
-    gameStarted: false,
-    mode: null,
-
-    hoveredId: null,
-    activeSlider: null,
-    waitingForKey: null,
-
-    tableColor: DEFAULTS.tableColor,
-    sound: DEFAULTS.sound,
-
-    ballSpeedLevel: DEFAULTS.ballSpeedLevel,
-    progressiveSpeed: DEFAULTS.progressiveSpeed,
-
-    leftScore: 0,
-    rightScore: 0,
-
-    servingPlayer: "left",
-    winner: null
-};
-
-const controls = {
+const playerControls = {
     left: {
-        ...DEFAULTS.controls.left
+        up: "w",
+        down: "s",
+        mouse: false,
+        sensitivity: 1
     },
 
     right: {
-        ...DEFAULTS.controls.right
+        up: "ArrowUp",
+        down: "ArrowDown",
+        mouse: false,
+        sensitivity: 1
     }
 };
 
 const keys = {};
 
+let waitingForKey = null;
+
 let mouseY = CANVAS_HEIGHT / 2;
 let previousMouseY = null;
 
-let audioContext = null;
+const SETTINGS_BUTTON_WIDTH = 240;
+const SETTINGS_BUTTON_HEIGHT = 55;
+const SETTINGS_BUTTON_GAP = 15;
 
-const leftPaddle = {
-    x: PADDLE.margin,
-    y: (CANVAS_HEIGHT - PADDLE.height) / 2
-};
+const SETTINGS_START_Y =
+    CANVAS_HEIGHT / 2 - 125;
 
-const rightPaddle = {
-    x:
-        CANVAS_WIDTH -
-        PADDLE.margin -
-        PADDLE.width,
+const CONTROLS_BUTTON_WIDTH = 180;
+const CONTROLS_BUTTON_HEIGHT = 42;
 
-    y: (CANVAS_HEIGHT - PADDLE.height) / 2
-};
+const CONTROLS_LEFT_X = 180;
+const CONTROLS_RIGHT_X =
+    CANVAS_WIDTH - 180 - CONTROLS_BUTTON_WIDTH;
 
-const ball = {
-    x: (CANVAS_WIDTH - BALL.size) / 2,
-    y: (CANVAS_HEIGHT - BALL.size) / 2,
+const CONTROLS_START_Y = 170;
+const CONTROLS_ROW_GAP = 58;
 
-    velocityX: 0,
-    velocityY: 0
-};
+const SENSITIVITY_MIN = 0.5;
+const SENSITIVITY_MAX = 2.0;
+const SENSITIVITY_STEP = 0.1;
 
+const SUBMENU_BUTTON_WIDTH = 280;
+const SUBMENU_BUTTON_HEIGHT = 55;
+const SUBMENU_BUTTON_GAP = 15;
+const SUBMENU_START_Y = 150;
 
-// ============================================================
-// UTILIDADES
-// ============================================================
-
-function clamp(value, min, max) {
-    return Math.max(
-        min,
-        Math.min(max, value)
-    );
-}
-
-
-function round1(value) {
-    return Math.round(value * 10) / 10;
-}
-
-
-function lerp(a, b, t) {
-    return a + (b - a) * t;
-}
-
-
-function rectContains(rect, x, y) {
-    return (
-        x >= rect.x &&
-        x <= rect.x + rect.w &&
-        y >= rect.y &&
-        y <= rect.y + rect.h
-    );
-}
-
-
-function mousePosition(event) {
-
-    const rect =
-        canvas.getBoundingClientRect();
-
-    return {
-        x:
-            (event.clientX - rect.left) *
-            CANVAS_WIDTH /
-            rect.width,
-
-        y:
-            (event.clientY - rect.top) *
-            CANVAS_HEIGHT /
-            rect.height
-    };
-}
-
-
-function formatKey(key) {
-
-    const names = {
-        ArrowUp: "↑",
-        ArrowDown: "↓",
-        ArrowLeft: "←",
-        ArrowRight: "→",
-        " ": "SPACE"
-    };
-
-    return (
-        names[key] ||
-        key.toUpperCase()
-    );
-}
-
-
-// ============================================================
-// AUDIO
-// ============================================================
+const PHYSICS_BUTTON_WIDTH = 300;
+const PHYSICS_BUTTON_HEIGHT = 55;
+const PHYSICS_BUTTON_GAP = 15;
+const PHYSICS_START_Y = 150;
 
 function initializeAudio() {
 
     if (!audioContext) {
-        audioContext =
-            new AudioContext();
+        audioContext = new AudioContext();
     }
 
-    if (
-        audioContext.state ===
-        "suspended"
-    ) {
+    if (audioContext.state === "suspended") {
         audioContext.resume();
     }
 }
 
+function playSound(frequency, duration, volume) {
 
-function playSound(
-    frequency,
-    duration,
-    volume
-) {
-
-    if (
-        !state.sound ||
-        !audioContext
-    ) {
+    if (audioMuted || !audioContext) {
         return;
     }
 
-    const oscillator =
-        audioContext.createOscillator();
-
-    const gain =
-        audioContext.createGain();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
 
     oscillator.type = "square";
 
-    oscillator.frequency
-        .setValueAtTime(
-            frequency,
-            audioContext.currentTime
-        );
-
-    gain.gain
-        .setValueAtTime(
-            volume,
-            audioContext.currentTime
-        );
-
-    gain.gain
-        .exponentialRampToValueAtTime(
-            0.001,
-            audioContext.currentTime +
-            duration
-        );
-
-    oscillator.connect(gain);
-    gain.connect(
-        audioContext.destination
+    oscillator.frequency.setValueAtTime(
+        frequency,
+        audioContext.currentTime
     );
+
+    gainNode.gain.setValueAtTime(
+        volume,
+        audioContext.currentTime
+    );
+
+    gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioContext.currentTime + duration
+    );
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
 
     oscillator.start();
 
     oscillator.stop(
-        audioContext.currentTime +
-        duration
+        audioContext.currentTime + duration
     );
 }
-
 
 function playWallSound() {
-    playSound(
-        500,
-        0.06,
-        0.08
-    );
+    playSound(500, 0.06, 0.08);
 }
-
 
 function playPaddleSound() {
-    playSound(
-        800,
-        0.07,
-        0.1
+    playSound(800, 0.07, 0.1);
+}
+
+function playMissSound() {
+    playSound(180, 0.2, 0.12);
+}
+
+function toggleMute() {
+
+    audioMuted = !audioMuted;
+
+    console.log(
+        audioMuted
+            ? "Audio: MUTE"
+            : "Audio: ON"
     );
 }
 
+function setCourtColor(color) {
 
-function playPointSound() {
-    playSound(
-        180,
-        0.2,
-        0.12
-    );
-}
-
-
-// ============================================================
-// FÍSICAS
-// ============================================================
-
-function getBallBaseSpeed() {
-
-    return BALL.speedLevels[
-        state.ballSpeedLevel - 1
-    ];
-}
-
-
-function getPaddleSpeed(side) {
-
-    const sensitivity =
-        controls[side].sensitivity;
-
-    const t =
-        (
-            sensitivity -
-            PADDLE.sensitivityMin
-        ) /
-        (
-            PADDLE.sensitivityMax -
-            PADDLE.sensitivityMin
-        );
-
-    return lerp(
-        PADDLE.minSpeed,
-        PADDLE.maxSpeed,
-        t
-    );
-}
-
-
-function resetPaddles() {
-
-    leftPaddle.y =
-        (
-            CANVAS_HEIGHT -
-            PADDLE.height
-        ) / 2;
-
-    rightPaddle.y =
-        (
-            CANVAS_HEIGHT -
-            PADDLE.height
-        ) / 2;
-}
-
-
-function resetBall() {
-
-    ball.x =
-        (
-            CANVAS_WIDTH -
-            BALL.size
-        ) / 2;
-
-    ball.y =
-        (
-            CANVAS_HEIGHT -
-            BALL.size
-        ) / 2;
-
-    const speed =
-        getBallBaseSpeed();
-
-    const horizontal =
-        speed * 0.82;
-
-    const vertical =
-        speed * 0.57;
-
-    const directionX =
-        state.servingPlayer === "left"
-            ? 1
-            : -1;
-
-    const directionY =
-        ball.velocityY < 0
-            ? -1
-            : 1;
-
-    ball.velocityX =
-        horizontal *
-        directionX;
-
-    ball.velocityY =
-        vertical *
-        directionY;
-}
-
-
-function increaseBallSpeed() {
-
-    if (
-        !state.progressiveSpeed
-    ) {
+    if (!COURT_COLORS[color]) {
         return;
     }
 
-    const maxSpeed =
-        BALL.speedLevels[
-            BALL.speedLevels.length - 1
-        ];
+    courtColor = color;
+}
 
-    const currentSpeed =
-        Math.hypot(
-            ball.velocityX,
+function formatKey(key) {
+
+    if (key === "ArrowUp") {
+        return "↑";
+    }
+
+    if (key === "ArrowDown") {
+        return "↓";
+    }
+
+    if (key === "ArrowLeft") {
+        return "←";
+    }
+
+    if (key === "ArrowRight") {
+        return "→";
+    }
+
+    if (key === " ") {
+        return "SPACE";
+    }
+
+    if (key.length === 1) {
+        return key.toUpperCase();
+    }
+
+    return key.toUpperCase();
+}
+
+window.addEventListener("keydown", (event) => {
+
+    initializeAudio();
+
+    if (waitingForKey) {
+
+        event.preventDefault();
+
+        const player =
+            waitingForKey.player;
+
+        const action =
+            waitingForKey.action;
+
+        if (event.key === "Escape") {
+
+            waitingForKey = null;
+
+            handleEscape();
+
+            return;
+        }
+
+        playerControls[player][action] =
+            event.key;
+
+        waitingForKey = null;
+
+        return;
+    }
+
+    const key = event.key.toLowerCase();
+
+    if (key === "m") {
+
+        event.preventDefault();
+
+        toggleMute();
+
+        return;
+    }
+
+    if (event.key === "Escape") {
+
+        event.preventDefault();
+
+        handleEscape();
+
+        return;
+    }
+
+    if (gamePaused || gameOver) {
+        return;
+    }
+
+    keys[event.key] = true;
+});
+
+window.addEventListener("keyup", (event) => {
+
+    keys[event.key] = false;
+});
+
+function handleEscape() {
+
+    if (gameOver) {
+        return;
+    }
+
+    if (
+        waitingForKey ||
+        restartConfirmOpen ||
+        controlsOpen ||
+        backgroundOpen ||
+        physicsOpen ||
+        settingsOpen ||
+        gamePaused
+    ) {
+
+        waitingForKey = null;
+        restartConfirmOpen = false;
+
+        controlsOpen = false;
+        backgroundOpen = false;
+        physicsOpen = false;
+        settingsOpen = false;
+
+        gamePaused = false;
+
+        hoveredButton = null;
+
+        return;
+    }
+
+    gamePaused = true;
+    hoveredButton = null;
+}
+
+canvas.addEventListener("mousemove", (event) => {
+
+    const rect = canvas.getBoundingClientRect();
+
+    const scaleX =
+        CANVAS_WIDTH / rect.width;
+
+    const scaleY =
+        CANVAS_HEIGHT / rect.height;
+
+    const mouseX =
+        (event.clientX - rect.left) * scaleX;
+
+    const currentMouseY =
+        (event.clientY - rect.top) * scaleY;
+
+    mouseY = currentMouseY;
+
+    if (
+        !gamePaused &&
+        !gameOver &&
+        !settingsOpen &&
+        !controlsOpen
+    ) {
+
+        if (previousMouseY !== null) {
+
+            const delta =
+                currentMouseY - previousMouseY;
+
+            if (playerControls.left.mouse) {
+
+                leftPaddle.y +=
+                    delta *
+                    playerControls.left.sensitivity;
+            }
+
+            if (playerControls.right.mouse) {
+
+                rightPaddle.y +=
+                    delta *
+                    playerControls.right.sensitivity;
+            }
+        }
+    }
+
+    previousMouseY = currentMouseY;
+
+    updateHoveredButton(
+        mouseX,
+        currentMouseY
+    );
+});
+
+canvas.addEventListener("click", (event) => {
+
+    const rect = canvas.getBoundingClientRect();
+
+    const scaleX =
+        CANVAS_WIDTH / rect.width;
+
+    const scaleY =
+        CANVAS_HEIGHT / rect.height;
+
+    const mouseX =
+        (event.clientX - rect.left) * scaleX;
+
+    const mouseY =
+        (event.clientY - rect.top) * scaleY;
+
+    if (gameOver) {
+
+        if (
+            mouseX >= REVENGE_BUTTON_X &&
+            mouseX <=
+                REVENGE_BUTTON_X + REVENGE_BUTTON_WIDTH &&
+            mouseY >= REVENGE_BUTTON_Y &&
+            mouseY <=
+                REVENGE_BUTTON_Y + REVENGE_BUTTON_HEIGHT
+        ) {
+
+            restartGame();
+        }
+
+        return;
+    }
+
+    if (restartConfirmOpen) {
+
+        handleRestartConfirmClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (backgroundOpen) {
+
+        handleBackgroundClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (physicsOpen) {
+
+        handlePhysicsClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (controlsOpen) {
+
+        handleControlsClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (settingsOpen) {
+
+        handleSettingsClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (gamePaused) {
+
+        handlePauseMenuClick(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+});
+
+function getPauseButtonY(index) {
+
+    return MENU_START_Y +
+        index *
+        (MENU_BUTTON_HEIGHT + MENU_BUTTON_GAP);
+}
+
+function isInsideButton(
+    mouseX,
+    mouseY,
+    x,
+    y,
+    width,
+    height
+) {
+
+    return (
+        mouseX >= x &&
+        mouseX <= x + width &&
+        mouseY >= y &&
+        mouseY <= y + height
+    );
+}
+
+function handlePauseMenuClick(mouseX, mouseY) {
+
+    const buttonX =
+        (CANVAS_WIDTH - MENU_BUTTON_WIDTH) / 2;
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            getPauseButtonY(0),
+            MENU_BUTTON_WIDTH,
+            MENU_BUTTON_HEIGHT
+        )
+    ) {
+
+        gamePaused = false;
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            getPauseButtonY(1),
+            MENU_BUTTON_WIDTH,
+            MENU_BUTTON_HEIGHT
+        )
+    ) {
+
+        restartConfirmOpen = true;
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            buttonX,
+            getPauseButtonY(2),
+            MENU_BUTTON_WIDTH,
+            MENU_BUTTON_HEIGHT
+        )
+    ) {
+
+        settingsOpen = true;
+    }
+}
+
+function handleRestartConfirmClick(mouseX, mouseY) {
+
+    const width = 180;
+    const height = 55;
+    const gap = 20;
+
+    const y =
+        CANVAS_HEIGHT / 2 + 40;
+
+    const yesX =
+        CANVAS_WIDTH / 2 -
+        width -
+        gap / 2;
+
+    const noX =
+        CANVAS_WIDTH / 2 +
+        gap / 2;
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            yesX,
+            y,
+            width,
+            height
+        )
+    ) {
+
+        restartConfirmOpen = false;
+
+        restartGame();
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            noX,
+            y,
+            width,
+            height
+        )
+    ) {
+
+        restartConfirmOpen = false;
+
+        gamePaused = true;
+
+        hoveredButton = null;
+    }
+}
+
+function handleSettingsClick(mouseX, mouseY) {
+
+    const buttonX =
+        (CANVAS_WIDTH - SETTINGS_BUTTON_WIDTH) / 2;
+
+    const buttons = [
+        {
+            id: "controls",
+            y: SETTINGS_START_Y
+        },
+        {
+            id: "background",
+            y:
+                SETTINGS_START_Y +
+                SETTINGS_BUTTON_HEIGHT +
+                SETTINGS_BUTTON_GAP
+        },
+        {
+            id: "physics",
+            y:
+                SETTINGS_START_Y +
+                2 *
+                (
+                    SETTINGS_BUTTON_HEIGHT +
+                    SETTINGS_BUTTON_GAP
+                )
+        },
+        {
+            id: "settingsBack",
+            y:
+                SETTINGS_START_Y +
+                3 *
+                (
+                    SETTINGS_BUTTON_HEIGHT +
+                    SETTINGS_BUTTON_GAP
+                )
+        }
+    ];
+
+    for (const button of buttons) {
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                buttonX,
+                button.y,
+                SETTINGS_BUTTON_WIDTH,
+                SETTINGS_BUTTON_HEIGHT
+            )
+        ) {
+
+            if (
+                button.id ===
+                "controls"
+            ) {
+
+                controlsOpen = true;
+
+                return;
+            }
+
+            if (
+                button.id ===
+                "background"
+            ) {
+
+                backgroundOpen = true;
+
+                return;
+            }
+
+            if (
+                button.id ===
+                "physics"
+            ) {
+
+                physicsOpen = true;
+
+                return;
+            }
+
+            if (
+                button.id ===
+                "settingsBack"
+            ) {
+
+                settingsOpen = false;
+
+                return;
+            }
+        }
+    }
+}
+
+function handleBackgroundClick(mouseX, mouseY) {
+
+    const x =
+        (CANVAS_WIDTH - SUBMENU_BUTTON_WIDTH) / 2;
+
+    const buttons = [
+        {
+            color: "green",
+            y: SUBMENU_START_Y
+        },
+        {
+            color: "blue",
+            y:
+                SUBMENU_START_Y +
+                SUBMENU_BUTTON_HEIGHT +
+                SUBMENU_BUTTON_GAP
+        },
+        {
+            color: "black",
+            y:
+                SUBMENU_START_Y +
+                2 *
+                (
+                    SUBMENU_BUTTON_HEIGHT +
+                    SUBMENU_BUTTON_GAP
+                )
+        },
+        {
+            back: true,
+            y:
+                SUBMENU_START_Y +
+                3 *
+                (
+                    SUBMENU_BUTTON_HEIGHT +
+                    SUBMENU_BUTTON_GAP
+                )
+        }
+    ];
+
+    for (const b of buttons) {
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                b.y,
+                SUBMENU_BUTTON_WIDTH,
+                SUBMENU_BUTTON_HEIGHT
+            )
+        ) {
+
+            if (b.back) {
+
+                backgroundOpen = false;
+
+                return;
+            }
+
+            setCourtColor(
+                b.color
+            );
+
+            return;
+        }
+    }
+}
+
+function handlePhysicsClick(mouseX, mouseY) {
+
+    const x =
+        (CANVAS_WIDTH - PHYSICS_BUTTON_WIDTH) / 2;
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            PHYSICS_START_Y,
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        ballSpeed =
+            Math.min(
+                PHYSICS_SPEED_MAX,
+                ballSpeed +
+                PHYSICS_SPEED_STEP
+            );
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            PHYSICS_START_Y +
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP,
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        ballSpeed =
+            Math.max(
+                PHYSICS_SPEED_MIN,
+                ballSpeed -
+                PHYSICS_SPEED_STEP
+            );
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            PHYSICS_START_Y +
+            2 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        progressiveSpeed =
+            !progressiveSpeed;
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            PHYSICS_START_Y +
+            3 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            45,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        progressiveSensitivity =
+            Math.max(
+                PHYSICS_SENSITIVITY_MIN,
+                Math.round(
+                    (
+                        progressiveSensitivity -
+                        PHYSICS_SENSITIVITY_STEP
+                    ) *
+                    10
+                ) /
+                10
+            );
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x + 255,
+            PHYSICS_START_Y +
+            3 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            45,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        progressiveSensitivity =
+            Math.min(
+                PHYSICS_SENSITIVITY_MAX,
+                Math.round(
+                    (
+                        progressiveSensitivity +
+                        PHYSICS_SENSITIVITY_STEP
+                    ) *
+                    10
+                ) /
+                10
+            );
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            PHYSICS_START_Y +
+            4 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        physicsOpen = false;
+    }
+}
+
+function applyProgressiveSpeed() {
+
+    if (!progressiveSpeed) {
+        return;
+    }
+
+    const multiplier =
+        1 +
+        PROGRESSIVE_INCREMENT *
+        progressiveSensitivity;
+
+    const directionX =
+        Math.sign(
+            ball.velocityX
+        ) || 1;
+
+    const directionY =
+        Math.sign(
+            ball.velocityY
+        ) || 1;
+
+    const currentX =
+        Math.abs(
+            ball.velocityX
+        );
+
+    const currentY =
+        Math.abs(
             ball.velocityY
         );
 
-    if (
-        currentSpeed >= maxSpeed
-    ) {
-        return;
-    }
-
-    const nextSpeed =
+    ball.velocityX =
+        directionX *
         Math.min(
-            currentSpeed *
-            BALL.progressiveFactor,
-            maxSpeed
+            currentX *
+            multiplier,
+            PHYSICS_SPEED_MAX
         );
 
-    const scale =
-        nextSpeed /
-        currentSpeed;
-
-    ball.velocityX *= scale;
-    ball.velocityY *= scale;
+    ball.velocityY =
+        directionY *
+        Math.min(
+            currentY *
+            multiplier,
+            PHYSICS_SPEED_MAX
+        );
 }
 
+function getControlRowY(index) {
 
-// ============================================================
-// PARTIDA
-// ============================================================
+    return CONTROLS_START_Y +
+        index *
+        CONTROLS_ROW_GAP;
+}
 
-function resetMatch(
-    startImmediately = true
+function startKeyRebind(
+    player,
+    action
 ) {
 
-    state.leftScore = 0;
-    state.rightScore = 0;
-
-    state.servingPlayer =
-        "left";
-
-    state.winner = null;
-
-    state.waitingForKey = null;
-    state.activeSlider = null;
-    state.hoveredId = null;
-
-    resetPaddles();
-    resetBall();
-
-    state.screen =
-        startImmediately
-            ? "game"
-            : "start";
+    waitingForKey = {
+        player,
+        action
+    };
 }
 
+function changeSensitivity(
+    player,
+    amount
+) {
 
-function startLocalGame() {
+    let value =
+        playerControls[player]
+            .sensitivity +
+        amount;
 
-    state.gameStarted = true;
-    state.mode = "local";
-
-    resetMatch(true);
-}
-
-
-function restartGame() {
-    resetMatch(true);
-}
-
-
-function returnToGame() {
-
-    if (
-        !state.gameStarted ||
-        state.screen === "victory"
-    ) {
-        return;
-    }
-
-    state.waitingForKey = null;
-    state.activeSlider = null;
-    state.hoveredId = null;
-
-    state.screen = "game";
-}
-
-
-function handlePoint() {
-
-    if (checkGameWinner()) {
-
-        state.winner =
-            state.leftScore >
-            state.rightScore
-                ? "left"
-                : "right";
-
-        state.screen =
-            "victory";
-
-        return;
-    }
-
-    updateServe();
-    resetBall();
-}
-
-
-function checkGameWinner() {
-
-    if (
-        state.leftScore <
-            MATCH.winScore &&
-        state.rightScore <
-            MATCH.winScore
-    ) {
-        return false;
-    }
-
-    return (
-        Math.abs(
-            state.leftScore -
-            state.rightScore
-        ) >=
-        MATCH.winMargin
-    );
-}
-
-
-function updateServe() {
-
-    if (
-        state.leftScore >= 10 &&
-        state.rightScore >= 10
-    ) {
-
-        state.servingPlayer =
-            state.servingPlayer ===
-            "left"
-                ? "right"
-                : "left";
-
-        return;
-    }
-
-    const totalPoints =
-        state.leftScore +
-        state.rightScore;
-
-    state.servingPlayer =
-        Math.floor(
-            totalPoints / 2
-        ) % 2 === 0
-            ? "left"
-            : "right";
-}
-
-
-// ============================================================
-// PALETAS
-// ============================================================
-
-function limitPaddles() {
-
-    const maxY =
-        TABLE.bottom -
-        PADDLE.height;
-
-    leftPaddle.y =
-        clamp(
-            leftPaddle.y,
-            TABLE.top,
-            maxY
+    value =
+        Math.max(
+            SENSITIVITY_MIN,
+            Math.min(
+                SENSITIVITY_MAX,
+                value
+            )
         );
 
-    rightPaddle.y =
-        clamp(
-            rightPaddle.y,
-            TABLE.top,
-            maxY
-        );
+    playerControls[player]
+        .sensitivity =
+        Math.round(
+            value *
+            10
+        ) /
+        10;
 }
 
+function handleControlsClick(
+    mouseX,
+    mouseY
+) {
+
+    const players = [
+        {
+            name: "left",
+            x: CONTROLS_LEFT_X
+        },
+        {
+            name: "right",
+            x: CONTROLS_RIGHT_X
+        }
+    ];
+
+    for (const player of players) {
+
+        const data =
+            playerControls[
+                player.name
+            ];
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                player.x + 125,
+                getControlRowY(0),
+                CONTROLS_BUTTON_WIDTH,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            startKeyRebind(
+                player.name,
+                "up"
+            );
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                player.x + 125,
+                getControlRowY(1),
+                CONTROLS_BUTTON_WIDTH,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            startKeyRebind(
+                player.name,
+                "down"
+            );
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                player.x + 125,
+                getControlRowY(2),
+                CONTROLS_BUTTON_WIDTH,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            data.mouse =
+                !data.mouse;
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                player.x + 125,
+                getControlRowY(3),
+                45,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            changeSensitivity(
+                player.name,
+                -SENSITIVITY_STEP
+            );
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                player.x + 260,
+                getControlRowY(3),
+                45,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            changeSensitivity(
+                player.name,
+                SENSITIVITY_STEP
+            );
+
+            return;
+        }
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            (CANVAS_WIDTH - 220) / 2,
+            625,
+            220,
+            50
+        )
+    ) {
+
+        controlsOpen = false;
+
+        waitingForKey = null;
+    }
+}
+
+function updateHoveredButton(
+    mouseX,
+    mouseY
+) {
+
+    hoveredButton = null;
+
+    if (gameOver) {
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                REVENGE_BUTTON_X,
+                REVENGE_BUTTON_Y,
+                REVENGE_BUTTON_WIDTH,
+                REVENGE_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                "revenge";
+        }
+
+        return;
+    }
+
+    if (restartConfirmOpen) {
+
+        const width = 180;
+        const height = 55;
+        const gap = 20;
+
+        const y =
+            CANVAS_HEIGHT / 2 +
+            40;
+
+        const yesX =
+            CANVAS_WIDTH / 2 -
+            width -
+            gap / 2;
+
+        const noX =
+            CANVAS_WIDTH / 2 +
+            gap / 2;
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                yesX,
+                y,
+                width,
+                height
+            )
+        ) {
+
+            hoveredButton =
+                "restartYes";
+
+        } else if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                noX,
+                y,
+                width,
+                height
+            )
+        ) {
+
+            hoveredButton =
+                "restartNo";
+        }
+
+        return;
+    }
+
+    if (controlsOpen) {
+
+        updateControlsHover(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (backgroundOpen) {
+
+        updateBackgroundHover(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (physicsOpen) {
+
+        updatePhysicsHover(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (settingsOpen) {
+
+        updateSettingsHover(
+            mouseX,
+            mouseY
+        );
+
+        return;
+    }
+
+    if (gamePaused) {
+
+        const buttonX =
+            (
+                CANVAS_WIDTH -
+                MENU_BUTTON_WIDTH
+            ) /
+            2;
+
+        const ids = [
+            "continue",
+            "restart",
+            "settings"
+        ];
+
+        for (
+            let i = 0;
+            i < ids.length;
+            i++
+        ) {
+
+            if (
+                isInsideButton(
+                    mouseX,
+                    mouseY,
+                    buttonX,
+                    getPauseButtonY(i),
+                    MENU_BUTTON_WIDTH,
+                    MENU_BUTTON_HEIGHT
+                )
+            ) {
+
+                hoveredButton =
+                    ids[i];
+
+                return;
+            }
+        }
+    }
+}
+
+function updateSettingsHover(
+    mouseX,
+    mouseY
+) {
+
+    const buttonX =
+        (
+            CANVAS_WIDTH -
+            SETTINGS_BUTTON_WIDTH
+        ) /
+        2;
+
+    const buttons = [
+        {
+            id: "controls",
+            y: SETTINGS_START_Y
+        },
+        {
+            id: "background",
+            y:
+                SETTINGS_START_Y +
+                SETTINGS_BUTTON_HEIGHT +
+                SETTINGS_BUTTON_GAP
+        },
+        {
+            id: "physics",
+            y:
+                SETTINGS_START_Y +
+                2 *
+                (
+                    SETTINGS_BUTTON_HEIGHT +
+                    SETTINGS_BUTTON_GAP
+                )
+        },
+        {
+            id: "settingsBack",
+            y:
+                SETTINGS_START_Y +
+                3 *
+                (
+                    SETTINGS_BUTTON_HEIGHT +
+                    SETTINGS_BUTTON_GAP
+                )
+        }
+    ];
+
+    for (const b of buttons) {
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                buttonX,
+                b.y,
+                SETTINGS_BUTTON_WIDTH,
+                SETTINGS_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                b.id;
+
+            return;
+        }
+    }
+}
+
+function updateBackgroundHover(
+    mouseX,
+    mouseY
+) {
+
+    const x =
+        (
+            CANVAS_WIDTH -
+            SUBMENU_BUTTON_WIDTH
+        ) /
+        2;
+
+    const ys =
+        [0, 1, 2, 3]
+            .map(
+                i =>
+                    SUBMENU_START_Y +
+                    i *
+                    (
+                        SUBMENU_BUTTON_HEIGHT +
+                        SUBMENU_BUTTON_GAP
+                    )
+            );
+
+    const ids = [
+        "background-green",
+        "background-blue",
+        "background-black",
+        "backgroundBack"
+    ];
+
+    for (
+        let i = 0;
+        i < ys.length;
+        i++
+    ) {
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                ys[i],
+                SUBMENU_BUTTON_WIDTH,
+                SUBMENU_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                ids[i];
+
+            return;
+        }
+    }
+}
+
+function updatePhysicsHover(
+    mouseX,
+    mouseY
+) {
+
+    const x =
+        (
+            CANVAS_WIDTH -
+            PHYSICS_BUTTON_WIDTH
+        ) /
+        2;
+
+    const y0 =
+        PHYSICS_START_Y;
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            y0,
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        hoveredButton =
+            "physics-speed-plus";
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            y0 +
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP,
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        hoveredButton =
+            "physics-speed-minus";
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            y0 +
+            2 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        hoveredButton =
+            "physics-progressive";
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            y0 +
+            3 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            45,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        hoveredButton =
+            "physics-sens-minus";
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x + 255,
+            y0 +
+            3 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            45,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        hoveredButton =
+            "physics-sens-plus";
+
+        return;
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            x,
+            y0 +
+            4 *
+            (
+                PHYSICS_BUTTON_HEIGHT +
+                PHYSICS_BUTTON_GAP
+            ),
+            PHYSICS_BUTTON_WIDTH,
+            PHYSICS_BUTTON_HEIGHT
+        )
+    ) {
+
+        hoveredButton =
+            "physicsBack";
+    }
+}
+
+function updateControlsHover(
+    mouseX,
+    mouseY
+) {
+
+    const players = [
+        {
+            name: "left",
+            x: CONTROLS_LEFT_X
+        },
+        {
+            name: "right",
+            x: CONTROLS_RIGHT_X
+        }
+    ];
+
+    for (const player of players) {
+
+        const x =
+            player.x +
+            125;
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(0),
+                CONTROLS_BUTTON_WIDTH,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                player.name +
+                "-up";
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(1),
+                CONTROLS_BUTTON_WIDTH,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                player.name +
+                "-down";
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(2),
+                CONTROLS_BUTTON_WIDTH,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                player.name +
+                "-mouse";
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x,
+                getControlRowY(3),
+                45,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                player.name +
+                "-sens-minus";
+
+            return;
+        }
+
+        if (
+            isInsideButton(
+                mouseX,
+                mouseY,
+                x + 135,
+                getControlRowY(3),
+                45,
+                CONTROLS_BUTTON_HEIGHT
+            )
+        ) {
+
+            hoveredButton =
+                player.name +
+                "-sens-plus";
+
+            return;
+        }
+    }
+
+    if (
+        isInsideButton(
+            mouseX,
+            mouseY,
+            (
+                CANVAS_WIDTH -
+                220
+            ) /
+            2,
+            625,
+            220,
+            50
+        )
+    ) {
+
+        hoveredButton =
+            "controlsBack";
+    }
+}
 
 function updatePaddles() {
 
     if (
-        state.screen !== "game"
+        gamePaused ||
+        gameOver
     ) {
         return;
     }
 
     if (
-        !controls.left.mouse
+        keys[
+            playerControls
+                .left
+                .up
+        ]
     ) {
 
-        const speed =
-            getPaddleSpeed(
-                "left"
-            );
-
-        if (
-            keys[
-                controls.left.up
-            ]
-        ) {
-            leftPaddle.y -=
-                speed;
-        }
-
-        if (
-            keys[
-                controls.left.down
-            ]
-        ) {
-            leftPaddle.y +=
-                speed;
-        }
+        leftPaddle.y -=
+            PADDLE_SPEED *
+            playerControls
+                .left
+                .sensitivity;
     }
 
     if (
-        !controls.right.mouse
+        keys[
+            playerControls
+                .left
+                .down
+        ]
     ) {
 
-        const speed =
-            getPaddleSpeed(
-                "right"
-            );
-
-        if (
-            keys[
-                controls.right.up
-            ]
-        ) {
-            rightPaddle.y -=
-                speed;
-        }
-
-        if (
-            keys[
-                controls.right.down
-            ]
-        ) {
-            rightPaddle.y +=
-                speed;
-        }
+        leftPaddle.y +=
+            PADDLE_SPEED *
+            playerControls
+                .left
+                .sensitivity;
     }
 
-    limitPaddles();
+    if (
+        keys[
+            playerControls
+                .right
+                .up
+        ]
+    ) {
+
+        rightPaddle.y -=
+            PADDLE_SPEED *
+            playerControls
+                .right
+                .sensitivity;
+    }
+
+    if (
+        keys[
+            playerControls
+                .right
+                .down
+        ]
+    ) {
+
+        rightPaddle.y +=
+            PADDLE_SPEED *
+            playerControls
+                .right
+                .sensitivity;
+    }
+
+    const topLimit =
+        COURT_TOP;
+
+    const bottomLimit =
+        COURT_BOTTOM -
+        PADDLE_HEIGHT;
+
+    if (
+        leftPaddle.y <
+        topLimit
+    ) {
+
+        leftPaddle.y =
+            topLimit;
+    }
+
+    if (
+        leftPaddle.y >
+        bottomLimit
+    ) {
+
+        leftPaddle.y =
+            bottomLimit;
+    }
+
+    if (
+        rightPaddle.y <
+        topLimit
+    ) {
+
+        rightPaddle.y =
+            topLimit;
+    }
+
+    if (
+        rightPaddle.y >
+        bottomLimit
+    ) {
+
+        rightPaddle.y =
+            bottomLimit;
+    }
 }
-
-
-// ============================================================
-// PELOTA
-// ============================================================
 
 function updateBall() {
 
     if (
-        state.screen !== "game"
+        gamePaused ||
+        gameOver
     ) {
         return;
     }
@@ -707,1611 +1877,367 @@ function updateBall() {
     ball.y +=
         ball.velocityY;
 
-
-    // PARED SUPERIOR
-
     if (
-        ball.y <= TABLE.top
-    ) {
-
-        ball.y = TABLE.top;
-
-        ball.velocityY =
-            Math.abs(
-                ball.velocityY
-            );
-
-        increaseBallSpeed();
-        playWallSound();
-    }
-
-
-    // PARED INFERIOR
-
-    if (
-        ball.y + BALL.size >=
-        TABLE.bottom
+        ball.y <=
+        COURT_TOP
     ) {
 
         ball.y =
-            TABLE.bottom -
-            BALL.size;
+            COURT_TOP;
 
-        ball.velocityY =
-            -Math.abs(
-                ball.velocityY
-            );
+        ball.velocityY *=
+            -1;
 
-        increaseBallSpeed();
+        applyProgressiveSpeed();
+
         playWallSound();
     }
 
+    if (
+        ball.y +
+        BALL_SIZE >=
+        COURT_BOTTOM
+    ) {
 
-    // PALETA IZQUIERDA
+        ball.y =
+            COURT_BOTTOM -
+            BALL_SIZE;
+
+        ball.velocityY *=
+            -1;
+
+        applyProgressiveSpeed();
+
+        playWallSound();
+    }
 
     if (
-        ball.velocityX < 0 &&
-
         ball.x <=
             leftPaddle.x +
-            PADDLE.width &&
+            PADDLE_WIDTH &&
 
-        ball.x + BALL.size >=
+        ball.x +
+            BALL_SIZE >=
             leftPaddle.x &&
 
-        ball.y + BALL.size >=
+        ball.y +
+            BALL_SIZE >=
             leftPaddle.y &&
 
         ball.y <=
             leftPaddle.y +
-            PADDLE.height
+            PADDLE_HEIGHT &&
+
+        ball.velocityX <
+            0
     ) {
 
         ball.x =
             leftPaddle.x +
-            PADDLE.width;
+            PADDLE_WIDTH;
 
-        ball.velocityX =
-            Math.abs(
-                ball.velocityX
-            );
+        ball.velocityX *=
+            -1;
 
-        increaseBallSpeed();
+        applyProgressiveSpeed();
+
         playPaddleSound();
     }
 
-
-    // PALETA DERECHA
-
     if (
-        ball.velocityX > 0 &&
-
-        ball.x + BALL.size >=
+        ball.x +
+            BALL_SIZE >=
             rightPaddle.x &&
 
         ball.x <=
             rightPaddle.x +
-            PADDLE.width &&
+            PADDLE_WIDTH &&
 
-        ball.y + BALL.size >=
+        ball.y +
+            BALL_SIZE >=
             rightPaddle.y &&
 
         ball.y <=
             rightPaddle.y +
-            PADDLE.height
+            PADDLE_HEIGHT &&
+
+        ball.velocityX >
+            0
     ) {
 
         ball.x =
             rightPaddle.x -
-            BALL.size;
+            BALL_SIZE;
 
-        ball.velocityX =
-            -Math.abs(
-                ball.velocityX
-            );
+        ball.velocityX *=
+            -1;
 
-        increaseBallSpeed();
+        applyProgressiveSpeed();
+
         playPaddleSound();
     }
 
-
-    // PUNTO DERECHA
-
     if (
-        ball.x + BALL.size <
-        TABLE.left
+        ball.x +
+        BALL_SIZE <
+        COURT_LEFT
     ) {
 
-        state.rightScore++;
+        rightScore++;
 
-        playPointSound();
+        playMissSound();
+
         handlePoint();
 
         return;
     }
-
-
-    // PUNTO IZQUIERDA
 
     if (
         ball.x >
-        TABLE.right
+        COURT_RIGHT
     ) {
 
-        state.leftScore++;
+        leftScore++;
 
-        playPointSound();
+        playMissSound();
+
         handlePoint();
+
+        return;
     }
 }
 
-
-// ============================================================
-// RESTABLECER OPCIONES
-// ============================================================
-
-function resetControlsDefaults() {
-
-    Object.assign(
-        controls.left,
-        DEFAULTS.controls.left
-    );
-
-    Object.assign(
-        controls.right,
-        DEFAULTS.controls.right
-    );
-
-    state.waitingForKey = null;
-}
-
-
-function resetPhysicsDefaults() {
-
-    state.ballSpeedLevel =
-        DEFAULTS.ballSpeedLevel;
-
-    state.progressiveSpeed =
-        DEFAULTS.progressiveSpeed;
+function handlePoint() {
 
     if (
-        state.gameStarted
-    ) {
-        resetBall();
-    }
-}
-
-
-// ============================================================
-// TECLADO
-// ============================================================
-
-window.addEventListener(
-    "keydown",
-    event => {
-
-        initializeAudio();
-
-
-        // REASIGNACIÓN
-
-        if (
-            state.waitingForKey
-        ) {
-
-            event.preventDefault();
-
-            if (
-                event.key ===
-                "Escape"
-            ) {
-
-                returnToGame();
-
-                return;
-            }
-
-            const {
-                side,
-                action
-            } =
-                state.waitingForKey;
-
-            controls[side][action] =
-                event.key;
-
-            state.waitingForKey =
-                null;
-
-            return;
-        }
-
-
-        // MUTE
-
-        if (
-            event.key
-                .toLowerCase() ===
-            "m"
-        ) {
-
-            event.preventDefault();
-
-            state.sound =
-                !state.sound;
-
-            return;
-        }
-
-
-        // ESC
-
-        if (
-            event.key ===
-            "Escape"
-        ) {
-
-            event.preventDefault();
-
-            if (
-                !state.gameStarted
-            ) {
-                return;
-            }
-
-            if (
-                state.screen ===
-                "game"
-            ) {
-
-                state.screen =
-                    "pause";
-
-            } else {
-
-                returnToGame();
-            }
-
-            return;
-        }
-
-
-        if (
-            state.screen !==
-            "game"
-        ) {
-            return;
-        }
-
-
-        keys[event.key] =
-            true;
-
-
-        if (
-            event.key
-                .startsWith(
-                    "Arrow"
-                )
-        ) {
-            event.preventDefault();
-        }
-    }
-);
-
-
-window.addEventListener(
-    "keyup",
-    event => {
-
-        keys[event.key] =
-            false;
-    }
-);
-
-
-// ============================================================
-// MOUSE
-// ============================================================
-
-canvas.addEventListener(
-    "mousemove",
-    event => {
-
-        const {
-            x,
-            y
-        } =
-            mousePosition(
-                event
-            );
-
-        mouseY = y;
-
-
-        // CONTROL POR MOUSE
-
-        if (
-            state.screen ===
-                "game" &&
-            previousMouseY !==
-                null
-        ) {
-
-            const delta =
-                y -
-                previousMouseY;
-
-            if (
-                controls.left.mouse
-            ) {
-
-                leftPaddle.y +=
-                    delta *
-                    (
-                        0.2 +
-                        controls.left
-                            .sensitivity *
-                        2
-                    );
-            }
-
-            if (
-                controls.right.mouse
-            ) {
-
-                rightPaddle.y +=
-                    delta *
-                    (
-                        0.2 +
-                        controls.right
-                            .sensitivity *
-                        2
-                    );
-            }
-
-            limitPaddles();
-        }
-
-        previousMouseY = y;
-
-
-        // SLIDER ACTIVO
-
-        if (
-            state.activeSlider
-        ) {
-
-            updateSlider(
-                state.activeSlider,
-                x
-            );
-        }
-
-
-        updateHover(
-            x,
-            y
-        );
-    }
-);
-
-
-window.addEventListener(
-    "mouseup",
-    () => {
-
-        state.activeSlider =
-            null;
-    }
-);
-
-
-canvas.addEventListener(
-    "mousedown",
-    event => {
-
-        const {
-            x,
-            y
-        } =
-            mousePosition(
-                event
-            );
-
-        const slider =
-            getSliderAt(
-                x,
-                y
-            );
-
-        if (!slider) {
-            return;
-        }
-
-        state.activeSlider =
-            slider.id;
-
-        updateSlider(
-            slider.id,
-            x
-        );
-    }
-);
-
-
-canvas.addEventListener(
-    "click",
-    event => {
-
-        const {
-            x,
-            y
-        } =
-            mousePosition(
-                event
-            );
-
-        const item =
-            getInteractiveAt(
-                x,
-                y
-            );
-
-        if (
-            !item ||
-            item.type ===
-                "slider"
-        ) {
-            return;
-        }
-
-        handleAction(
-            item.id
-        );
-    }
-);
-
-
-// ============================================================
-// ACCIONES DE MENÚ
-// ============================================================
-
-function handleAction(id) {
-
-    initializeAudio();
-
-    const actions = {
-
-        startLocal:
-            startLocalGame,
-
-        startOnline:
-            () => {
-                state.mode =
-                    "online";
-            },
-
-        startAI:
-            () => {
-                state.mode =
-                    "ai";
-            },
-
-
-        continue:
-            () => {
-                state.screen =
-                    "game";
-            },
-
-
-        restart:
-            () => {
-                state.screen =
-                    "restartConfirm";
-            },
-
-
-        restartYes:
-            restartGame,
-
-
-        restartNo:
-            () => {
-                state.screen =
-                    "pause";
-            },
-
-
-        settings:
-            () => {
-                state.screen =
-                    "settings";
-            },
-
-
-        controls:
-            () => {
-                state.screen =
-                    "controls";
-            },
-
-
-        background:
-            () => {
-                state.screen =
-                    "background";
-            },
-
-
-        physics:
-            () => {
-                state.screen =
-                    "physics";
-            },
-
-
-        sound:
-            () => {
-
-                state.sound =
-                    !state.sound;
-            },
-
-
-        backPause:
-            () => {
-                state.screen =
-                    "pause";
-            },
-
-
-        backSettings:
-            () => {
-                state.screen =
-                    "settings";
-            },
-
-
-        backgroundGreen:
-            () => {
-                state.tableColor =
-                    "green";
-            },
-
-
-        backgroundBlue:
-            () => {
-                state.tableColor =
-                    "blue";
-            },
-
-
-        backgroundBlack:
-            () => {
-                state.tableColor =
-                    "black";
-            },
-
-
-        leftUp:
-            () => {
-
-                state.waitingForKey = {
-                    side: "left",
-                    action: "up"
-                };
-            },
-
-
-        leftDown:
-            () => {
-
-                state.waitingForKey = {
-                    side: "left",
-                    action: "down"
-                };
-            },
-
-
-        leftMouse:
-            () => {
-
-                controls.left.mouse =
-                    !controls.left.mouse;
-            },
-
-
-        rightUp:
-            () => {
-
-                state.waitingForKey = {
-                    side: "right",
-                    action: "up"
-                };
-            },
-
-
-        rightDown:
-            () => {
-
-                state.waitingForKey = {
-                    side: "right",
-                    action: "down"
-                };
-            },
-
-
-        rightMouse:
-            () => {
-
-                controls.right.mouse =
-                    !controls.right.mouse;
-            },
-
-
-        resetControls:
-            resetControlsDefaults,
-
-
-        progressive:
-            () => {
-
-                state.progressiveSpeed =
-                    !state.progressiveSpeed;
-            },
-
-
-        resetPhysics:
-            resetPhysicsDefaults,
-
-
-        revenge:
-            restartGame
-    };
-
-
-    if (actions[id]) {
-        actions[id]();
-    }
-}
-
-
-// ============================================================
-// INTERFAZ
-// ============================================================
-
-function menuButtonRect(
-    index,
-    count,
-    width = UI.buttonWidth,
-    height = UI.buttonHeight,
-    gap = UI.buttonGap,
-    centerY =
-        CANVAS_HEIGHT / 2 + 30
-) {
-
-    const total =
-        count * height +
-        (count - 1) * gap;
-
-    return {
-
-        x:
-            (
-                CANVAS_WIDTH -
-                width
-            ) / 2,
-
-        y:
-            centerY -
-            total / 2 +
-            index *
-            (
-                height +
-                gap
-            ),
-
-        w: width,
-        h: height
-    };
-}
-
-
-function sliderRect(
-    x,
-    y,
-    width = 240,
-    height = 18
-) {
-
-    return {
-        x,
-        y,
-        w: width,
-        h: height
-    };
-}
-
-
-function currentInteractives() {
-
-    const items = [];
-
-
-    const button = (
-        id,
-        text,
-        rect,
-        options = {}
-    ) => {
-
-        items.push({
-            id,
-            text,
-            rect,
-            type: "button",
-            ...options
-        });
-    };
-
-
-    const slider = (
-        id,
-        rect,
-        options = {}
-    ) => {
-
-        items.push({
-            id,
-            rect,
-            type: "slider",
-            ...options
-        });
-    };
-
-
-    // INICIO
-
-    if (
-        state.screen ===
-        "start"
+        checkGameWinner()
     ) {
 
-        button(
-            "startLocal",
-            "PVP LOCAL",
-            menuButtonRect(
-                0,
-                3,
-                330,
-                62,
-                18,
-                430
-            )
-        );
+        gameOver = true;
 
-        button(
-            "startOnline",
-            "PVP ONLINE",
-            menuButtonRect(
-                1,
-                3,
-                330,
-                62,
-                18,
-                430
-            )
-        );
+        winner =
+            leftScore >
+            rightScore
+                ? "left"
+                : "right";
 
-        button(
-            "startAI",
-            "SP VS IA",
-            menuButtonRect(
-                2,
-                3,
-                330,
-                62,
-                18,
-                430
-            )
-        );
-    }
-
-
-    // PAUSA
-
-    if (
-        state.screen ===
-        "pause"
-    ) {
-
-        button(
-            "continue",
-            "CONTINUAR",
-            menuButtonRect(
-                0,
-                3
-            )
-        );
-
-        button(
-            "restart",
-            "REINICIAR PARTIDA",
-            menuButtonRect(
-                1,
-                3
-            )
-        );
-
-        button(
-            "settings",
-            "AJUSTES",
-            menuButtonRect(
-                2,
-                3
-            )
-        );
-    }
-
-
-    // CONFIRMAR REINICIO
-
-    if (
-        state.screen ===
-        "restartConfirm"
-    ) {
-
-        button(
-            "restartYes",
-            "SÍ",
-            menuButtonRect(
-                0,
-                2,
-                180,
-                58,
-                22,
-                430
-            )
-        );
-
-        button(
-            "restartNo",
-            "NO",
-            menuButtonRect(
-                1,
-                2,
-                180,
-                58,
-                22,
-                430
-            )
-        );
-    }
-
-
-    // AJUSTES
-
-    if (
-        state.screen ===
-        "settings"
-    ) {
-
-        button(
-            "controls",
-            "CONTROLES",
-            menuButtonRect(
-                0,
-                5,
-                300,
-                55,
-                14,
-                390
-            )
-        );
-
-        button(
-            "background",
-            "FONDO",
-            menuButtonRect(
-                1,
-                5,
-                300,
-                55,
-                14,
-                390
-            )
-        );
-
-        button(
-            "physics",
-            "FÍSICAS",
-            menuButtonRect(
-                2,
-                5,
-                300,
-                55,
-                14,
-                390
-            )
-        );
-
-        button(
-            "sound",
-            `SONIDO: ${
-                state.sound
-                    ? "ON"
-                    : "OFF"
-            }`,
-            menuButtonRect(
-                3,
-                5,
-                300,
-                55,
-                14,
-                390
-            )
-        );
-
-        button(
-            "backPause",
-            "VOLVER",
-            menuButtonRect(
-                4,
-                5,
-                300,
-                55,
-                14,
-                390
-            )
-        );
-    }
-
-
-    // FONDO
-
-    if (
-        state.screen ===
-        "background"
-    ) {
-
-        button(
-            "backgroundGreen",
-            "VERDE",
-            menuButtonRect(
-                0,
-                4,
-                280,
-                55,
-                15,
-                390
-            )
-        );
-
-        button(
-            "backgroundBlue",
-            "AZUL",
-            menuButtonRect(
-                1,
-                4,
-                280,
-                55,
-                15,
-                390
-            )
-        );
-
-        button(
-            "backgroundBlack",
-            "NEGRO",
-            menuButtonRect(
-                2,
-                4,
-                280,
-                55,
-                15,
-                390
-            )
-        );
-
-        button(
-            "backSettings",
-            "VOLVER",
-            menuButtonRect(
-                3,
-                4,
-                280,
-                55,
-                15,
-                390
-            )
-        );
-    }
-
-
-    // CONTROLES
-
-    if (
-        state.screen ===
-        "controls"
-    ) {
-
-        const leftX = 155;
-        const rightX = 745;
-
-        const valueXOffset =
-            155;
-
-        const rowY = [
-            175,
-            240,
-            305
-        ];
-
-
-        button(
-            "leftUp",
-
-            state.waitingForKey?.side ===
-                "left" &&
-            state.waitingForKey?.action ===
-                "up"
-
-                ? "PRESIONÁ..."
-                : formatKey(
-                    controls.left.up
-                ),
-
-            {
-                x:
-                    leftX +
-                    valueXOffset,
-
-                y: rowY[0],
-
-                w: 190,
-                h: 44
-            }
-        );
-
-
-        button(
-            "leftDown",
-
-            state.waitingForKey?.side ===
-                "left" &&
-            state.waitingForKey?.action ===
-                "down"
-
-                ? "PRESIONÁ..."
-                : formatKey(
-                    controls.left.down
-                ),
-
-            {
-                x:
-                    leftX +
-                    valueXOffset,
-
-                y: rowY[1],
-
-                w: 190,
-                h: 44
-            }
-        );
-
-
-        button(
-            "leftMouse",
-
-            controls.left.mouse
-                ? "ON"
-                : "OFF",
-
-            {
-                x:
-                    leftX +
-                    valueXOffset,
-
-                y: rowY[2],
-
-                w: 190,
-                h: 44
-            }
-        );
-
-
-        button(
-            "rightUp",
-
-            state.waitingForKey?.side ===
-                "right" &&
-            state.waitingForKey?.action ===
-                "up"
-
-                ? "PRESIONÁ..."
-                : formatKey(
-                    controls.right.up
-                ),
-
-            {
-                x:
-                    rightX +
-                    valueXOffset,
-
-                y: rowY[0],
-
-                w: 190,
-                h: 44
-            }
-        );
-
-
-        button(
-            "rightDown",
-
-            state.waitingForKey?.side ===
-                "right" &&
-            state.waitingForKey?.action ===
-                "down"
-
-                ? "PRESIONÁ..."
-                : formatKey(
-                    controls.right.down
-                ),
-
-            {
-                x:
-                    rightX +
-                    valueXOffset,
-
-                y: rowY[1],
-
-                w: 190,
-                h: 44
-            }
-        );
-
-
-        button(
-            "rightMouse",
-
-            controls.right.mouse
-                ? "ON"
-                : "OFF",
-
-            {
-                x:
-                    rightX +
-                    valueXOffset,
-
-                y: rowY[2],
-
-                w: 190,
-                h: 44
-            }
-        );
-
-
-        slider(
-            "leftSensitivity",
-
-            sliderRect(
-                leftX + 155,
-                397,
-                190,
-                20
-            ),
-
-            {
-                min:
-                    PADDLE.sensitivityMin,
-
-                max:
-                    PADDLE.sensitivityMax,
-
-                value:
-                    controls.left
-                        .sensitivity
-            }
-        );
-
-
-        slider(
-            "rightSensitivity",
-
-            sliderRect(
-                rightX + 155,
-                397,
-                190,
-                20
-            ),
-
-            {
-                min:
-                    PADDLE.sensitivityMin,
-
-                max:
-                    PADDLE.sensitivityMax,
-
-                value:
-                    controls.right
-                        .sensitivity
-            }
-        );
-
-
-        button(
-            "resetControls",
-            "RESTABLECER POR DEFECTO",
-            {
-                x: 455,
-                y: 535,
-                w: 370,
-                h: 52
-            }
-        );
-
-
-        button(
-            "backSettings",
-            "VOLVER",
-            {
-                x: 530,
-                y: 605,
-                w: 220,
-                h: 50
-            }
-        );
-    }
-
-
-    // FÍSICAS
-
-    if (
-        state.screen ===
-        "physics"
-    ) {
-
-        slider(
-            "ballSpeed",
-
-            sliderRect(
-                470,
-                185,
-                340,
-                22
-            ),
-
-            {
-                min: 1,
-                max: 10,
-
-                value:
-                    state.ballSpeedLevel
-            }
-        );
-
-
-        button(
-            "progressive",
-
-            `VELOCIDAD PROGRESIVA: ${
-                state.progressiveSpeed
-                    ? "ON"
-                    : "OFF"
-            }`,
-
-            {
-                x: 420,
-                y: 255,
-                w: 440,
-                h: 55
-            }
-        );
-
-
-        button(
-            "resetPhysics",
-            "RESTABLECER POR DEFECTO",
-            {
-                x: 455,
-                y: 520,
-                w: 370,
-                h: 52
-            }
-        );
-
-
-        button(
-            "backSettings",
-            "VOLVER",
-            {
-                x: 530,
-                y: 590,
-                w: 220,
-                h: 50
-            }
-        );
-    }
-
-
-    // VICTORIA
-
-    if (
-        state.screen ===
-        "victory"
-    ) {
-
-        button(
-            "revenge",
-            "¿REVANCHA?",
-            {
-                x: 510,
-                y: 415,
-                w: 260,
-                h: 60
-            }
-        );
-    }
-
-
-    return items;
-}
-
-
-// ============================================================
-// INTERACCIÓN
-// ============================================================
-
-function getInteractiveAt(
-    x,
-    y
-) {
-
-    return (
-        currentInteractives()
-            .find(
-                item =>
-                    rectContains(
-                        item.rect,
-                        x,
-                        y
-                    )
-            ) ||
-        null
-    );
-}
-
-
-function getSliderAt(
-    x,
-    y
-) {
-
-    return (
-        currentInteractives()
-            .find(
-                item =>
-                    item.type ===
-                        "slider" &&
-
-                    rectContains(
-                        {
-                            x:
-                                item.rect.x -
-                                8,
-
-                            y:
-                                item.rect.y -
-                                12,
-
-                            w:
-                                item.rect.w +
-                                16,
-
-                            h:
-                                item.rect.h +
-                                24
-                        },
-
-                        x,
-                        y
-                    )
-            ) ||
-        null
-    );
-}
-
-
-function updateSlider(
-    id,
-    mouseX
-) {
-
-    const slider =
-        currentInteractives()
-            .find(
-                item =>
-                    item.id === id &&
-                    item.type ===
-                        "slider"
-            );
-
-    if (!slider) {
         return;
     }
 
-    const ratio =
-        clamp(
-            (
-                mouseX -
-                slider.rect.x
-            ) /
-            slider.rect.w,
+    updateServe();
 
-            0,
-            1
+    resetBall();
+}
+
+function checkGameWinner() {
+
+    const scoreDifference =
+        Math.abs(
+            leftScore -
+            rightScore
         );
 
-
-    // SENSIBILIDAD IZQUIERDA
-
     if (
-        id ===
-        "leftSensitivity"
+        leftScore <
+            GAME_WIN_SCORE &&
+        rightScore <
+            GAME_WIN_SCORE
     ) {
 
-        controls.left
-            .sensitivity =
-            round1(
-                PADDLE.sensitivityMin +
-                ratio *
-                (
-                    PADDLE.sensitivityMax -
-                    PADDLE.sensitivityMin
-                )
-            );
+        return false;
     }
 
-
-    // SENSIBILIDAD DERECHA
-
     if (
-        id ===
-        "rightSensitivity"
+        scoreDifference <
+        WIN_MARGIN
     ) {
 
-        controls.right
-            .sensitivity =
-            round1(
-                PADDLE.sensitivityMin +
-                ratio *
-                (
-                    PADDLE.sensitivityMax -
-                    PADDLE.sensitivityMin
-                )
-            );
+        return false;
     }
 
+    return true;
+}
 
-    // VELOCIDAD DE PELOTA
+function updateServe() {
+
+    const totalPoints =
+        leftScore +
+        rightScore;
 
     if (
-        id ===
-        "ballSpeed"
+        leftScore >=
+            10 &&
+        rightScore >=
+            10
     ) {
 
-        state.ballSpeedLevel =
-            clamp(
-                Math.round(
-                    1 +
-                    ratio * 9
-                ),
-                1,
-                10
-            );
+        servingPlayer =
+            servingPlayer ===
+            "left"
+                ? "right"
+                : "left";
 
-        if (
-            state.gameStarted &&
-            state.screen !==
-                "victory"
-        ) {
-            resetBall();
-        }
+        return;
+    }
+
+    const serveBlock =
+        Math.floor(
+            totalPoints /
+            2
+        );
+
+    if (
+        serveBlock %
+        2 ===
+        0
+    ) {
+
+        servingPlayer =
+            "left";
+
+    } else {
+
+        servingPlayer =
+            "right";
     }
 }
 
+function resetBall() {
 
-// ============================================================
-// HOVER
-// ============================================================
+    ball.x =
+        (
+            CANVAS_WIDTH -
+            BALL_SIZE
+        ) /
+        2;
 
-function updateHover(
-    x,
-    y
-) {
+    ball.y =
+        (
+            CANVAS_HEIGHT -
+            BALL_SIZE
+        ) /
+        2;
 
-    const item =
-        getInteractiveAt(
-            x,
-            y
-        );
+    if (
+        servingPlayer ===
+        "left"
+    ) {
 
-    state.hoveredId =
-        item
-            ? item.id
-            : null;
+        ball.velocityX =
+            Math.abs(
+                ballSpeed
+            );
 
-    canvas.style.cursor =
-        item
-            ? "pointer"
-            : "default";
+    } else {
+
+        ball.velocityX =
+            -Math.abs(
+                ballSpeed
+            );
+    }
+
+    ball.velocityY =
+        (
+            ball.velocityY <
+            0
+                ? -1
+                : 1
+        ) *
+        BALL_SPEED_Y;
 }
 
+function restartGame() {
 
-// ============================================================
-// MOTOR GRÁFICO
-// ============================================================
+    leftScore = 0;
+    rightScore = 0;
 
-function drawTable() {
+    servingPlayer =
+        "left";
+
+    gameOver = false;
+    winner = null;
+
+    gamePaused = false;
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+    restartConfirmOpen = false;
+
+    waitingForKey = null;
+
+    leftPaddle.y =
+        (
+            CANVAS_HEIGHT -
+            PADDLE_HEIGHT
+        ) /
+        2;
+
+    rightPaddle.y =
+        (
+            CANVAS_HEIGHT -
+            PADDLE_HEIGHT
+        ) /
+        2;
+
+    resetBall();
+}
+
+function drawCourt() {
 
     context.fillStyle =
-        TABLE.colors[
-            state.tableColor
+        COURT_COLORS[
+            courtColor
         ];
 
     context.fillRect(
-        TABLE.left,
-        TABLE.top,
-        TABLE.right -
-            TABLE.left,
-        TABLE.bottom -
-            TABLE.top
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
     );
-
 
     context.strokeStyle =
         "#FFFFFF";
 
-    context.lineWidth = 4;
+    context.lineWidth =
+        4;
 
     context.strokeRect(
-        TABLE.left,
-        TABLE.top,
-        TABLE.right -
-            TABLE.left,
-        TABLE.bottom -
-            TABLE.top
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
     );
 
-
     context.lineWidth =
-        CENTER_LINE.width;
+        CENTER_LINE_WIDTH;
 
     context.setLineDash([
-        CENTER_LINE.dash,
-        CENTER_LINE.gap
+        CENTER_LINE_DASH,
+        CENTER_LINE_GAP
     ]);
 
     context.beginPath();
 
     context.moveTo(
         CANVAS_WIDTH / 2,
-        TABLE.top
+        COURT_TOP
     );
 
     context.lineTo(
         CANVAS_WIDTH / 2,
-        TABLE.bottom
+        COURT_BOTTOM
     );
 
     context.stroke();
 
     context.setLineDash([]);
 }
-
 
 function drawPaddles() {
 
@@ -2321,20 +2247,30 @@ function drawPaddles() {
     context.fillRect(
         leftPaddle.x,
         leftPaddle.y,
-        PADDLE.width,
-        PADDLE.height
+        PADDLE_WIDTH,
+        PADDLE_HEIGHT
     );
 
     context.fillRect(
         rightPaddle.x,
         rightPaddle.y,
-        PADDLE.width,
-        PADDLE.height
+        PADDLE_WIDTH,
+        PADDLE_HEIGHT
     );
 }
 
-
 function drawBall() {
+
+    const centerX =
+        ball.x +
+        BALL_SIZE / 2;
+
+    const centerY =
+        ball.y +
+        BALL_SIZE / 2;
+
+    const radius =
+        BALL_SIZE / 2;
 
     context.fillStyle =
         "#FFFFFF";
@@ -2342,14 +2278,9 @@ function drawBall() {
     context.beginPath();
 
     context.arc(
-        ball.x +
-            BALL.size / 2,
-
-        ball.y +
-            BALL.size / 2,
-
-        BALL.size / 2,
-
+        centerX,
+        centerY,
+        radius,
         0,
         Math.PI * 2
     );
@@ -2357,14 +2288,13 @@ function drawBall() {
     context.fill();
 }
 
-
 function drawScore() {
 
     context.fillStyle =
         "#FFFFFF";
 
     context.font =
-        UI.scoreFont;
+        SCORE_FONT;
 
     context.textAlign =
         "center";
@@ -2372,67 +2302,86 @@ function drawScore() {
     context.textBaseline =
         "bottom";
 
-
     context.fillText(
         String(
-            state.leftScore
+            leftScore
         ).padStart(
             2,
             "0"
         ),
 
         CANVAS_WIDTH / 4,
-        TABLE.bottom - 20
+        SCORE_Y
     );
-
 
     context.fillText(
         String(
-            state.rightScore
+            rightScore
         ).padStart(
             2,
             "0"
         ),
 
-        CANVAS_WIDTH * 3 / 4,
-        TABLE.bottom - 20
+        CANVAS_WIDTH *
+        3 /
+        4,
+
+        SCORE_Y
     );
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
 }
 
-
-function drawOverlay(
-    alpha = 0.78
-) {
-
-    context.fillStyle =
-        `rgba(
-            0,
-            0,
-            0,
-            ${alpha}
-        )`;
-
-    context.fillRect(
-        TABLE.left,
-        TABLE.top,
-        TABLE.right -
-            TABLE.left,
-        TABLE.bottom -
-            TABLE.top
-    );
-}
-
-
-function drawTitle(
+function drawMenuButton(
     text,
-    y = 90,
-    font = UI.titleFont
+    x,
+    y,
+    width,
+    height,
+    buttonId = null
 ) {
+
+    const isHovered =
+        hoveredButton ===
+        buttonId;
+
+    context.lineWidth =
+        isHovered
+            ? 5
+            : 3;
+
+    context.strokeStyle =
+        "#FFFFFF";
+
+    if (isHovered) {
+
+        context.fillStyle =
+            "rgba(255, 255, 255, 0.12)";
+
+        context.fillRect(
+            x,
+            y,
+            width,
+            height
+        );
+    }
+
+    context.strokeRect(
+        x,
+        y,
+        width,
+        height
+    );
 
     context.fillStyle =
         "#FFFFFF";
 
-    context.font = font;
+    context.font =
+        MENU_BUTTON_FONT;
 
     context.textAlign =
         "center";
@@ -2442,407 +2391,554 @@ function drawTitle(
 
     context.fillText(
         text,
-        CANVAS_WIDTH / 2,
-        y
-    );
-}
-
-
-function drawButton(item) {
-
-    const hovered =
-        state.hoveredId ===
-        item.id;
-
-    const {
-        x,
-        y,
-        w,
-        h
-    } =
-        item.rect;
-
-
-    if (hovered) {
-
-        context.fillStyle =
-            "rgba(255,255,255,0.12)";
-
-        context.fillRect(
-            x,
-            y,
-            w,
-            h
-        );
-    }
-
-
-    context.strokeStyle =
-        "#FFFFFF";
-
-    context.lineWidth =
-        hovered
-            ? 5
-            : 3;
-
-    context.strokeRect(
-        x,
-        y,
-        w,
-        h
-    );
-
-
-    context.fillStyle =
-        "#FFFFFF";
-
-    context.font =
-        item.small
-            ? UI.smallFont
-            : UI.buttonFont;
-
-    context.textAlign =
-        "center";
-
-    context.textBaseline =
-        "middle";
-
-
-    context.fillText(
-        item.text,
-        x + w / 2,
-        y + h / 2
-    );
-}
-
-
-function drawSlider(
-    item,
-    label,
-    displayValue
-) {
-
-    const hovered =
-        state.hoveredId ===
-            item.id ||
-        state.activeSlider ===
-            item.id;
-
-
-    const {
-        x,
-        y,
-        w,
-        h
-    } =
-        item.rect;
-
-
-    const ratio =
-        (
-            item.value -
-            item.min
-        ) /
-        (
-            item.max -
-            item.min
-        );
-
-
-    const knobX =
         x +
-        ratio * w;
-
-
-    context.fillStyle =
-        "#FFFFFF";
-
-    context.font =
-        "bold 20px monospace";
+        width / 2,
+        y +
+        height / 2
+    );
 
     context.textAlign =
-        "left";
+        "start";
 
     context.textBaseline =
-        "middle";
-
-
-    context.fillText(
-        label,
-        x,
-        y - 26
-    );
-
-
-    context.strokeStyle =
-        "#FFFFFF";
-
-    context.lineWidth =
-        hovered
-            ? 4
-            : 2;
-
-
-    context.strokeRect(
-        x,
-        y,
-        w,
-        h
-    );
-
-
-    context.fillStyle =
-        "#FFFFFF";
-
-    context.fillRect(
-        x,
-        y,
-        ratio * w,
-        h
-    );
-
-
-    context.beginPath();
-
-    context.arc(
-        knobX,
-        y + h / 2,
-        hovered
-            ? 10
-            : 8,
-        0,
-        Math.PI * 2
-    );
-
-    context.fill();
-
-
-    context.textAlign =
-        "right";
-
-    context.fillText(
-        displayValue,
-        x + w,
-        y - 26
-    );
+        "alphabetic";
 }
-
-
-// ============================================================
-// MENÚ INICIAL
-// ============================================================
-
-function drawStartMenu() {
-
-    context.fillStyle =
-        "#000000";
-
-    context.fillRect(
-        0,
-        0,
-        CANVAS_WIDTH,
-        CANVAS_HEIGHT
-    );
-
-
-    drawTitle(
-        "ARGENPONG",
-        145,
-        "bold 64px monospace"
-    );
-
-
-    context.font =
-        "42px monospace";
-
-    context.fillStyle =
-        "#FFFFFF";
-
-    context.textAlign =
-        "center";
-
-    context.fillText(
-        "🏓",
-        CANVAS_WIDTH / 2,
-        220
-    );
-
-
-    for (
-        const item of
-        currentInteractives()
-    ) {
-        drawButton(item);
-    }
-
-
-    if (
-        state.mode ===
-            "online" ||
-        state.mode ===
-            "ai"
-    ) {
-
-        context.font =
-            "bold 18px monospace";
-
-        context.fillText(
-            "PRÓXIMAMENTE",
-            CANVAS_WIDTH / 2,
-            610
-        );
-    }
-}
-
-
-// ============================================================
-// PAUSA
-// ============================================================
 
 function drawPauseMenu() {
 
-    drawOverlay(0.72);
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.70)";
 
-    drawTitle(
-        "PAUSA",
-        125
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
     );
-
-    currentInteractives()
-        .forEach(
-            drawButton
-        );
-}
-
-
-// ============================================================
-// CONFIRMACIÓN DE REINICIO
-// ============================================================
-
-function drawRestartConfirm() {
-
-    drawOverlay(0.82);
-
-    drawTitle(
-        "¿REINICIAR PARTIDA?",
-        235,
-        "bold 42px monospace"
-    );
-
 
     context.fillStyle =
         "#FFFFFF";
+
+    context.font =
+        MENU_TITLE_FONT;
+
+    context.textAlign =
+        "center";
+
+    context.textBaseline =
+        "middle";
+
+    context.fillText(
+        "PAUSA",
+        CANVAS_WIDTH / 2,
+        CANVAS_HEIGHT / 2 -
+        170
+    );
+
+    const buttonX =
+        (
+            CANVAS_WIDTH -
+            MENU_BUTTON_WIDTH
+        ) /
+        2;
+
+    drawMenuButton(
+        "CONTINUAR",
+        buttonX,
+        getPauseButtonY(0),
+        MENU_BUTTON_WIDTH,
+        MENU_BUTTON_HEIGHT,
+        "continue"
+    );
+
+    drawMenuButton(
+        "REINICIAR PARTIDA",
+        buttonX,
+        getPauseButtonY(1),
+        MENU_BUTTON_WIDTH,
+        MENU_BUTTON_HEIGHT,
+        "restart"
+    );
+
+    drawMenuButton(
+        "AJUSTES",
+        buttonX,
+        getPauseButtonY(2),
+        MENU_BUTTON_WIDTH,
+        MENU_BUTTON_HEIGHT,
+        "settings"
+    );
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
+}
+
+function drawRestartConfirm() {
+
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.82)";
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
+    );
+
+    context.fillStyle =
+        "#FFFFFF";
+
+    context.font =
+        "bold 42px monospace";
+
+    context.textAlign =
+        "center";
+
+    context.textBaseline =
+        "middle";
+
+    context.fillText(
+        "¿REINICIAR PARTIDA?",
+        CANVAS_WIDTH / 2,
+        CANVAS_HEIGHT / 2 -
+        70
+    );
 
     context.font =
         "20px monospace";
 
-    context.textAlign =
-        "center";
-
-
     context.fillText(
-        "Se perderá el marcador actual.",
+        "Se perderá el marcador actual",
         CANVAS_WIDTH / 2,
-        300
+        CANVAS_HEIGHT / 2 -
+        20
     );
 
+    const width = 180;
+    const height = 55;
+    const gap = 20;
 
-    currentInteractives()
-        .forEach(
-            drawButton
-        );
+    const y =
+        CANVAS_HEIGHT / 2 +
+        40;
+
+    const yesX =
+        CANVAS_WIDTH / 2 -
+        width -
+        gap / 2;
+
+    const noX =
+        CANVAS_WIDTH / 2 +
+        gap / 2;
+
+    drawMenuButton(
+        "SÍ",
+        yesX,
+        y,
+        width,
+        height,
+        "restartYes"
+    );
+
+    drawMenuButton(
+        "NO",
+        noX,
+        y,
+        width,
+        height,
+        "restartNo"
+    );
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
 }
-
-
-// ============================================================
-// AJUSTES
-// ============================================================
 
 function drawSettingsMenu() {
 
-    drawOverlay();
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.75)";
 
-    drawTitle(
-        "AJUSTES",
-        85
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
     );
-
-
-    currentInteractives()
-        .forEach(
-            drawButton
-        );
-}
-
-
-// ============================================================
-// FONDO
-// ============================================================
-
-function drawBackgroundMenu() {
-
-    drawOverlay();
-
-    drawTitle(
-        "FONDO",
-        85
-    );
-
-
-    currentInteractives()
-        .forEach(
-            drawButton
-        );
-}
-
-
-// ============================================================
-// CONTROLES
-// ============================================================
-
-function drawControlsMenu() {
-
-    drawOverlay(0.84);
-
-    drawTitle(
-        "CONTROLES",
-        70
-    );
-
-
-    const leftX = 155;
-    const rightX = 745;
-
-    const rowY = [
-        197,
-        262,
-        327
-    ];
-
 
     context.fillStyle =
         "#FFFFFF";
 
     context.font =
-        "bold 30px monospace";
+        MENU_TITLE_FONT;
 
     context.textAlign =
         "center";
 
+    context.textBaseline =
+        "middle";
 
     context.fillText(
-        "IZQUIERDA",
-        345,
-        125
+        "AJUSTES",
+        CANVAS_WIDTH / 2,
+        70
     );
 
+    const buttonX =
+        (
+            CANVAS_WIDTH -
+            SETTINGS_BUTTON_WIDTH
+        ) /
+        2;
+
+    const buttons = [
+        [
+            "CONTROLES",
+            "controls",
+            SETTINGS_START_Y
+        ],
+        [
+            "FONDO",
+            "background",
+            SETTINGS_START_Y +
+            SETTINGS_BUTTON_HEIGHT +
+            SETTINGS_BUTTON_GAP
+        ],
+        [
+            "FÍSICAS",
+            "physics",
+            SETTINGS_START_Y +
+            2 *
+            (
+                SETTINGS_BUTTON_HEIGHT +
+                SETTINGS_BUTTON_GAP
+            )
+        ],
+        [
+            "VOLVER",
+            "settingsBack",
+            SETTINGS_START_Y +
+            3 *
+            (
+                SETTINGS_BUTTON_HEIGHT +
+                SETTINGS_BUTTON_GAP
+            )
+        ]
+    ];
+
+    for (
+        const [
+            text,
+            id,
+            y
+        ] of buttons
+    ) {
+
+        drawMenuButton(
+            text,
+            buttonX,
+            y,
+            SETTINGS_BUTTON_WIDTH,
+            SETTINGS_BUTTON_HEIGHT,
+            id
+        );
+    }
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
+}
+
+function drawBackgroundMenu() {
+
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.80)";
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
+    );
+
+    context.fillStyle =
+        "#FFFFFF";
+
+    context.font =
+        MENU_TITLE_FONT;
+
+    context.textAlign =
+        "center";
+
+    context.textBaseline =
+        "middle";
 
     context.fillText(
-        "DERECHA",
-        935,
-        125
+        "FONDO",
+        CANVAS_WIDTH / 2,
+        70
     );
 
+    const x =
+        (
+            CANVAS_WIDTH -
+            SUBMENU_BUTTON_WIDTH
+        ) /
+        2;
+
+    const buttons = [
+        [
+            "VERDE",
+            "background-green",
+            SUBMENU_START_Y
+        ],
+        [
+            "AZUL",
+            "background-blue",
+            SUBMENU_START_Y +
+            SUBMENU_BUTTON_HEIGHT +
+            SUBMENU_BUTTON_GAP
+        ],
+        [
+            "NEGRO",
+            "background-black",
+            SUBMENU_START_Y +
+            2 *
+            (
+                SUBMENU_BUTTON_HEIGHT +
+                SUBMENU_BUTTON_GAP
+            )
+        ],
+        [
+            "VOLVER",
+            "backgroundBack",
+            SUBMENU_START_Y +
+            3 *
+            (
+                SUBMENU_BUTTON_HEIGHT +
+                SUBMENU_BUTTON_GAP
+            )
+        ]
+    ];
+
+    for (
+        const [
+            text,
+            id,
+            y
+        ] of buttons
+    ) {
+
+        drawMenuButton(
+            text,
+            x,
+            y,
+            SUBMENU_BUTTON_WIDTH,
+            SUBMENU_BUTTON_HEIGHT,
+            id
+        );
+    }
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
+}
+
+function drawPhysicsMenu() {
+
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.80)";
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
+    );
+
+    context.fillStyle =
+        "#FFFFFF";
+
+    context.font =
+        MENU_TITLE_FONT;
+
+    context.textAlign =
+        "center";
+
+    context.textBaseline =
+        "middle";
+
+    context.fillText(
+        "FÍSICAS",
+        CANVAS_WIDTH / 2,
+        70
+    );
+
+    const x =
+        (
+            CANVAS_WIDTH -
+            PHYSICS_BUTTON_WIDTH
+        ) /
+        2;
+
+    const y0 =
+        PHYSICS_START_Y;
+
+    drawMenuButton(
+        "VELOCIDAD  +",
+        x,
+        y0,
+        PHYSICS_BUTTON_WIDTH,
+        PHYSICS_BUTTON_HEIGHT,
+        "physics-speed-plus"
+    );
+
+    drawMenuButton(
+        "VELOCIDAD  -",
+        x,
+        y0 +
+        PHYSICS_BUTTON_HEIGHT +
+        PHYSICS_BUTTON_GAP,
+        PHYSICS_BUTTON_WIDTH,
+        PHYSICS_BUTTON_HEIGHT,
+        "physics-speed-minus"
+    );
+
+    drawMenuButton(
+        `PROGRESIVA: ${
+            progressiveSpeed
+                ? "ON"
+                : "OFF"
+        }`,
+        x,
+        y0 +
+        2 *
+        (
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP
+        ),
+        PHYSICS_BUTTON_WIDTH,
+        PHYSICS_BUTTON_HEIGHT,
+        "physics-progressive"
+    );
+
+    drawControlLabel(
+        "SENS. PROGRESIVA",
+        x - 120,
+        y0 +
+        3 *
+        (
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP
+        )
+    );
+
+    drawControlButton(
+        "-",
+        x,
+        y0 +
+        3 *
+        (
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP
+        ),
+        45,
+        PHYSICS_BUTTON_HEIGHT,
+        "physics-sens-minus"
+    );
+
+    drawControlButton(
+        progressiveSensitivity
+            .toFixed(1),
+        x + 55,
+        y0 +
+        3 *
+        (
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP
+        ),
+        200,
+        PHYSICS_BUTTON_HEIGHT,
+        null
+    );
+
+    drawControlButton(
+        "+",
+        x + 255,
+        y0 +
+        3 *
+        (
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP
+        ),
+        45,
+        PHYSICS_BUTTON_HEIGHT,
+        "physics-sens-plus"
+    );
+
+    context.font =
+        "bold 20px monospace";
+
+    context.fillStyle =
+        "#FFFFFF";
+
+    context.fillText(
+        `VELOCIDAD ACTUAL: ${
+            ballSpeed
+                .toFixed(0)
+        }`,
+        CANVAS_WIDTH / 2,
+        525
+    );
+
+    drawMenuButton(
+        "VOLVER",
+        x,
+        y0 +
+        4 *
+        (
+            PHYSICS_BUTTON_HEIGHT +
+            PHYSICS_BUTTON_GAP
+        ),
+        PHYSICS_BUTTON_WIDTH,
+        PHYSICS_BUTTON_HEIGHT,
+        "physicsBack"
+    );
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
+}
+
+function drawControlLabel(
+    text,
+    x,
+    y
+) {
+
+    context.fillStyle =
+        "#FFFFFF";
 
     context.font =
         "bold 20px monospace";
@@ -2850,232 +2946,388 @@ function drawControlsMenu() {
     context.textAlign =
         "left";
 
+    context.textBaseline =
+        "middle";
 
-    [
-        "ARRIBA",
-        "ABAJO",
-        "MOUSE"
-    ].forEach(
-        (
-            label,
-            index
-        ) => {
-
-            context.fillText(
-                label,
-                leftX,
-                rowY[index]
-            );
-
-            context.fillText(
-                label,
-                rightX,
-                rowY[index]
-            );
-        }
-    );
-
-
-    for (
-        const item of
-        currentInteractives()
-    ) {
-
-        if (
-            item.type ===
-            "button"
-        ) {
-            drawButton(item);
-        }
-    }
-
-
-    const sliders =
-        currentInteractives()
-            .filter(
-                item =>
-                    item.type ===
-                    "slider"
-            );
-
-
-    drawSlider(
-        sliders.find(
-            item =>
-                item.id ===
-                "leftSensitivity"
-        ),
-
-        "SENSIBILIDAD",
-
-        controls.left
-            .sensitivity
-            .toFixed(1)
-    );
-
-
-    drawSlider(
-        sliders.find(
-            item =>
-                item.id ===
-                "rightSensitivity"
-        ),
-
-        "SENSIBILIDAD",
-
-        controls.right
-            .sensitivity
-            .toFixed(1)
+    context.fillText(
+        text,
+        x,
+        y +
+        CONTROLS_BUTTON_HEIGHT /
+        2
     );
 }
 
+function drawControlButton(
+    text,
+    x,
+    y,
+    width,
+    height,
+    buttonId
+) {
 
-// ============================================================
-// FÍSICAS
-// ============================================================
+    const isHovered =
+        hoveredButton ===
+        buttonId;
 
-function drawPhysicsMenu() {
+    context.lineWidth =
+        isHovered
+            ? 4
+            : 2;
 
-    drawOverlay(0.84);
+    context.strokeStyle =
+        "#FFFFFF";
 
-    drawTitle(
-        "FÍSICAS",
-        70
-    );
+    if (isHovered) {
 
+        context.fillStyle =
+            "rgba(255, 255, 255, 0.12)";
 
-    const items =
-        currentInteractives();
-
-
-    const speedSlider =
-        items.find(
-            item =>
-                item.id ===
-                "ballSpeed"
+        context.fillRect(
+            x,
+            y,
+            width,
+            height
         );
+    }
 
-
-    drawSlider(
-        speedSlider,
-        "VELOCIDAD DE LA PELOTA",
-        String(
-            state.ballSpeedLevel
-        )
+    context.strokeRect(
+        x,
+        y,
+        width,
+        height
     );
-
-
-    items
-        .filter(
-            item =>
-                item.type ===
-                "button"
-        )
-        .forEach(
-            drawButton
-        );
-
 
     context.fillStyle =
         "#FFFFFF";
 
     context.font =
-        "bold 20px monospace";
+        "bold 18px monospace";
 
     context.textAlign =
         "center";
 
+    context.textBaseline =
+        "middle";
 
     context.fillText(
-        `VELOCIDAD REAL: ${
-            getBallBaseSpeed()
-                .toFixed(1)
-        }`,
-        CANVAS_WIDTH / 2,
-        232
+        text,
+        x +
+        width / 2,
+        y +
+        height / 2
     );
 
+    context.textAlign =
+        "start";
 
-    const spins = [
-        "TOPSPIN",
-        "BACKSPIN",
-        "SIDESPIN"
-    ];
-
-
-    spins.forEach(
-        (
-            name,
-            index
-        ) => {
-
-            const y =
-                340 +
-                index * 52;
-
-
-            context.strokeStyle =
-                "rgba(255,255,255,0.45)";
-
-            context.lineWidth = 2;
-
-
-            context.strokeRect(
-                475,
-                y,
-                330,
-                40
-            );
-
-
-            context.fillStyle =
-                "rgba(255,255,255,0.65)";
-
-            context.font =
-                "bold 18px monospace";
-
-
-            context.fillText(
-                `${name} · PRÓXIMAMENTE`,
-                CANVAS_WIDTH / 2,
-                y + 20
-            );
-        }
-    );
+    context.textBaseline =
+        "alphabetic";
 }
 
+function drawControlsMenu() {
 
-// ============================================================
-// VICTORIA
-// ============================================================
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.80)";
+
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
+    );
+
+    context.fillStyle =
+        "#FFFFFF";
+
+    context.font =
+        MENU_TITLE_FONT;
+
+    context.textAlign =
+        "center";
+
+    context.textBaseline =
+        "middle";
+
+    context.fillText(
+        "CONTROLES",
+        CANVAS_WIDTH / 2,
+        65
+    );
+
+    context.font =
+        "bold 30px monospace";
+
+    context.fillText(
+        "IZQUIERDA",
+        CONTROLS_LEFT_X +
+        145,
+        120
+    );
+
+    context.fillText(
+        "DERECHA",
+        CONTROLS_RIGHT_X +
+        145,
+        120
+    );
+
+    const players = [
+        {
+            name: "left",
+            x: CONTROLS_LEFT_X
+        },
+        {
+            name: "right",
+            x: CONTROLS_RIGHT_X
+        }
+    ];
+
+    for (
+        const player of
+        players
+    ) {
+
+        const data =
+            playerControls[
+                player.name
+            ];
+
+        const x =
+            player.x;
+
+        drawControlLabel(
+            "ARRIBA",
+            x,
+            getControlRowY(0)
+        );
+
+        drawControlButton(
+            waitingForKey &&
+            waitingForKey.player ===
+                player.name &&
+            waitingForKey.action ===
+                "up"
+                ? "PRESIONÁ..."
+                : formatKey(
+                    data.up
+                ),
+            x + 125,
+            getControlRowY(0),
+            CONTROLS_BUTTON_WIDTH,
+            CONTROLS_BUTTON_HEIGHT,
+            player.name +
+            "-up"
+        );
+
+        drawControlLabel(
+            "ABAJO",
+            x,
+            getControlRowY(1)
+        );
+
+        drawControlButton(
+            waitingForKey &&
+            waitingForKey.player ===
+                player.name &&
+            waitingForKey.action ===
+                "down"
+                ? "PRESIONÁ..."
+                : formatKey(
+                    data.down
+                ),
+            x + 125,
+            getControlRowY(1),
+            CONTROLS_BUTTON_WIDTH,
+            CONTROLS_BUTTON_HEIGHT,
+            player.name +
+            "-down"
+        );
+
+        drawControlLabel(
+            "MOUSE",
+            x,
+            getControlRowY(2)
+        );
+
+        drawControlButton(
+            data.mouse
+                ? "ON"
+                : "OFF",
+            x + 125,
+            getControlRowY(2),
+            CONTROLS_BUTTON_WIDTH,
+            CONTROLS_BUTTON_HEIGHT,
+            player.name +
+            "-mouse"
+        );
+
+        drawControlLabel(
+            "SENS.",
+            x,
+            getControlRowY(3)
+        );
+
+        drawControlButton(
+            "-",
+            x + 125,
+            getControlRowY(3),
+            45,
+            CONTROLS_BUTTON_HEIGHT,
+            player.name +
+            "-sens-minus"
+        );
+
+        drawControlButton(
+            data.sensitivity
+                .toFixed(1),
+            x + 175,
+            getControlRowY(3),
+            80,
+            CONTROLS_BUTTON_HEIGHT,
+            null
+        );
+
+        drawControlButton(
+            "+",
+            x + 260,
+            getControlRowY(3),
+            45,
+            CONTROLS_BUTTON_HEIGHT,
+            player.name +
+            "-sens-plus"
+        );
+    }
+
+    context.font =
+        "16px monospace";
+
+    context.fillStyle =
+        "#FFFFFF";
+
+    context.textAlign =
+        "center";
+
+    context.fillText(
+        "Hacé click en una tecla para reasignarla · ESC cancela",
+        CANVAS_WIDTH / 2,
+        545
+    );
+
+    drawMenuButton(
+        "VOLVER",
+        (
+            CANVAS_WIDTH -
+            220
+        ) /
+        2,
+        625,
+        220,
+        50,
+        "controlsBack"
+    );
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
+}
 
 function drawVictoryScreen() {
 
-    drawOverlay(0.68);
+    context.fillStyle =
+        "rgba(0, 0, 0, 0.65)";
 
-
-    drawTitle(
-        state.winner ===
-            "left"
-
-            ? "LA IZQUIERDA GANA"
-            : "LA DERECHA GANA",
-
-        315,
-        UI.winnerFont
+    context.fillRect(
+        COURT_LEFT,
+        COURT_TOP,
+        COURT_RIGHT -
+            COURT_LEFT,
+        COURT_BOTTOM -
+            COURT_TOP
     );
 
+    context.fillStyle =
+        "#FFFFFF";
 
-    currentInteractives()
-        .forEach(
-            drawButton
+    context.font =
+        WINNER_FONT;
+
+    context.textAlign =
+        "center";
+
+    context.textBaseline =
+        "middle";
+
+    const winnerText =
+        winner ===
+        "left"
+            ? "LA IZQUIERDA GANA"
+            : "LA DERECHA GANA";
+
+    context.fillText(
+        winnerText,
+        CANVAS_WIDTH / 2,
+        CANVAS_HEIGHT / 2 -
+        35
+    );
+
+    context.lineWidth =
+        hoveredButton ===
+        "revenge"
+            ? 5
+            : 3;
+
+    context.strokeStyle =
+        "#FFFFFF";
+
+    if (
+        hoveredButton ===
+        "revenge"
+    ) {
+
+        context.fillStyle =
+            "rgba(255, 255, 255, 0.12)";
+
+        context.fillRect(
+            REVENGE_BUTTON_X,
+            REVENGE_BUTTON_Y,
+            REVENGE_BUTTON_WIDTH,
+            REVENGE_BUTTON_HEIGHT
         );
+    }
+
+    context.strokeRect(
+        REVENGE_BUTTON_X,
+        REVENGE_BUTTON_Y,
+        REVENGE_BUTTON_WIDTH,
+        REVENGE_BUTTON_HEIGHT
+    );
+
+    context.fillStyle =
+        "#FFFFFF";
+
+    context.font =
+        REVENGE_FONT;
+
+    context.fillText(
+        "¿REVANCHA?",
+        CANVAS_WIDTH / 2,
+        REVENGE_BUTTON_Y +
+        REVENGE_BUTTON_HEIGHT /
+        2
+    );
+
+    context.textAlign =
+        "start";
+
+    context.textBaseline =
+        "alphabetic";
 }
-
-
-// ============================================================
-// RENDER PRINCIPAL
-// ============================================================
 
 function drawGame() {
 
@@ -3086,89 +3338,79 @@ function drawGame() {
         CANVAS_HEIGHT
     );
 
-
-    if (
-        state.screen ===
-        "start"
-    ) {
-
-        drawStartMenu();
-
-        return;
-    }
-
-
-    drawTable();
+    drawCourt();
     drawPaddles();
     drawBall();
     drawScore();
 
+    if (
+        restartConfirmOpen &&
+        !gameOver
+    ) {
+
+        drawRestartConfirm();
+
+        return;
+    }
 
     if (
-        state.screen ===
-        "pause"
+        gamePaused &&
+        !settingsOpen &&
+        !controlsOpen &&
+        !backgroundOpen &&
+        !physicsOpen &&
+        !gameOver
     ) {
+
         drawPauseMenu();
     }
 
-
     if (
-        state.screen ===
-        "restartConfirm"
+        settingsOpen &&
+        !controlsOpen &&
+        !backgroundOpen &&
+        !physicsOpen &&
+        !gameOver
     ) {
-        drawRestartConfirm();
-    }
 
-
-    if (
-        state.screen ===
-        "settings"
-    ) {
         drawSettingsMenu();
     }
 
-
     if (
-        state.screen ===
-        "controls"
+        backgroundOpen &&
+        !gameOver
     ) {
-        drawControlsMenu();
-    }
 
-
-    if (
-        state.screen ===
-        "background"
-    ) {
         drawBackgroundMenu();
     }
 
-
     if (
-        state.screen ===
-        "physics"
+        physicsOpen &&
+        !gameOver
     ) {
+
         drawPhysicsMenu();
     }
 
-
     if (
-        state.screen ===
-        "victory"
+        controlsOpen &&
+        !gameOver
     ) {
+
+        drawControlsMenu();
+    }
+
+    if (gameOver) {
+
         drawVictoryScreen();
     }
 }
-
-
-// ============================================================
-// LOOP
-// ============================================================
 
 function gameLoop() {
 
     updatePaddles();
     updateBall();
+
     drawGame();
 
     requestAnimationFrame(
@@ -3176,10 +3418,4 @@ function gameLoop() {
     );
 }
 
-
-// ============================================================
-// INICIO
-// ============================================================
-
-resetBall();
 gameLoop();
