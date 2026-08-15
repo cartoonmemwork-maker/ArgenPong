@@ -8,7 +8,15 @@ const TABLE = {
 };
 
 const PADDLE = { w: 20, h: 120, margin: 40, baseSpeed: 8 };
-const BALL = { size: 20, baseX: 7, baseY: 5 };
+
+const BALL = {
+    size: 20,
+    speedLevels: [4, 5, 6, 7.2, 8.6, 10.2, 12, 14.2, 17, 20],
+    defaultLevel: 5,
+    baseYRatio: 0.7,
+    progressiveFactor: 1.04
+};
+
 const MATCH = { win: 11, margin: 2 };
 
 const UI = {
@@ -17,13 +25,6 @@ const UI = {
     small: "bold 18px monospace",
     score: "bold 48px monospace",
     winner: "bold 52px monospace"
-};
-
-const PHYSICS = {
-    min: 3,
-    max: 15,
-    step: 1,
-    progressiveIncrement: 0.05
 };
 
 const SENS = {
@@ -40,6 +41,7 @@ const LOCAL_DEFAULTS = {
         mouse: false,
         sensitivity: SENS.default
     },
+
     right: {
         up: "ArrowUp",
         down: "ArrowDown",
@@ -64,12 +66,14 @@ const AI_LEVELS = {
         maxSpeed: 5.2,
         error: 75
     },
+
     normal: {
         label: "NORMAL",
         reaction: 9,
         maxSpeed: 7.2,
         error: 36
     },
+
     hard: {
         label: "DIFÍCIL",
         reaction: 4,
@@ -79,14 +83,16 @@ const AI_LEVELS = {
 };
 
 let courtColor = "black";
+
 let audioContext = null;
 let audioMuted = false;
 
-let ballSpeed = BALL.baseX;
+let ballSpeedLevel = BALL.defaultLevel;
 let progressiveSpeed = false;
 
 let leftScore = 0;
 let rightScore = 0;
+
 let servingPlayer = "left";
 
 let gameOver = false;
@@ -113,8 +119,8 @@ let aiDifficulty = "normal";
 let aiTargetY = H / 2;
 let aiReactionCounter = 0;
 
-let mouseY = H / 2;
 let previousMouseY = null;
+let activeSlider = null;
 
 const localControls = {
     left: { ...LOCAL_DEFAULTS.left },
@@ -140,8 +146,8 @@ const rightPaddle = {
 const ball = {
     x: (W - BALL.size) / 2,
     y: (H - BALL.size) / 2,
-    vx: BALL.baseX,
-    vy: BALL.baseY
+    vx: 0,
+    vy: 0
 };
 
 
@@ -149,20 +155,20 @@ const ball = {
 // UTILS
 // ============================================================
 
-function clamp(v, min, max) {
-    return Math.max(min, Math.min(max, v));
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
 }
 
-function round1(v) {
-    return Math.round(v * 10) / 10;
+function round1(value) {
+    return Math.round(value * 10) / 10;
 }
 
-function inside(x, y, r) {
+function inside(x, y, rect) {
     return (
-        x >= r.x &&
-        x <= r.x + r.w &&
-        y >= r.y &&
-        y <= r.y + r.h
+        x >= rect.x &&
+        x <= rect.x + rect.w &&
+        y >= rect.y &&
+        y <= rect.y + rect.h
     );
 }
 
@@ -179,7 +185,8 @@ function otherSide(side) {
 }
 
 function mousePos(event) {
-    const rect = canvas.getBoundingClientRect();
+    const rect =
+        canvas.getBoundingClientRect();
 
     return {
         x:
@@ -203,7 +210,16 @@ function formatKey(key) {
         " ": "SPACE"
     };
 
-    return names[key] || key.toUpperCase();
+    return (
+        names[key] ||
+        key.toUpperCase()
+    );
+}
+
+function currentBallSpeed() {
+    return BALL.speedLevels[
+        ballSpeedLevel - 1
+    ];
 }
 
 
@@ -213,16 +229,27 @@ function formatKey(key) {
 
 function initAudio() {
     if (!audioContext) {
-        audioContext = new AudioContext();
+        audioContext =
+            new AudioContext();
     }
 
-    if (audioContext.state === "suspended") {
+    if (
+        audioContext.state ===
+        "suspended"
+    ) {
         audioContext.resume();
     }
 }
 
-function sound(frequency, duration, volume) {
-    if (audioMuted || !audioContext) {
+function sound(
+    frequency,
+    duration,
+    volume
+) {
+    if (
+        audioMuted ||
+        !audioContext
+    ) {
         return;
     }
 
@@ -232,30 +259,39 @@ function sound(frequency, duration, volume) {
     const gain =
         audioContext.createGain();
 
-    oscillator.type = "square";
+    oscillator.type =
+        "square";
 
-    oscillator.frequency.setValueAtTime(
-        frequency,
-        audioContext.currentTime
-    );
+    oscillator.frequency
+        .setValueAtTime(
+            frequency,
+            audioContext.currentTime
+        );
 
-    gain.gain.setValueAtTime(
-        volume,
-        audioContext.currentTime
-    );
+    gain.gain
+        .setValueAtTime(
+            volume,
+            audioContext.currentTime
+        );
 
-    gain.gain.exponentialRampToValueAtTime(
-        0.001,
-        audioContext.currentTime + duration
-    );
+    gain.gain
+        .exponentialRampToValueAtTime(
+            0.001,
+            audioContext.currentTime +
+            duration
+        );
 
     oscillator.connect(gain);
-    gain.connect(audioContext.destination);
+
+    gain.connect(
+        audioContext.destination
+    );
 
     oscillator.start();
 
     oscillator.stop(
-        audioContext.currentTime + duration
+        audioContext.currentTime +
+        duration
     );
 }
 
@@ -296,6 +332,21 @@ function resetAIControls() {
     waitingForKey = null;
 }
 
+function resetPhysics() {
+    ballSpeedLevel =
+        BALL.defaultLevel;
+
+    progressiveSpeed =
+        false;
+
+    if (
+        gameMode &&
+        !gameOver
+    ) {
+        resetBall();
+    }
+}
+
 function resetPaddles() {
     leftPaddle.y =
         (H - PADDLE.h) / 2;
@@ -311,14 +362,30 @@ function resetBall() {
     ball.y =
         (H - BALL.size) / 2;
 
+    const speed =
+        currentBallSpeed();
+
     ball.vx =
-        servingPlayer === "left"
-            ? Math.abs(ballSpeed)
-            : -Math.abs(ballSpeed);
+        (
+            servingPlayer ===
+            "left"
+                ? 1
+                : -1
+        ) *
+        speed;
+
+    const ySign =
+        ball.vy < 0
+            ? -1
+            : 1;
 
     ball.vy =
-        (ball.vy < 0 ? -1 : 1) *
-        BALL.baseY;
+        ySign *
+        Math.max(
+            3,
+            speed *
+            BALL.baseYRatio
+        );
 
     aiReactionCounter = 0;
 }
@@ -327,7 +394,8 @@ function resetMatch() {
     leftScore = 0;
     rightScore = 0;
 
-    servingPlayer = "left";
+    servingPlayer =
+        "left";
 
     gameOver = false;
     winner = null;
@@ -370,6 +438,7 @@ function goToStartMenu() {
     winner = null;
 
     confirmOpen = null;
+
     hoveredButton = null;
     waitingForKey = null;
 
@@ -396,8 +465,10 @@ function checkWinner() {
 
     return (
         Math.abs(
-            leftScore - rightScore
-        ) >= MATCH.margin
+            leftScore -
+            rightScore
+        ) >=
+        MATCH.margin
     );
 }
 
@@ -407,17 +478,24 @@ function updateServe() {
         rightScore >= 10
     ) {
         servingPlayer =
-            otherSide(servingPlayer);
+            otherSide(
+                servingPlayer
+            );
 
         return;
     }
 
     servingPlayer =
         Math.floor(
-            (leftScore + rightScore) / 2
+            (
+                leftScore +
+                rightScore
+            ) /
+            2
         ) %
         2 ===
         0
+
             ? "left"
             : "right";
 }
@@ -427,7 +505,8 @@ function handlePoint() {
         gameOver = true;
 
         winner =
-            leftScore > rightScore
+            leftScore >
+            rightScore
                 ? "left"
                 : "right";
 
@@ -458,23 +537,36 @@ function wouldWinNext(side) {
             left >= MATCH.win ||
             right >= MATCH.win
         ) &&
-        Math.abs(left - right) >=
-            MATCH.margin
+        Math.abs(
+            left -
+            right
+        ) >=
+        MATCH.margin
     );
 }
 
 function matchPointSide() {
     const left =
-        wouldWinNext("left");
+        wouldWinNext(
+            "left"
+        );
 
     const right =
-        wouldWinNext("right");
+        wouldWinNext(
+            "right"
+        );
 
-    if (left && !right) {
+    if (
+        left &&
+        !right
+    ) {
         return "left";
     }
 
-    if (right && !left) {
+    if (
+        right &&
+        !left
+    ) {
         return "right";
     }
 
@@ -483,7 +575,7 @@ function matchPointSide() {
 
 
 // ============================================================
-// PHYSICS
+// FÍSICA
 // ============================================================
 
 function increaseBallSpeed() {
@@ -491,30 +583,42 @@ function increaseBallSpeed() {
         return;
     }
 
-    const multiplier =
-        1 +
-        PHYSICS.progressiveIncrement;
+    const maxSpeed =
+        BALL.speedLevels[
+            BALL.speedLevels.length - 1
+        ];
 
-    ball.vx =
-        (Math.sign(ball.vx) || 1) *
-        Math.min(
-            Math.abs(ball.vx) *
-            multiplier,
-            PHYSICS.max
+    const currentSpeed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
         );
 
-    ball.vy =
-        (Math.sign(ball.vy) || 1) *
+    if (
+        currentSpeed >=
+        maxSpeed
+    ) {
+        return;
+    }
+
+    const nextSpeed =
         Math.min(
-            Math.abs(ball.vy) *
-            multiplier,
-            PHYSICS.max
+            currentSpeed *
+            BALL.progressiveFactor,
+            maxSpeed
         );
+
+    const scale =
+        nextSpeed /
+        currentSpeed;
+
+    ball.vx *= scale;
+    ball.vy *= scale;
 }
 
 
 // ============================================================
-// PADDLES
+// MOVIMIENTO
 // ============================================================
 
 function localMove() {
@@ -563,7 +667,9 @@ function localMove() {
 
 function humanMoveAI() {
     const paddle =
-        sidePaddle(humanSide);
+        sidePaddle(
+            humanSide
+        );
 
     const speed =
         PADDLE.baseSpeed *
@@ -612,7 +718,7 @@ function clampPaddles() {
 
 
 // ============================================================
-// AI
+// IA
 // ============================================================
 
 function predictBallY(targetX) {
@@ -624,7 +730,10 @@ function predictBallY(targetX) {
     }
 
     const time =
-        (targetX - ball.x) /
+        (
+            targetX -
+            ball.x
+        ) /
         ball.vx;
 
     if (time <= 0) {
@@ -639,7 +748,8 @@ function predictBallY(targetX) {
         BALL.size;
 
     const span =
-        maxY - minY;
+        maxY -
+        minY;
 
     const period =
         span * 2;
@@ -678,16 +788,21 @@ function predictBallY(targetX) {
 
 function updateAI() {
     if (
-        gameMode !== "ai"
+        gameMode !==
+        "ai"
     ) {
         return;
     }
 
     const aiSide =
-        otherSide(humanSide);
+        otherSide(
+            humanSide
+        );
 
     const paddle =
-        sidePaddle(aiSide);
+        sidePaddle(
+            aiSide
+        );
 
     const config =
         AI_LEVELS[
@@ -755,13 +870,15 @@ function updatePaddles() {
     }
 
     if (
-        gameMode === "local"
+        gameMode ===
+        "local"
     ) {
         localMove();
     }
 
     if (
-        gameMode === "ai"
+        gameMode ===
+        "ai"
     ) {
         humanMoveAI();
         updateAI();
@@ -772,7 +889,7 @@ function updatePaddles() {
 
 
 // ============================================================
-// BALL
+// PELOTA
 // ============================================================
 
 function updateBall() {
@@ -796,7 +913,9 @@ function updateBall() {
             TABLE.top;
 
         ball.vy =
-            Math.abs(ball.vy);
+            Math.abs(
+                ball.vy
+            );
 
         increaseBallSpeed();
         wallSound();
@@ -812,7 +931,9 @@ function updateBall() {
             BALL.size;
 
         ball.vy =
-            -Math.abs(ball.vy);
+            -Math.abs(
+                ball.vy
+            );
 
         increaseBallSpeed();
         wallSound();
@@ -838,7 +959,9 @@ function updateBall() {
             PADDLE.w;
 
         ball.vx =
-            Math.abs(ball.vx);
+            Math.abs(
+                ball.vx
+            );
 
         increaseBallSpeed();
         paddleSound();
@@ -864,7 +987,9 @@ function updateBall() {
             BALL.size;
 
         ball.vx =
-            -Math.abs(ball.vx);
+            -Math.abs(
+                ball.vx
+            );
 
         increaseBallSpeed();
         paddleSound();
@@ -989,7 +1114,8 @@ function setRebindKey(
     key
 ) {
     if (
-        gameMode === "local"
+        gameMode ===
+        "local"
     ) {
         const [
             side,
@@ -1027,6 +1153,7 @@ function closeMenusToGame() {
     physicsOpen = false;
 
     confirmOpen = null;
+
     waitingForKey = null;
     hoveredButton = null;
 }
@@ -1034,8 +1161,7 @@ function closeMenusToGame() {
 function handleEscape() {
     if (startMenuOpen) {
         if (aiMenuOpen) {
-            aiMenuOpen =
-                false;
+            aiMenuOpen = false;
         }
 
         return;
@@ -1058,9 +1184,13 @@ function handleEscape() {
         return;
     }
 
-    gamePaused =
-        true;
+    gamePaused = true;
 }
+
+
+// ============================================================
+// MOUSE
+// ============================================================
 
 canvas.addEventListener(
     "mousemove",
@@ -1070,8 +1200,6 @@ canvas.addEventListener(
             y
         } =
             mousePos(event);
-
-        mouseY = y;
 
         if (
             !startMenuOpen &&
@@ -1153,6 +1281,50 @@ canvas.addEventListener(
     }
 );
 
+window.addEventListener(
+    "mouseup",
+    () => {
+        activeSlider = null;
+    }
+);
+
+canvas.addEventListener(
+    "mousedown",
+    event => {
+        const {
+            x,
+            y
+        } =
+            mousePos(event);
+
+        const slider =
+            interactiveItems()
+                .find(
+                    item =>
+                        item.type ===
+                            "slider" &&
+                        inside(
+                            x,
+                            y,
+                            item.hitRect ||
+                            item.rect
+                        )
+                );
+
+        if (!slider) {
+            return;
+        }
+
+        activeSlider =
+            slider.id;
+
+        updateSlider(
+            slider,
+            x
+        );
+    }
+);
+
 canvas.addEventListener(
     "click",
     event => {
@@ -1169,13 +1341,16 @@ canvas.addEventListener(
                         inside(
                             x,
                             y,
+                            item.hitRect ||
                             item.rect
                         )
                 );
 
         if (
             hit &&
-            !hit.disabled
+            !hit.disabled &&
+            hit.type !==
+                "slider"
         ) {
             handleAction(
                 hit.id
@@ -1184,9 +1359,38 @@ canvas.addEventListener(
     }
 );
 
+canvas.addEventListener(
+    "mousemove",
+    event => {
+        if (!activeSlider) {
+            return;
+        }
+
+        const { x } =
+            mousePos(event);
+
+        const slider =
+            interactiveItems()
+                .find(
+                    item =>
+                        item.id ===
+                            activeSlider &&
+                        item.type ===
+                            "slider"
+                );
+
+        if (slider) {
+            updateSlider(
+                slider,
+                x
+            );
+        }
+    }
+);
+
 
 // ============================================================
-// UI
+// UI DATA
 // ============================================================
 
 function buttonRect(
@@ -1224,6 +1428,35 @@ function buttonRect(
     };
 }
 
+function addSlider(
+    items,
+    id,
+    label,
+    value,
+    min,
+    max,
+    rect
+) {
+    items.push({
+        id,
+        label,
+        value,
+        min,
+        max,
+        rect,
+
+        type:
+            "slider",
+
+        hitRect: {
+            x: rect.x - 10,
+            y: rect.y - 30,
+            w: rect.w + 20,
+            h: rect.h + 50
+        }
+    });
+}
+
 function interactiveItems() {
     const items = [];
 
@@ -1237,9 +1470,13 @@ function interactiveItems() {
             id,
             text,
             rect,
-            disabled
+            disabled,
+            type: "button"
         });
     };
+
+
+    // INICIO
 
     if (
         startMenuOpen &&
@@ -1276,18 +1513,24 @@ function interactiveItems() {
         return items;
     }
 
+
+    // IA
+
     if (
         startMenuOpen &&
         aiMenuOpen
     ) {
         add(
             "side",
+
             `LADO: ${
                 humanSide ===
                 "left"
+
                     ? "IZQUIERDA"
                     : "DERECHA"
             }`,
+
             buttonRect(
                 0,
                 5,
@@ -1353,6 +1596,9 @@ function interactiveItems() {
         return items;
     }
 
+
+    // VICTORIA
+
     if (gameOver) {
         add(
             "revenge",
@@ -1378,6 +1624,9 @@ function interactiveItems() {
 
         return items;
     }
+
+
+    // CONFIRMACIÓN
 
     if (confirmOpen) {
         add(
@@ -1405,6 +1654,9 @@ function interactiveItems() {
         return items;
     }
 
+
+    // CONTROLES
+
     if (controlsOpen) {
         if (
             gameMode ===
@@ -1421,6 +1673,9 @@ function interactiveItems() {
             add
         );
     }
+
+
+    // FONDO
 
     if (backgroundOpen) {
         [
@@ -1458,65 +1713,105 @@ function interactiveItems() {
         return items;
     }
 
-    if (physicsOpen) {
-        add(
-            "speedPlus",
-            `VELOCIDAD +   ${ballSpeed}`,
-            buttonRect(
-                0,
-                4,
-                320,
-                55,
-                15,
-                380
-            )
-        );
 
-        add(
-            "speedMinus",
-            `VELOCIDAD -   ${ballSpeed}`,
-            buttonRect(
-                1,
-                4,
-                320,
-                55,
-                15,
-                380
-            )
+    // FÍSICAS
+
+    if (physicsOpen) {
+        addSlider(
+            items,
+            "ballSpeed",
+            "VELOCIDAD",
+            ballSpeedLevel,
+            1,
+            10,
+            {
+                x: W / 2 - 180,
+                y: 170,
+                w: 360,
+                h: 20
+            }
         );
 
         add(
             "progressive",
-            `PROGRESIVA: ${
+
+            `VELOCIDAD PROGRESIVA: ${
                 progressiveSpeed
                     ? "ON"
                     : "OFF"
             }`,
-            buttonRect(
-                2,
-                4,
-                320,
-                55,
-                15,
-                380
-            )
+
+            {
+                x: W / 2 - 230,
+                y: 240,
+                w: 460,
+                h: 55
+            }
+        );
+
+        add(
+            "topspin",
+            "TOPSPIN · PRÓXIMAMENTE",
+            {
+                x: W / 2 - 210,
+                y: 320,
+                w: 420,
+                h: 44
+            },
+            true
+        );
+
+        add(
+            "backspin",
+            "BACKSPIN · PRÓXIMAMENTE",
+            {
+                x: W / 2 - 210,
+                y: 374,
+                w: 420,
+                h: 44
+            },
+            true
+        );
+
+        add(
+            "sidespin",
+            "SIDESPIN · PRÓXIMAMENTE",
+            {
+                x: W / 2 - 210,
+                y: 428,
+                w: 420,
+                h: 44
+            },
+            true
+        );
+
+        add(
+            "physicsReset",
+            "RESTABLECER POR DEFECTO",
+            {
+                x: W / 2 - 190,
+                y: 505,
+                w: 380,
+                h: 50
+            }
         );
 
         add(
             "physicsBack",
             "VOLVER",
-            buttonRect(
-                3,
-                4,
-                320,
-                55,
-                15,
-                380
-            )
+            {
+                x: W / 2 - 110,
+                y: 570,
+                w: 220,
+                h: 50
+            }
         );
 
         return items;
     }
+
+
+    // AJUSTES
 
     if (settingsOpen) {
         add(
@@ -1560,11 +1855,13 @@ function interactiveItems() {
 
         add(
             "sound",
+
             `SONIDO: ${
                 audioMuted
                     ? "OFF"
                     : "ON"
             }`,
+
             buttonRect(
                 3,
                 5,
@@ -1590,6 +1887,9 @@ function interactiveItems() {
 
         return items;
     }
+
+
+    // PAUSA
 
     if (gamePaused) {
         add(
@@ -1648,6 +1948,11 @@ function interactiveItems() {
     return items;
 }
 
+
+// ============================================================
+// CONTROLES PVP
+// ============================================================
+
 function localControlItems(
     items,
     add
@@ -1672,12 +1977,15 @@ function localControlItems(
 
         add(
             `${side}:up`,
+
             waitingForKey ===
             `${side}:up`
+
                 ? "PRESIONÁ..."
                 : formatKey(
                     controls.up
                 ),
+
             {
                 x: x + 125,
                 y: 175,
@@ -1688,12 +1996,15 @@ function localControlItems(
 
         add(
             `${side}:down`,
+
             waitingForKey ===
             `${side}:down`
+
                 ? "PRESIONÁ..."
                 : formatKey(
                     controls.down
                 ),
+
             {
                 x: x + 125,
                 y: 235,
@@ -1704,11 +2015,11 @@ function localControlItems(
 
         add(
             `${side}:mouse`,
-            `MOUSE: ${
-                controls.mouse
-                    ? "ON"
-                    : "OFF"
-            }`,
+
+            controls.mouse
+                ? "ON"
+                : "OFF",
+
             {
                 x: x + 125,
                 y: 295,
@@ -1765,89 +2076,114 @@ function localControlItems(
     return items;
 }
 
+
+// ============================================================
+// CONTROLES VS IA
+// ============================================================
+
 function aiControlItems(
     items,
     add
 ) {
-    const x =
-        W / 2 - 170;
+    const labelX = 390;
+    const buttonX =
+        labelX + 180;
+
+    const rowY = [
+        175,
+        235,
+        295,
+        365
+    ];
 
     add(
         "up1",
+
         waitingForKey ===
         "up1"
+
             ? "PRESIONÁ..."
             : formatKey(
                 aiControls.up1
             ),
+
         {
-            x,
-            y: 185,
-            w: 150,
-            h: 44
+            x: buttonX,
+            y: rowY[0],
+            w: 95,
+            h: 42
         }
     );
 
     add(
         "up2",
+
         waitingForKey ===
         "up2"
+
             ? "PRESIONÁ..."
             : formatKey(
                 aiControls.up2
             ),
+
         {
-            x: x + 170,
-            y: 185,
-            w: 150,
-            h: 44
+            x: buttonX + 105,
+            y: rowY[0],
+            w: 95,
+            h: 42
         }
     );
 
     add(
         "down1",
+
         waitingForKey ===
         "down1"
+
             ? "PRESIONÁ..."
             : formatKey(
                 aiControls.down1
             ),
+
         {
-            x,
-            y: 250,
-            w: 150,
-            h: 44
+            x: buttonX,
+            y: rowY[1],
+            w: 95,
+            h: 42
         }
     );
 
     add(
         "down2",
+
         waitingForKey ===
         "down2"
+
             ? "PRESIONÁ..."
             : formatKey(
                 aiControls.down2
             ),
+
         {
-            x: x + 170,
-            y: 250,
-            w: 150,
-            h: 44
+            x: buttonX + 105,
+            y: rowY[1],
+            w: 95,
+            h: 42
         }
     );
 
     add(
         "aiMouse",
-        `MOUSE: ${
-            aiControls.mouse
-                ? "ON"
-                : "OFF"
-        }`,
+
+        aiControls.mouse
+            ? "ON"
+            : "OFF",
+
         {
-            x,
-            y: 315,
-            w: 320,
-            h: 50
+            x: buttonX,
+            y: rowY[2],
+            w: 200,
+            h: 42
         }
     );
 
@@ -1855,10 +2191,10 @@ function aiControlItems(
         "aiSensMinus",
         "-",
         {
-            x,
-            y: 390,
-            w: 55,
-            h: 46
+            x: buttonX,
+            y: rowY[3],
+            w: 45,
+            h: 42
         }
     );
 
@@ -1866,10 +2202,10 @@ function aiControlItems(
         "aiSensPlus",
         "+",
         {
-            x: x + 265,
-            y: 390,
-            w: 55,
-            h: 46
+            x: buttonX + 155,
+            y: rowY[3],
+            w: 45,
+            h: 42
         }
     );
 
@@ -1877,10 +2213,10 @@ function aiControlItems(
         "aiControlsReset",
         "RESTABLECER POR DEFECTO",
         {
-            x: W / 2 - 190,
-            y: 500,
-            w: 380,
-            h: 52
+            x: W / 2 - 185,
+            y: 510,
+            w: 370,
+            h: 50
         }
     );
 
@@ -1889,7 +2225,7 @@ function aiControlItems(
         "VOLVER",
         {
             x: W / 2 - 110,
-            y: 575,
+            y: 580,
             w: 220,
             h: 50
         }
@@ -1900,7 +2236,52 @@ function aiControlItems(
 
 
 // ============================================================
-// ACTIONS
+// SLIDER
+// ============================================================
+
+function updateSlider(
+    slider,
+    mouseX
+) {
+    const ratio =
+        clamp(
+            (
+                mouseX -
+                slider.rect.x
+            ) /
+            slider.rect.w,
+
+            0,
+            1
+        );
+
+    if (
+        slider.id ===
+        "ballSpeed"
+    ) {
+        ballSpeedLevel =
+            clamp(
+                Math.round(
+                    1 +
+                    ratio * 9
+                ),
+
+                1,
+                10
+            );
+
+        if (
+            gameMode &&
+            !gameOver
+        ) {
+            resetBall();
+        }
+    }
+}
+
+
+// ============================================================
+// ACCIONES
 // ============================================================
 
 function handleAction(id) {
@@ -1926,6 +2307,7 @@ function handleAction(id) {
             otherSide(
                 humanSide
             );
+
         return;
     }
 
@@ -1941,6 +2323,7 @@ function handleAction(id) {
             humanSide,
             id
         );
+
         return;
     }
 
@@ -1955,12 +2338,16 @@ function handleAction(id) {
     }
 
     if (id === "restart") {
-        confirmOpen = "restart";
+        confirmOpen =
+            "restart";
+
         return;
     }
 
     if (id === "mainMenu") {
-        confirmOpen = "menu";
+        confirmOpen =
+            "menu";
+
         return;
     }
 
@@ -2010,6 +2397,7 @@ function handleAction(id) {
     if (id === "sound") {
         audioMuted =
             !audioMuted;
+
         return;
     }
 
@@ -2045,6 +2433,9 @@ function handleAction(id) {
         return;
     }
 
+
+    // CONTROLES PVP
+
     if (
         gameMode ===
         "local"
@@ -2053,7 +2444,8 @@ function handleAction(id) {
             id.split(":");
 
         if (
-            parts.length === 2
+            parts.length ===
+            2
         ) {
             const [
                 side,
@@ -2072,6 +2464,7 @@ function handleAction(id) {
             ) {
                 waitingForKey =
                     id;
+
                 return;
             }
 
@@ -2081,6 +2474,7 @@ function handleAction(id) {
             ) {
                 controls.mouse =
                     !controls.mouse;
+
                 return;
             }
 
@@ -2097,6 +2491,7 @@ function handleAction(id) {
                             SENS.max
                         )
                     );
+
                 return;
             }
 
@@ -2113,6 +2508,7 @@ function handleAction(id) {
                             SENS.max
                         )
                     );
+
                 return;
             }
         }
@@ -2122,9 +2518,13 @@ function handleAction(id) {
             "localControlsReset"
         ) {
             resetLocalControls();
+
             return;
         }
     }
+
+
+    // CONTROLES IA
 
     if (
         gameMode ===
@@ -2138,7 +2538,9 @@ function handleAction(id) {
                 "down2"
             ].includes(id)
         ) {
-            waitingForKey = id;
+            waitingForKey =
+                id;
+
             return;
         }
 
@@ -2148,6 +2550,7 @@ function handleAction(id) {
         ) {
             aiControls.mouse =
                 !aiControls.mouse;
+
             return;
         }
 
@@ -2164,6 +2567,7 @@ function handleAction(id) {
                         SENS.max
                     )
                 );
+
             return;
         }
 
@@ -2180,6 +2584,7 @@ function handleAction(id) {
                         SENS.max
                     )
                 );
+
             return;
         }
 
@@ -2188,35 +2593,13 @@ function handleAction(id) {
             "aiControlsReset"
         ) {
             resetAIControls();
+
             return;
         }
     }
 
-    if (
-        id ===
-        "speedPlus"
-    ) {
-        ballSpeed =
-            Math.min(
-                PHYSICS.max,
-                ballSpeed +
-                PHYSICS.step
-            );
-        return;
-    }
 
-    if (
-        id ===
-        "speedMinus"
-    ) {
-        ballSpeed =
-            Math.max(
-                PHYSICS.min,
-                ballSpeed -
-                PHYSICS.step
-            );
-        return;
-    }
+    // FÍSICAS
 
     if (
         id ===
@@ -2224,14 +2607,28 @@ function handleAction(id) {
     ) {
         progressiveSpeed =
             !progressiveSpeed;
+
         return;
     }
+
+    if (
+        id ===
+        "physicsReset"
+    ) {
+        resetPhysics();
+
+        return;
+    }
+
+
+    // FINAL
 
     if (
         id ===
         "revenge"
     ) {
         resetMatch();
+
         return;
     }
 
@@ -2260,6 +2657,7 @@ function updateHover(x, y) {
             inside(
                 x,
                 y,
+                item.hitRect ||
                 item.rect
             )
         ) {
@@ -2278,7 +2676,7 @@ function updateHover(x, y) {
 
 
 // ============================================================
-// RENDER
+// RENDER BASE
 // ============================================================
 
 function drawTable() {
@@ -2360,15 +2758,23 @@ function drawBall() {
     ctx.arc(
         ball.x +
         BALL.size / 2,
+
         ball.y +
         BALL.size / 2,
+
         BALL.size / 2,
+
         0,
         Math.PI * 2
     );
 
     ctx.fill();
 }
+
+
+// ============================================================
+// MARCADOR
+// ============================================================
 
 function drawScore() {
     ctx.fillStyle =
@@ -2383,6 +2789,10 @@ function drawScore() {
     ctx.textBaseline =
         "bottom";
 
+    const scoreY =
+        TABLE.bottom -
+        20;
+
     ctx.fillText(
         String(
             leftScore
@@ -2390,8 +2800,9 @@ function drawScore() {
             2,
             "0"
         ),
+
         W / 4,
-        TABLE.bottom - 20
+        scoreY
     );
 
     ctx.fillText(
@@ -2401,8 +2812,9 @@ function drawScore() {
             2,
             "0"
         ),
+
         W * 3 / 4,
-        TABLE.bottom - 20
+        scoreY
     );
 
     const matchPoint =
@@ -2426,29 +2838,41 @@ function drawScore() {
                 2
             );
 
+        const matchY =
+            TABLE.bottom -
+            8;
+
         ctx.save();
 
         ctx.globalAlpha =
             blink;
 
         ctx.font =
-            "bold 15px monospace";
+            "bold 14px monospace";
 
         ctx.textBaseline =
-            "alphabetic";
+            "bottom";
 
         ctx.fillText(
-            "MATCH POINT",
+            "MATCH",
+
             matchPoint ===
             "left"
+
                 ? W / 4
                 : W * 3 / 4,
-            TABLE.bottom - 4
+
+            matchY
         );
 
         ctx.restore();
     }
 }
+
+
+// ============================================================
+// UI DRAW
+// ============================================================
 
 function overlay(
     alpha = 0.78
@@ -2474,7 +2898,8 @@ function title(
     ctx.fillStyle =
         "#FFFFFF";
 
-    ctx.font = font;
+    ctx.font =
+        font;
 
     ctx.textAlign =
         "center";
@@ -2499,7 +2924,9 @@ function drawButton(item) {
 
     ctx.fillStyle =
         item.disabled
+
             ? "rgba(255,255,255,.03)"
+
             : hover
                 ? "rgba(255,255,255,.13)"
                 : "rgba(0,0,0,.1)";
@@ -2513,7 +2940,9 @@ function drawButton(item) {
 
     ctx.strokeStyle =
         item.disabled
+
             ? "rgba(255,255,255,.35)"
+
             : "#FFFFFF";
 
     ctx.lineWidth =
@@ -2530,7 +2959,9 @@ function drawButton(item) {
 
     ctx.fillStyle =
         item.disabled
+
             ? "rgba(255,255,255,.5)"
+
             : "#FFFFFF";
 
     ctx.font =
@@ -2544,16 +2975,114 @@ function drawButton(item) {
 
     ctx.fillText(
         item.text,
+
         rect.x +
         rect.w / 2,
+
         rect.y +
         rect.h / 2
     );
 }
 
+function drawSlider(item) {
+    const hover =
+        hoveredButton ===
+            item.id ||
+        activeSlider ===
+            item.id;
+
+    const {
+        x,
+        y,
+        w,
+        h
+    } =
+        item.rect;
+
+    const ratio =
+        (
+            item.value -
+            item.min
+        ) /
+        (
+            item.max -
+            item.min
+        );
+
+    const knobX =
+        x +
+        ratio * w;
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.font =
+        "bold 20px monospace";
+
+    ctx.textAlign =
+        "left";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.fillText(
+        item.label,
+        x,
+        y - 25
+    );
+
+    ctx.textAlign =
+        "right";
+
+    ctx.fillText(
+        String(
+            item.value
+        ),
+        x + w,
+        y - 25
+    );
+
+    ctx.strokeStyle =
+        "#FFFFFF";
+
+    ctx.lineWidth =
+        hover
+            ? 4
+            : 2;
+
+    ctx.strokeRect(
+        x,
+        y,
+        w,
+        h
+    );
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.fillRect(
+        x,
+        y,
+        ratio * w,
+        h
+    );
+
+    ctx.beginPath();
+
+    ctx.arc(
+        knobX,
+        y + h / 2,
+        hover ? 10 : 8,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+}
+
 
 // ============================================================
-// START MENU
+// MENÚ INICIAL
 // ============================================================
 
 function drawStart() {
@@ -2588,6 +3117,7 @@ function drawStart() {
             W / 2,
             220
         );
+
     } else {
         title(
             "ELEGÍ TU LADO",
@@ -2649,12 +3179,16 @@ function drawStart() {
 
 
 // ============================================================
-// MENUS
+// MENÚS
 // ============================================================
 
 function drawPause() {
     overlay(0.72);
-    title("PAUSA", 110);
+
+    title(
+        "PAUSA",
+        110
+    );
 
     interactiveItems()
         .forEach(
@@ -2668,9 +3202,12 @@ function drawConfirm() {
     title(
         confirmOpen ===
         "restart"
+
             ? "¿REINICIAR PARTIDA?"
             : "¿VOLVER AL MENÚ?",
+
         H / 2 - 80,
+
         "bold 42px monospace"
     );
 
@@ -2697,7 +3234,11 @@ function drawConfirm() {
 
 function drawSettings() {
     overlay(0.8);
-    title("AJUSTES", 75);
+
+    title(
+        "AJUSTES",
+        75
+    );
 
     interactiveItems()
         .forEach(
@@ -2707,17 +3248,11 @@ function drawSettings() {
 
 function drawBackground() {
     overlay(0.82);
-    title("FONDO", 75);
 
-    interactiveItems()
-        .forEach(
-            drawButton
-        );
-}
-
-function drawPhysics() {
-    overlay(0.82);
-    title("FÍSICAS", 75);
+    title(
+        "FONDO",
+        75
+    );
 
     interactiveItems()
         .forEach(
@@ -2727,7 +3262,44 @@ function drawPhysics() {
 
 
 // ============================================================
-// CONTROLS
+// FÍSICAS
+// ============================================================
+
+function drawPhysics() {
+    overlay(0.84);
+
+    title(
+        "FÍSICAS",
+        65
+    );
+
+    const items =
+        interactiveItems();
+
+    items
+        .filter(
+            item =>
+                item.type ===
+                "slider"
+        )
+        .forEach(
+            drawSlider
+        );
+
+    items
+        .filter(
+            item =>
+                item.type ===
+                "button"
+        )
+        .forEach(
+            drawButton
+        );
+}
+
+
+// ============================================================
+// CONTROLES
 // ============================================================
 
 function drawControls() {
@@ -2827,6 +3399,7 @@ function drawLocalControls() {
         ctx.fillText(
             controls.sensitivity
                 .toFixed(1),
+
             x + 215,
             392
         );
@@ -2840,45 +3413,70 @@ function drawLocalControls() {
 
 function drawAIControls() {
     title(
-        "CONTROLES DEL JUGADOR",
-        70
+        "CONTROLES",
+        65
     );
+
+    const labelX =
+        390;
 
     ctx.fillStyle =
         "#FFFFFF";
 
     ctx.font =
-        "bold 20px monospace";
+        "bold 30px monospace";
 
     ctx.textAlign =
         "center";
 
     ctx.fillText(
-        "ARRIBA",
+        "JUGADOR",
         W / 2,
-        165
+        125
+    );
+
+    ctx.font =
+        "bold 20px monospace";
+
+    ctx.textAlign =
+        "left";
+
+    ctx.fillText(
+        "ARRIBA",
+        labelX,
+        202
     );
 
     ctx.fillText(
         "ABAJO",
-        W / 2,
-        230
+        labelX,
+        262
     );
 
     ctx.fillText(
-        "SENSIBILIDAD",
-        W / 2,
-        385
+        "MOUSE",
+        labelX,
+        322
     );
 
+    ctx.fillText(
+        "SENS.",
+        labelX,
+        392
+    );
+
+    ctx.textAlign =
+        "center";
+
     ctx.font =
-        "bold 24px monospace";
+        "bold 18px monospace";
 
     ctx.fillText(
         aiControls.sensitivity
             .toFixed(1),
-        W / 2,
-        414
+
+        670,
+        392
     );
 
     interactiveItems()
@@ -2889,17 +3487,21 @@ function drawAIControls() {
 
 
 // ============================================================
-// VICTORY
+// VICTORIA
 // ============================================================
 
 function drawVictory() {
     overlay(0.68);
 
     title(
-        winner === "left"
+        winner ===
+        "left"
+
             ? "LA IZQUIERDA GANA"
             : "LA DERECHA GANA",
+
         H / 2 - 50,
+
         UI.winner
     );
 
@@ -2911,7 +3513,7 @@ function drawVictory() {
 
 
 // ============================================================
-// MAIN RENDER
+// RENDER
 // ============================================================
 
 function drawGame() {
@@ -2975,6 +3577,7 @@ function drawGame() {
 function loop() {
     updatePaddles();
     updateBall();
+
     drawGame();
 
     requestAnimationFrame(
