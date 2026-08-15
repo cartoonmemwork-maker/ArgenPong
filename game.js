@@ -1,19 +1,22 @@
-
 // ============================================================
 // ARGENPONG — GAME.JS
 // ============================================================
 
 // ============================================================
-// VARIABLES / CONFIGURACIÓN
+// CANVAS
 // ============================================================
 
 const W = 1280;
 const H = 720;
+
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// ============================================================
+// CONFIGURACIÓN
+// ============================================================
+
 const TABLE = {
-    margin: 10,
     left: 10,
     right: W - 10,
     top: 10,
@@ -43,11 +46,11 @@ const PADDLE = {
 
 const BALL = {
     size: 20,
-    maxSpeed: 11,
-    baseY: 5
+    baseY: 5,
+    maxSpeed: 11
 };
 
-const SENS = {
+const SENSITIVITY = {
     min: 0.5,
     max: 2,
     step: 0.1
@@ -57,9 +60,12 @@ const PHYSICS = {
     speedMin: 1,
     speedMax: 10,
     speedStep: 1,
+
     sensitivityMin: 0.5,
     sensitivityMax: 2,
     sensitivityStep: 0.1,
+
+    // Aumento por rebote
     increment: 0.05
 };
 
@@ -68,11 +74,17 @@ const MATCH = {
     winMargin: 2
 };
 
+const CENTER_LINE = {
+    width: 4,
+    dash: 20,
+    gap: 20
+};
+
 const UI = {
-    menuTitle: "bold 48px monospace",
-    menuButton: "bold 24px monospace",
-    winner: "bold 52px monospace",
-    revenge: "bold 28px monospace",
+    titleFont: "bold 48px monospace",
+    buttonFont: "bold 24px monospace",
+    winnerFont: "bold 52px monospace",
+
     buttonW: 300,
     buttonH: 60,
     gap: 20
@@ -85,11 +97,13 @@ const SUBMENU = {
     startY: 150
 };
 
-const CONTROLS = {
+const CONTROLS_UI = {
     buttonW: 180,
     buttonH: 42,
+
     leftX: 140,
     rightX: 680,
+
     startY: 170,
     rowGap: 58
 };
@@ -97,18 +111,13 @@ const CONTROLS = {
 const REVENGE = {
     width: 260,
     height: 60,
+
     x: (W - 260) / 2,
     y: H / 2 + 55
 };
 
-const CENTER_LINE = {
-    width: 4,
-    dash: 20,
-    gap: 20
-};
-
 // ============================================================
-// ESTADO DEL JUEGO
+// ESTADO GENERAL
 // ============================================================
 
 let courtColor = DEFAULTS.courtColor;
@@ -122,6 +131,7 @@ let gameOver = false;
 let winner = null;
 
 let gamePaused = false;
+
 let settingsOpen = false;
 let controlsOpen = false;
 let backgroundOpen = false;
@@ -130,12 +140,20 @@ let physicsOpen = false;
 let hoveredButton = null;
 let waitingForKey = null;
 
+// ============================================================
+// FÍSICAS
+// ============================================================
+
 let ballSpeed = DEFAULTS.ballSpeed;
-let progressiveSpeed = DEFAULTS.progressive;
-let progressiveSensitivity = DEFAULTS.progressiveSensitivity;
+
+let progressiveSpeed =
+    DEFAULTS.progressive;
+
+let progressiveSensitivity =
+    DEFAULTS.progressiveSensitivity;
 
 // ============================================================
-// PALETAS / PELOTA
+// PALETAS
 // ============================================================
 
 const leftPaddle = {
@@ -148,9 +166,14 @@ const rightPaddle = {
     y: (H - PADDLE.height) / 2
 };
 
+// ============================================================
+// PELOTA
+// ============================================================
+
 const ball = {
     x: (W - BALL.size) / 2,
     y: (H - BALL.size) / 2,
+
     velocityX: DEFAULTS.ballSpeed,
     velocityY: BALL.baseY
 };
@@ -166,6 +189,7 @@ const playerDefaults = {
         mouse: false,
         sensitivity: DEFAULTS.paddleSensitivity
     },
+
     right: {
         up: "ArrowUp",
         down: "ArrowDown",
@@ -174,7 +198,16 @@ const playerDefaults = {
     }
 };
 
-const playerControls = structuredClone(playerDefaults);
+const playerControls = {
+    left: {
+        ...playerDefaults.left
+    },
+
+    right: {
+        ...playerDefaults.right
+    }
+};
+
 const keys = {};
 
 let mouseY = H / 2;
@@ -188,17 +221,28 @@ let audioContext = null;
 let audioMuted = false;
 
 function initializeAudio() {
-    if (!audioContext) audioContext = new AudioContext();
-    if (audioContext.state === "suspended") audioContext.resume();
+    if (!audioContext) {
+        audioContext = new AudioContext();
+    }
+
+    if (audioContext.state === "suspended") {
+        audioContext.resume();
+    }
 }
 
 function playSound(frequency, duration, volume) {
-    if (audioMuted || !audioContext) return;
+    if (audioMuted || !audioContext) {
+        return;
+    }
 
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
+    const oscillator =
+        audioContext.createOscillator();
+
+    const gain =
+        audioContext.createGain();
 
     oscillator.type = "square";
+
     oscillator.frequency.setValueAtTime(
         frequency,
         audioContext.currentTime
@@ -218,7 +262,10 @@ function playSound(frequency, duration, volume) {
     gain.connect(audioContext.destination);
 
     oscillator.start();
-    oscillator.stop(audioContext.currentTime + duration);
+
+    oscillator.stop(
+        audioContext.currentTime + duration
+    );
 }
 
 const sounds = {
@@ -236,32 +283,56 @@ function toggleMute() {
 // ============================================================
 
 function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+    return Math.max(
+        min,
+        Math.min(max, value)
+    );
 }
 
 function round1(value) {
     return Math.round(value * 10) / 10;
 }
 
-function isInsideButton(mx, my, x, y, w, h) {
+function isInsideButton(
+    mx,
+    my,
+    x,
+    y,
+    width,
+    height
+) {
     return (
         mx >= x &&
-        mx <= x + w &&
+        mx <= x + width &&
         my >= y &&
-        my <= y + h
+        my <= y + height
     );
 }
 
-function buttonY(start, index, height, gap) {
-    return start + index * (height + gap);
+function buttonY(
+    start,
+    index,
+    height,
+    gap
+) {
+    return start +
+        index * (height + gap);
 }
 
 function canvasMouse(event) {
-    const rect = canvas.getBoundingClientRect();
+    const rect =
+        canvas.getBoundingClientRect();
 
     return {
-        x: (event.clientX - rect.left) * W / rect.width,
-        y: (event.clientY - rect.top) * H / rect.height
+        x:
+            (event.clientX - rect.left) *
+            W /
+            rect.width,
+
+        y:
+            (event.clientY - rect.top) *
+            H /
+            rect.height
     };
 }
 
@@ -274,212 +345,298 @@ function formatKey(key) {
         " ": "SPACE"
     };
 
-    return names[key] ||
-        (key.length === 1 ? key.toUpperCase() : key.toUpperCase());
+    return (
+        names[key] ||
+        (
+            key.length === 1
+                ? key.toUpperCase()
+                : key.toUpperCase()
+        )
+    );
 }
 
 function setCourtColor(color) {
-    if (COLORS[color]) courtColor = color;
+    if (COLORS[color]) {
+        courtColor = color;
+    }
 }
 
 // ============================================================
-// RESTABLECER AJUSTES
+// ESTADO DE MENÚS
+// ============================================================
+
+function closeAllMenus() {
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+
+    waitingForKey = null;
+    hoveredButton = null;
+}
+
+function isAnyMenuOpen() {
+    return (
+        settingsOpen ||
+        controlsOpen ||
+        backgroundOpen ||
+        physicsOpen
+    );
+}
+
+// ============================================================
+// RESTABLECER CONTROLES
 // ============================================================
 
 function resetControlsDefaults() {
-    for (const player of ["left", "right"]) {
-        playerControls[player] = {
-            ...structuredClone(playerDefaults[player])
-        };
-    }
+    playerControls.left = {
+        ...playerDefaults.left
+    };
+
+    playerControls.right = {
+        ...playerDefaults.right
+    };
 
     waitingForKey = null;
 }
 
 function resetBackgroundDefaults() {
-    courtColor = DEFAULTS.courtColor;
+    courtColor =
+        DEFAULTS.courtColor;
 }
 
 function resetPhysicsDefaults() {
-    ballSpeed = DEFAULTS.ballSpeed;
-    progressiveSpeed = DEFAULTS.progressive;
-    progressiveSensitivity = DEFAULTS.progressiveSensitivity;
+    ballSpeed =
+        DEFAULTS.ballSpeed;
+
+    progressiveSpeed =
+        DEFAULTS.progressive;
+
+    progressiveSensitivity =
+        DEFAULTS.progressiveSensitivity;
+
+    resetBall();
 }
 
 // ============================================================
 // TECLADO
 // ============================================================
 
-window.addEventListener("keydown", event => {
-    initializeAudio();
+window.addEventListener(
+    "keydown",
+    event => {
+        initializeAudio();
 
-    // Reasignación de controles
-    if (waitingForKey) {
-        event.preventDefault();
+        // --------------------------------------------
+        // REASIGNACIÓN DE TECLA
+        // --------------------------------------------
 
-        if (event.key === "Escape") {
+        if (waitingForKey) {
+            event.preventDefault();
+
+            if (event.key === "Escape") {
+                waitingForKey = null;
+                return;
+            }
+
+            const {
+                player,
+                action
+            } = waitingForKey;
+
+            playerControls[player][action] =
+                event.key;
+
             waitingForKey = null;
+
             return;
         }
 
-        const { player, action } = waitingForKey;
+        // --------------------------------------------
+        // MUTE
+        // --------------------------------------------
 
-        // Evitamos asignar teclas reservadas
-        if (event.key !== "Escape") {
-            playerControls[player][action] = event.key;
+        if (
+            event.key.toLowerCase() === "m"
+        ) {
+            event.preventDefault();
+            toggleMute();
+            return;
         }
 
-        waitingForKey = null;
-        return;
+        // --------------------------------------------
+        // ESC
+        // --------------------------------------------
+
+        if (event.key === "Escape") {
+            event.preventDefault();
+            handleEscape();
+            return;
+        }
+
+        // --------------------------------------------
+        // JUEGO
+        // --------------------------------------------
+
+        if (
+            gamePaused ||
+            gameOver
+        ) {
+            return;
+        }
+
+        keys[event.key] = true;
     }
+);
 
-    const key = event.key.toLowerCase();
-
-    if (key === "m") {
-        event.preventDefault();
-        toggleMute();
-        return;
+window.addEventListener(
+    "keyup",
+    event => {
+        keys[event.key] = false;
     }
-
-    if (event.key === "Escape") {
-        event.preventDefault();
-        handleEscape();
-        return;
-    }
-
-    if (gamePaused || gameOver) return;
-
-    keys[event.key] = true;
-});
-
-window.addEventListener("keyup", event => {
-    keys[event.key] = false;
-});
+);
 
 // ============================================================
-// ESC — COMPORTAMIENTO GLOBAL
+// ESC
 // ============================================================
 
 function handleEscape() {
-    if (gameOver) return;
-
-    // Desde cualquier submenu:
-    // ESC vuelve directamente al juego.
-    if (
-        waitingForKey ||
-        controlsOpen ||
-        backgroundOpen ||
-        physicsOpen ||
-        settingsOpen
-    ) {
-        waitingForKey = null;
-        controlsOpen = false;
-        backgroundOpen = false;
-        physicsOpen = false;
-        settingsOpen = false;
-        gamePaused = false;
-        hoveredButton = null;
+    if (gameOver) {
         return;
     }
 
-    // Si estamos pausados, continuar.
+    // Si hay algún submenu abierto,
+    // ESC vuelve directamente al juego.
+    if (isAnyMenuOpen()) {
+        closeAllMenus();
+
+        gamePaused = false;
+
+        return;
+    }
+
+    // Si está pausado, continúa.
     if (gamePaused) {
         gamePaused = false;
         hoveredButton = null;
+
         return;
     }
 
-    // Si estamos jugando, pausar.
+    // Si está jugando, pausa.
     gamePaused = true;
     hoveredButton = null;
 }
 
 // ============================================================
-// MOUSE
+// MOUSE MOVE
 // ============================================================
 
-canvas.addEventListener("mousemove", event => {
-    const { x, y } = canvasMouse(event);
+canvas.addEventListener(
+    "mousemove",
+    event => {
+        const {
+            x,
+            y
+        } = canvasMouse(event);
 
-    mouseY = y;
+        mouseY = y;
 
-    // Control por mouse
-    if (
-        !gamePaused &&
-        !gameOver &&
-        !settingsOpen &&
-        !controlsOpen &&
-        !backgroundOpen &&
-        !physicsOpen
-    ) {
-        if (previousMouseY !== null) {
-            const delta = y - previousMouseY;
+        // --------------------------------------------
+        // CONTROL POR MOUSE
+        // --------------------------------------------
 
-            if (playerControls.left.mouse) {
-                leftPaddle.y +=
-                    delta * playerControls.left.sensitivity;
-            }
+        if (
+            !gamePaused &&
+            !gameOver &&
+            !isAnyMenuOpen()
+        ) {
+            if (previousMouseY !== null) {
+                const delta =
+                    y - previousMouseY;
 
-            if (playerControls.right.mouse) {
-                rightPaddle.y +=
-                    delta * playerControls.right.sensitivity;
+                if (
+                    playerControls.left.mouse
+                ) {
+                    leftPaddle.y +=
+                        delta *
+                        playerControls.left.sensitivity;
+                }
+
+                if (
+                    playerControls.right.mouse
+                ) {
+                    rightPaddle.y +=
+                        delta *
+                        playerControls.right.sensitivity;
+                }
+
+                clampPaddles();
             }
         }
+
+        previousMouseY = y;
+
+        updateHoveredButton(x, y);
     }
-
-    previousMouseY = y;
-
-    updateHoveredButton(x, y);
-});
+);
 
 // ============================================================
 // CLICK
 // ============================================================
 
-canvas.addEventListener("click", event => {
-    const { x, y } = canvasMouse(event);
+canvas.addEventListener(
+    "click",
+    event => {
+        initializeAudio();
 
-    if (gameOver) {
-        if (
-            isInsideButton(
-                x,
-                y,
-                REVENGE.x,
-                REVENGE.y,
-                REVENGE.width,
-                REVENGE.height
-            )
-        ) {
-            restartGame();
+        const {
+            x,
+            y
+        } = canvasMouse(event);
+
+        // --------------------------------------------
+        // GAME OVER
+        // --------------------------------------------
+
+        if (gameOver) {
+            handleGameOverClick(x, y);
+            return;
         }
 
-        return;
-    }
+        // --------------------------------------------
+        // SUBMENÚS
+        // --------------------------------------------
 
-    if (controlsOpen) {
-        handleControlsClick(x, y);
-        return;
-    }
+        if (controlsOpen) {
+            handleControlsClick(x, y);
+            return;
+        }
 
-    if (backgroundOpen) {
-        handleBackgroundClick(x, y);
-        return;
-    }
+        if (backgroundOpen) {
+            handleBackgroundClick(x, y);
+            return;
+        }
 
-    if (physicsOpen) {
-        handlePhysicsClick(x, y);
-        return;
-    }
+        if (physicsOpen) {
+            handlePhysicsClick(x, y);
+            return;
+        }
 
-    if (settingsOpen) {
-        handleSettingsClick(x, y);
-        return;
-    }
+        if (settingsOpen) {
+            handleSettingsClick(x, y);
+            return;
+        }
 
-    if (gamePaused) {
-        handlePauseClick(x, y);
+        // --------------------------------------------
+        // PAUSA
+        // --------------------------------------------
+
+        if (gamePaused) {
+            handlePauseClick(x, y);
+        }
     }
-});
+);
 
 // ============================================================
 // PAUSA
@@ -495,8 +652,10 @@ function pauseButton(index) {
 }
 
 function handlePauseClick(x, y) {
-    const bx = (W - UI.buttonW) / 2;
+    const bx =
+        (W - UI.buttonW) / 2;
 
+    // CONTINUAR
     if (
         isInsideButton(
             x,
@@ -508,9 +667,12 @@ function handlePauseClick(x, y) {
         )
     ) {
         gamePaused = false;
+        hoveredButton = null;
+
         return;
     }
 
+    // AJUSTES
     if (
         isInsideButton(
             x,
@@ -522,6 +684,9 @@ function handlePauseClick(x, y) {
         )
     ) {
         settingsOpen = true;
+        hoveredButton = null;
+
+        return;
     }
 }
 
@@ -530,10 +695,8 @@ function handlePauseClick(x, y) {
 // ============================================================
 
 function settingsButton(index) {
-    const start = H / 2 - 125;
-
     return buttonY(
-        start,
+        H / 2 - 125,
         index,
         55,
         15
@@ -541,28 +704,57 @@ function settingsButton(index) {
 }
 
 function handleSettingsClick(x, y) {
-    const bx = (W - 240) / 2;
+    const bx =
+        (W - 240) / 2;
 
-    const actions = [
-        () => controlsOpen = true,
-        () => backgroundOpen = true,
-        () => physicsOpen = true,
-        () => settingsOpen = false
+    const buttons = [
+        {
+            index: 0,
+            action: () => {
+                controlsOpen = true;
+                settingsOpen = false;
+            }
+        },
+
+        {
+            index: 1,
+            action: () => {
+                backgroundOpen = true;
+                settingsOpen = false;
+            }
+        },
+
+        {
+            index: 2,
+            action: () => {
+                physicsOpen = true;
+                settingsOpen = false;
+            }
+        },
+
+        {
+            index: 3,
+            action: () => {
+                settingsOpen = false;
+                gamePaused = true;
+            }
+        }
     ];
 
-    for (let i = 0; i < actions.length; i++) {
+    for (const button of buttons) {
         if (
             isInsideButton(
                 x,
                 y,
                 bx,
-                settingsButton(i),
+                settingsButton(button.index),
                 240,
                 55
             )
         ) {
-            actions[i]();
+            button.action();
             hoveredButton = null;
+
             return;
         }
     }
@@ -582,11 +774,21 @@ function backgroundButton(index) {
 }
 
 function handleBackgroundClick(x, y) {
-    const bx = (W - SUBMENU.buttonW) / 2;
+    const bx =
+        (W - SUBMENU.buttonW) / 2;
 
-    const colors = ["green", "blue", "black"];
+    const colors = [
+        "green",
+        "blue",
+        "black"
+    ];
 
-    for (let i = 0; i < colors.length; i++) {
+    // COLORES
+    for (
+        let i = 0;
+        i < colors.length;
+        i++
+    ) {
         if (
             isInsideButton(
                 x,
@@ -602,6 +804,7 @@ function handleBackgroundClick(x, y) {
         }
     }
 
+    // RESTABLECER
     if (
         isInsideButton(
             x,
@@ -612,7 +815,23 @@ function handleBackgroundClick(x, y) {
             SUBMENU.buttonH
         )
     ) {
+        resetBackgroundDefaults();
+        return;
+    }
+
+    // VOLVER
+    if (
+        isInsideButton(
+            x,
+            y,
+            bx,
+            backgroundButton(4),
+            SUBMENU.buttonW,
+            SUBMENU.buttonH
+        )
+    ) {
         backgroundOpen = false;
+        return;
     }
 }
 
@@ -630,8 +849,10 @@ function physicsButton(index) {
 }
 
 function handlePhysicsClick(x, y) {
-    const bx = (W - 300) / 2;
+    const bx =
+        (W - 300) / 2;
 
+    // VELOCIDAD +
     if (
         isInsideButton(
             x,
@@ -642,14 +863,20 @@ function handlePhysicsClick(x, y) {
             55
         )
     ) {
-        ballSpeed = clamp(
-            ballSpeed + PHYSICS.speedStep,
-            PHYSICS.speedMin,
-            PHYSICS.speedMax
-        );
+        ballSpeed =
+            clamp(
+                ballSpeed +
+                    PHYSICS.speedStep,
+                PHYSICS.speedMin,
+                PHYSICS.speedMax
+            );
+
+        resetBall();
+
         return;
     }
 
+    // VELOCIDAD -
     if (
         isInsideButton(
             x,
@@ -660,14 +887,20 @@ function handlePhysicsClick(x, y) {
             55
         )
     ) {
-        ballSpeed = clamp(
-            ballSpeed - PHYSICS.speedStep,
-            PHYSICS.speedMin,
-            PHYSICS.speedMax
-        );
+        ballSpeed =
+            clamp(
+                ballSpeed -
+                    PHYSICS.speedStep,
+                PHYSICS.speedMin,
+                PHYSICS.speedMax
+            );
+
+        resetBall();
+
         return;
     }
 
+    // PROGRESIVA
     if (
         isInsideButton(
             x,
@@ -678,54 +911,61 @@ function handlePhysicsClick(x, y) {
             55
         )
     ) {
-        progressiveSpeed = !progressiveSpeed;
+        progressiveSpeed =
+            !progressiveSpeed;
+
         return;
     }
 
-    const sensY = physicsButton(3);
-
+    // SENSIBILIDAD -
     if (
         isInsideButton(
             x,
             y,
             bx,
-            sensY,
+            physicsButton(3),
             45,
             55
         )
     ) {
-        progressiveSensitivity = round1(
-            clamp(
-                progressiveSensitivity -
-                PHYSICS.sensitivityStep,
-                PHYSICS.sensitivityMin,
-                PHYSICS.sensitivityMax
-            )
-        );
+        progressiveSensitivity =
+            round1(
+                clamp(
+                    progressiveSensitivity -
+                        PHYSICS.sensitivityStep,
+                    PHYSICS.sensitivityMin,
+                    PHYSICS.sensitivityMax
+                )
+            );
+
         return;
     }
 
+    // SENSIBILIDAD +
     if (
         isInsideButton(
             x,
             y,
             bx + 255,
-            sensY,
+            physicsButton(3),
             45,
             55
         )
     ) {
-        progressiveSensitivity = round1(
-            clamp(
-                progressiveSensitivity +
-                PHYSICS.sensitivityStep,
-                PHYSICS.sensitivityMin,
-                PHYSICS.sensitivityMax
-            )
-        );
+        progressiveSensitivity =
+            round1(
+                clamp(
+                    progressiveSensitivity +
+                        PHYSICS.sensitivityStep,
+                    PHYSICS.sensitivityMin,
+                    PHYSICS.sensitivityMax
+                )
+            );
+
         return;
     }
 
+    // VOLVER
     if (
         isInsideButton(
             x,
@@ -737,8 +977,10 @@ function handlePhysicsClick(x, y) {
         )
     ) {
         physicsOpen = false;
+        return;
     }
 
+    // RESTABLECER
     if (
         isInsideButton(
             x,
@@ -750,6 +992,7 @@ function handlePhysicsClick(x, y) {
         )
     ) {
         resetPhysicsDefaults();
+        return;
     }
 }
 
@@ -758,35 +1001,57 @@ function handlePhysicsClick(x, y) {
 // ============================================================
 
 function controlRow(index) {
-    return CONTROLS.startY +
-        index * CONTROLS.rowGap;
-}
-
-function controlPlayerX(player) {
-    return player === "left"
-        ? CONTROLS.leftX
-        : CONTROLS.rightX;
-}
-
-function startKeyRebind(player, action) {
-    waitingForKey = { player, action };
-}
-
-function changeSensitivity(player, amount) {
-    const data = playerControls[player];
-
-    data.sensitivity = round1(
-        clamp(
-            data.sensitivity + amount,
-            SENS.min,
-            SENS.max
-        )
+    return (
+        CONTROLS_UI.startY +
+        index *
+            CONTROLS_UI.rowGap
     );
 }
 
+function controlPlayerX(player) {
+    return (
+        player === "left"
+            ? CONTROLS_UI.leftX
+            : CONTROLS_UI.rightX
+    );
+}
+
+function startKeyRebind(
+    player,
+    action
+) {
+    waitingForKey = {
+        player,
+        action
+    };
+}
+
+function changeSensitivity(
+    player,
+    amount
+) {
+    const data =
+        playerControls[player];
+
+    data.sensitivity =
+        round1(
+            clamp(
+                data.sensitivity +
+                    amount,
+                SENSITIVITY.min,
+                SENSITIVITY.max
+            )
+        );
+}
+
 function handleControlsClick(x, y) {
-    for (const player of ["left", "right"]) {
-        const px = controlPlayerX(player);
+    for (
+        const player of
+        ["left", "right"]
+    ) {
+        const px =
+            controlPlayerX(player);
+
         const bx = px + 125;
 
         // ARRIBA
@@ -796,11 +1061,15 @@ function handleControlsClick(x, y) {
                 y,
                 bx,
                 controlRow(0),
-                CONTROLS.buttonW,
-                CONTROLS.buttonH
+                CONTROLS_UI.buttonW,
+                CONTROLS_UI.buttonH
             )
         ) {
-            startKeyRebind(player, "up");
+            startKeyRebind(
+                player,
+                "up"
+            );
+
             return;
         }
 
@@ -811,11 +1080,15 @@ function handleControlsClick(x, y) {
                 y,
                 bx,
                 controlRow(1),
-                CONTROLS.buttonW,
-                CONTROLS.buttonH
+                CONTROLS_UI.buttonW,
+                CONTROLS_UI.buttonH
             )
         ) {
-            startKeyRebind(player, "down");
+            startKeyRebind(
+                player,
+                "down"
+            );
+
             return;
         }
 
@@ -826,12 +1099,13 @@ function handleControlsClick(x, y) {
                 y,
                 bx,
                 controlRow(2),
-                CONTROLS.buttonW,
-                CONTROLS.buttonH
+                CONTROLS_UI.buttonW,
+                CONTROLS_UI.buttonH
             )
         ) {
             playerControls[player].mouse =
                 !playerControls[player].mouse;
+
             return;
         }
 
@@ -843,13 +1117,14 @@ function handleControlsClick(x, y) {
                 bx,
                 controlRow(3),
                 45,
-                CONTROLS.buttonH
+                CONTROLS_UI.buttonH
             )
         ) {
             changeSensitivity(
                 player,
-                -SENS.step
+                -SENSITIVITY.step
             );
+
             return;
         }
 
@@ -861,15 +1136,31 @@ function handleControlsClick(x, y) {
                 bx + 135,
                 controlRow(3),
                 45,
-                CONTROLS.buttonH
+                CONTROLS_UI.buttonH
             )
         ) {
             changeSensitivity(
                 player,
-                SENS.step
+                SENSITIVITY.step
             );
+
             return;
         }
+    }
+
+    // RESTABLECER
+    if (
+        isInsideButton(
+            x,
+            y,
+            (W - 220) / 2,
+            565,
+            220,
+            50
+        )
+    ) {
+        resetControlsDefaults();
+        return;
     }
 
     // VOLVER
@@ -885,26 +1176,32 @@ function handleControlsClick(x, y) {
     ) {
         controlsOpen = false;
         waitingForKey = null;
-        return;
-    }
 
-    // RESTABLECER
-    if (
-        isInsideButton(
-            x,
-            y,
-            (W - 220) / 2,
-            565,
-            220,
-            50
-        )
-    ) {
-        resetControlsDefaults();
+        return;
     }
 }
 
 // ============================================================
-// HOVER
+// GAME OVER CLICK
+// ============================================================
+
+function handleGameOverClick(x, y) {
+    if (
+        isInsideButton(
+            x,
+            y,
+            REVENGE.x,
+            REVENGE.y,
+            REVENGE.width,
+            REVENGE.height
+        )
+    ) {
+        restartGame();
+    }
+}
+
+// ============================================================
+// HOVER GENERAL
 // ============================================================
 
 function updateHoveredButton(x, y) {
@@ -948,39 +1245,53 @@ function updateHoveredButton(x, y) {
     }
 
     if (gamePaused) {
-        const bx = (W - UI.buttonW) / 2;
-
-        if (
-            isInsideButton(
-                x,
-                y,
-                bx,
-                pauseButton(0),
-                UI.buttonW,
-                UI.buttonH
-            )
-        ) {
-            hoveredButton = "continue";
-            return;
-        }
-
-        if (
-            isInsideButton(
-                x,
-                y,
-                bx,
-                pauseButton(1),
-                UI.buttonW,
-                UI.buttonH
-            )
-        ) {
-            hoveredButton = "settings";
-        }
+        updatePauseHover(x, y);
     }
 }
 
+// ============================================================
+// HOVER — PAUSA
+// ============================================================
+
+function updatePauseHover(x, y) {
+    const bx =
+        (W - UI.buttonW) / 2;
+
+    if (
+        isInsideButton(
+            x,
+            y,
+            bx,
+            pauseButton(0),
+            UI.buttonW,
+            UI.buttonH
+        )
+    ) {
+        hoveredButton = "continue";
+        return;
+    }
+
+    if (
+        isInsideButton(
+            x,
+            y,
+            bx,
+            pauseButton(1),
+            UI.buttonW,
+            UI.buttonH
+        )
+    ) {
+        hoveredButton = "settings";
+    }
+}
+
+// ============================================================
+// HOVER — AJUSTES
+// ============================================================
+
 function updateSettingsHover(x, y) {
-    const bx = (W - 240) / 2;
+    const bx =
+        (W - 240) / 2;
 
     const ids = [
         "controls",
@@ -989,7 +1300,11 @@ function updateSettingsHover(x, y) {
         "settingsBack"
     ];
 
-    for (let i = 0; i < ids.length; i++) {
+    for (
+        let i = 0;
+        i < ids.length;
+        i++
+    ) {
         if (
             isInsideButton(
                 x,
@@ -1006,17 +1321,27 @@ function updateSettingsHover(x, y) {
     }
 }
 
+// ============================================================
+// HOVER — FONDO
+// ============================================================
+
 function updateBackgroundHover(x, y) {
-    const bx = (W - SUBMENU.buttonW) / 2;
+    const bx =
+        (W - SUBMENU.buttonW) / 2;
 
     const ids = [
         "background-green",
         "background-blue",
         "background-black",
+        "background-reset",
         "backgroundBack"
     ];
 
-    for (let i = 0; i < ids.length; i++) {
+    for (
+        let i = 0;
+        i < ids.length;
+        i++
+    ) {
         if (
             isInsideButton(
                 x,
@@ -1033,8 +1358,13 @@ function updateBackgroundHover(x, y) {
     }
 }
 
+// ============================================================
+// HOVER — FÍSICAS
+// ============================================================
+
 function updatePhysicsHover(x, y) {
-    const bx = (W - 300) / 2;
+    const bx =
+        (W - 300) / 2;
 
     const ids = [
         "physics-speed-plus",
@@ -1042,7 +1372,11 @@ function updatePhysicsHover(x, y) {
         "physics-progressive"
     ];
 
-    for (let i = 0; i < ids.length; i++) {
+    for (
+        let i = 0;
+        i < ids.length;
+        i++
+    ) {
         if (
             isInsideButton(
                 x,
@@ -1068,7 +1402,9 @@ function updatePhysicsHover(x, y) {
             55
         )
     ) {
-        hoveredButton = "physics-sens-minus";
+        hoveredButton =
+            "physics-sens-minus";
+
         return;
     }
 
@@ -1082,7 +1418,9 @@ function updatePhysicsHover(x, y) {
             55
         )
     ) {
-        hoveredButton = "physics-sens-plus";
+        hoveredButton =
+            "physics-sens-plus";
+
         return;
     }
 
@@ -1096,7 +1434,9 @@ function updatePhysicsHover(x, y) {
             55
         )
     ) {
-        hoveredButton = "physicsBack";
+        hoveredButton =
+            "physicsBack";
+
         return;
     }
 
@@ -1110,13 +1450,23 @@ function updatePhysicsHover(x, y) {
             55
         )
     ) {
-        hoveredButton = "physicsReset";
+        hoveredButton =
+            "physicsReset";
     }
 }
 
+// ============================================================
+// HOVER — CONTROLES
+// ============================================================
+
 function updateControlsHover(x, y) {
-    for (const player of ["left", "right"]) {
-        const px = controlPlayerX(player);
+    for (
+        const player of
+        ["left", "right"]
+    ) {
+        const px =
+            controlPlayerX(player);
+
         const bx = px + 125;
 
         const ids = [
@@ -1125,15 +1475,19 @@ function updateControlsHover(x, y) {
             `${player}-mouse`
         ];
 
-        for (let i = 0; i < ids.length; i++) {
+        for (
+            let i = 0;
+            i < ids.length;
+            i++
+        ) {
             if (
                 isInsideButton(
                     x,
                     y,
                     bx,
                     controlRow(i),
-                    CONTROLS.buttonW,
-                    CONTROLS.buttonH
+                    CONTROLS_UI.buttonW,
+                    CONTROLS_UI.buttonH
                 )
             ) {
                 hoveredButton = ids[i];
@@ -1148,10 +1502,12 @@ function updateControlsHover(x, y) {
                 bx,
                 controlRow(3),
                 45,
-                CONTROLS.buttonH
+                CONTROLS_UI.buttonH
             )
         ) {
-            hoveredButton = `${player}-sens-minus`;
+            hoveredButton =
+                `${player}-sens-minus`;
+
             return;
         }
 
@@ -1162,10 +1518,12 @@ function updateControlsHover(x, y) {
                 bx + 135,
                 controlRow(3),
                 45,
-                CONTROLS.buttonH
+                CONTROLS_UI.buttonH
             )
         ) {
-            hoveredButton = `${player}-sens-plus`;
+            hoveredButton =
+                `${player}-sens-plus`;
+
             return;
         }
     }
@@ -1180,7 +1538,9 @@ function updateControlsHover(x, y) {
             50
         )
     ) {
-        hoveredButton = "controlsReset";
+        hoveredButton =
+            "controlsReset";
+
         return;
     }
 
@@ -1194,18 +1554,28 @@ function updateControlsHover(x, y) {
             50
         )
     ) {
-        hoveredButton = "controlsBack";
+        hoveredButton =
+            "controlsBack";
     }
 }
 
 // ============================================================
-// PALETAS
+// PALETAS — MOVIMIENTO
 // ============================================================
 
 function updatePaddles() {
-    if (gamePaused || gameOver) return;
+    if (
+        gamePaused ||
+        gameOver ||
+        isAnyMenuOpen()
+    ) {
+        return;
+    }
 
-    for (const player of ["left", "right"]) {
+    for (
+        const player of
+        ["left", "right"]
+    ) {
         const paddle =
             player === "left"
                 ? leftPaddle
@@ -1225,130 +1595,262 @@ function updatePaddles() {
                 PADDLE.speed *
                 controls.sensitivity;
         }
-
-        paddle.y = clamp(
-            paddle.y,
-            TABLE.top,
-            TABLE.bottom - PADDLE.height
-        );
     }
+
+    clampPaddles();
+}
+
+function clampPaddles() {
+    leftPaddle.y =
+        clamp(
+            leftPaddle.y,
+            TABLE.top,
+            TABLE.bottom -
+                PADDLE.height
+        );
+
+    rightPaddle.y =
+        clamp(
+            rightPaddle.y,
+            TABLE.top,
+            TABLE.bottom -
+                PADDLE.height
+        );
 }
 
 // ============================================================
-// FÍSICA DE LA PELOTA
+// PELOTA — VELOCIDAD PROGRESIVA
 // ============================================================
 
 function applyProgressiveSpeed() {
-    if (!progressiveSpeed) return;
+    if (!progressiveSpeed) {
+        return;
+    }
 
     const multiplier =
         1 +
         PHYSICS.increment *
         progressiveSensitivity;
 
-    const max = Math.min(
-        PHYSICS.speedMax,
-        BALL.maxSpeed
-    );
+    const maxSpeed =
+        Math.min(
+            PHYSICS.speedMax,
+            BALL.maxSpeed
+        );
 
-    const vx = Math.abs(ball.velocityX) * multiplier;
-    const vy = Math.abs(ball.velocityY) * multiplier;
+    let newVelocityX =
+        Math.abs(ball.velocityX) *
+        multiplier;
+
+    let newVelocityY =
+        Math.abs(ball.velocityY) *
+        multiplier;
+
+    newVelocityX =
+        Math.min(
+            newVelocityX,
+            maxSpeed
+        );
+
+    newVelocityY =
+        Math.min(
+            newVelocityY,
+            maxSpeed
+        );
 
     ball.velocityX =
-        Math.sign(ball.velocityX || 1) *
-        Math.min(vx, max);
+        Math.sign(
+            ball.velocityX || 1
+        ) *
+        newVelocityX;
 
     ball.velocityY =
-        Math.sign(ball.velocityY || 1) *
-        Math.min(vy, max);
+        Math.sign(
+            ball.velocityY || 1
+        ) *
+        newVelocityY;
 }
 
+// ============================================================
+// PELOTA — MOVIMIENTO
+// ============================================================
+
 function updateBall() {
-    if (gamePaused || gameOver) return;
+    if (
+        gamePaused ||
+        gameOver ||
+        isAnyMenuOpen()
+    ) {
+        return;
+    }
 
     ball.x += ball.velocityX;
     ball.y += ball.velocityY;
 
-    // Pared superior
-    if (ball.y <= TABLE.top) {
-        ball.y = TABLE.top;
-        ball.velocityY *= -1;
-        applyProgressiveSpeed();
-        sounds.wall();
-    }
+    // --------------------------------------------
+    // PARED SUPERIOR
+    // --------------------------------------------
 
-    // Pared inferior
-    if (ball.y + BALL.size >= TABLE.bottom) {
-        ball.y = TABLE.bottom - BALL.size;
-        ball.velocityY *= -1;
-        applyProgressiveSpeed();
-        sounds.wall();
-    }
-
-    // Paleta izquierda
     if (
-        ball.x <= leftPaddle.x + PADDLE.width &&
-        ball.x + BALL.size >= leftPaddle.x &&
-        ball.y + BALL.size >= leftPaddle.y &&
-        ball.y <= leftPaddle.y + PADDLE.height &&
+        ball.y <= TABLE.top
+    ) {
+        ball.y = TABLE.top;
+
+        ball.velocityY *= -1;
+
+        applyProgressiveSpeed();
+
+        sounds.wall();
+    }
+
+    // --------------------------------------------
+    // PARED INFERIOR
+    // --------------------------------------------
+
+    if (
+        ball.y + BALL.size >=
+        TABLE.bottom
+    ) {
+        ball.y =
+            TABLE.bottom -
+            BALL.size;
+
+        ball.velocityY *= -1;
+
+        applyProgressiveSpeed();
+
+        sounds.wall();
+    }
+
+    // --------------------------------------------
+    // PALETA IZQUIERDA
+    // --------------------------------------------
+
+    if (
+        ball.x <=
+            leftPaddle.x +
+            PADDLE.width &&
+
+        ball.x + BALL.size >=
+            leftPaddle.x &&
+
+        ball.y + BALL.size >=
+            leftPaddle.y &&
+
+        ball.y <=
+            leftPaddle.y +
+            PADDLE.height &&
+
         ball.velocityX < 0
     ) {
-        ball.x = leftPaddle.x + PADDLE.width;
+        ball.x =
+            leftPaddle.x +
+            PADDLE.width;
+
         ball.velocityX *= -1;
+
         applyProgressiveSpeed();
+
         sounds.paddle();
     }
 
-    // Paleta derecha
+    // --------------------------------------------
+    // PALETA DERECHA
+    // --------------------------------------------
+
     if (
-        ball.x + BALL.size >= rightPaddle.x &&
-        ball.x <= rightPaddle.x + PADDLE.width &&
-        ball.y + BALL.size >= rightPaddle.y &&
-        ball.y <= rightPaddle.y + PADDLE.height &&
+        ball.x + BALL.size >=
+            rightPaddle.x &&
+
+        ball.x <=
+            rightPaddle.x +
+            PADDLE.width &&
+
+        ball.y + BALL.size >=
+            rightPaddle.y &&
+
+        ball.y <=
+            rightPaddle.y +
+            PADDLE.height &&
+
         ball.velocityX > 0
     ) {
-        ball.x = rightPaddle.x - BALL.size;
+        ball.x =
+            rightPaddle.x -
+            BALL.size;
+
         ball.velocityX *= -1;
+
         applyProgressiveSpeed();
+
         sounds.paddle();
     }
 
-    // Punto para derecha
-    if (ball.x + BALL.size < TABLE.left) {
+    // --------------------------------------------
+    // PUNTO PARA DERECHA
+    // --------------------------------------------
+
+    if (
+        ball.x + BALL.size <
+        TABLE.left
+    ) {
         rightScore++;
+
         sounds.point();
+
         handlePoint();
+
         return;
     }
 
-    // Punto para izquierda
-    if (ball.x > TABLE.right) {
+    // --------------------------------------------
+    // PUNTO PARA IZQUIERDA
+    // --------------------------------------------
+
+    if (
+        ball.x >
+        TABLE.right
+    ) {
         leftScore++;
+
         sounds.point();
+
         handlePoint();
+
+        return;
     }
 }
 
 // ============================================================
-// LÓGICA DEL PARTIDO
+// PARTIDO
 // ============================================================
 
 function checkWinner() {
     if (
-        leftScore < MATCH.winScore &&
-        rightScore < MATCH.winScore
+        leftScore <
+            MATCH.winScore &&
+        rightScore <
+            MATCH.winScore
     ) {
         return false;
     }
 
     return (
-        Math.abs(leftScore - rightScore) >=
+        Math.abs(
+            leftScore -
+            rightScore
+        ) >=
         MATCH.winMargin
     );
 }
 
 function updateServe() {
-    if (leftScore >= 10 && rightScore >= 10) {
+    // Deuce / 10-10:
+    // alterna el saque.
+    if (
+        leftScore >= 10 &&
+        rightScore >= 10
+    ) {
         servingPlayer =
             servingPlayer === "left"
                 ? "right"
@@ -1359,7 +1861,8 @@ function updateServe() {
 
     const block =
         Math.floor(
-            (leftScore + rightScore) / 2
+            (leftScore +
+                rightScore) / 2
         );
 
     servingPlayer =
@@ -1369,17 +1872,23 @@ function updateServe() {
 }
 
 function resetBall() {
-    ball.x = (W - BALL.size) / 2;
-    ball.y = (H - BALL.size) / 2;
+    ball.x =
+        (W - BALL.size) / 2;
+
+    ball.y =
+        (H - BALL.size) / 2;
 
     ball.velocityX =
         servingPlayer === "left"
             ? Math.abs(ballSpeed)
             : -Math.abs(ballSpeed);
 
+    // Siempre arrancamos con la velocidad
+    // vertical base al comenzar un saque.
     ball.velocityY =
-        Math.sign(ball.velocityY || 1) *
-        BALL.baseY;
+        Math.random() < 0.5
+            ? -BALL.baseY
+            : BALL.baseY;
 }
 
 function handlePoint() {
@@ -1398,6 +1907,10 @@ function handlePoint() {
     resetBall();
 }
 
+// ============================================================
+// REINICIAR PARTIDO
+// ============================================================
+
 function restartGame() {
     leftScore = 0;
     rightScore = 0;
@@ -1408,13 +1921,8 @@ function restartGame() {
     winner = null;
 
     gamePaused = false;
-    settingsOpen = false;
-    controlsOpen = false;
-    backgroundOpen = false;
-    physicsOpen = false;
 
-    waitingForKey = null;
-    hoveredButton = null;
+    closeAllMenus();
 
     leftPaddle.y =
         (H - PADDLE.height) / 2;
@@ -1426,26 +1934,49 @@ function restartGame() {
 }
 
 // ============================================================
-// MOTOR GRÁFICO
+// DIBUJO — BOTONES
 // ============================================================
 
-function drawButton(text, x, y, w, h, id = null) {
-    const hover = hoveredButton === id;
+function drawButton(
+    text,
+    x,
+    y,
+    w,
+    h,
+    id = null
+) {
+    const hover =
+        hoveredButton === id;
 
-    ctx.lineWidth = hover ? 5 : 3;
+    ctx.lineWidth =
+        hover ? 5 : 3;
+
     ctx.strokeStyle = "#FFFFFF";
 
     if (hover) {
         ctx.fillStyle =
             "rgba(255,255,255,0.12)";
 
-        ctx.fillRect(x, y, w, h);
+        ctx.fillRect(
+            x,
+            y,
+            w,
+            h
+        );
     }
 
-    ctx.strokeRect(x, y, w, h);
+    ctx.strokeRect(
+        x,
+        y,
+        w,
+        h
+    );
 
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = UI.menuButton;
+
+    ctx.font =
+        UI.buttonFont;
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -1459,16 +1990,25 @@ function drawButton(text, x, y, w, h, id = null) {
     ctx.textBaseline = "alphabetic";
 }
 
-function drawControlLabel(text, x, y) {
+function drawControlLabel(
+    text,
+    x,
+    y
+) {
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 20px monospace";
+
+    ctx.font =
+        "bold 20px monospace";
+
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
 
     ctx.fillText(
         text,
         x,
-        y + CONTROLS.buttonH / 2
+        y +
+            CONTROLS_UI.buttonH /
+                2
     );
 }
 
@@ -1480,22 +2020,38 @@ function drawControlButton(
     h,
     id = null
 ) {
-    const hover = hoveredButton === id;
+    const hover =
+        hoveredButton === id;
 
-    ctx.lineWidth = hover ? 4 : 2;
+    ctx.lineWidth =
+        hover ? 4 : 2;
+
     ctx.strokeStyle = "#FFFFFF";
 
     if (hover) {
         ctx.fillStyle =
             "rgba(255,255,255,0.12)";
 
-        ctx.fillRect(x, y, w, h);
+        ctx.fillRect(
+            x,
+            y,
+            w,
+            h
+        );
     }
 
-    ctx.strokeRect(x, y, w, h);
+    ctx.strokeRect(
+        x,
+        y,
+        w,
+        h
+    );
 
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 18px monospace";
+
+    ctx.font =
+        "bold 18px monospace";
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -1514,13 +2070,16 @@ function drawControlButton(
 // ============================================================
 
 function drawTable() {
-    ctx.fillStyle = COLORS[courtColor];
+    ctx.fillStyle =
+        COLORS[courtColor];
 
     ctx.fillRect(
         TABLE.left,
         TABLE.top,
-        TABLE.right - TABLE.left,
-        TABLE.bottom - TABLE.top
+        TABLE.right -
+            TABLE.left,
+        TABLE.bottom -
+            TABLE.top
     );
 
     ctx.strokeStyle = "#FFFFFF";
@@ -1529,11 +2088,14 @@ function drawTable() {
     ctx.strokeRect(
         TABLE.left,
         TABLE.top,
-        TABLE.right - TABLE.left,
-        TABLE.bottom - TABLE.top
+        TABLE.right -
+            TABLE.left,
+        TABLE.bottom -
+            TABLE.top
     );
 
-    ctx.lineWidth = CENTER_LINE.width;
+    ctx.lineWidth =
+        CENTER_LINE.width;
 
     ctx.setLineDash([
         CENTER_LINE.dash,
@@ -1541,15 +2103,24 @@ function drawTable() {
     ]);
 
     ctx.beginPath();
-    ctx.moveTo(W / 2, TABLE.top);
-    ctx.lineTo(W / 2, TABLE.bottom);
+
+    ctx.moveTo(
+        W / 2,
+        TABLE.top
+    );
+
+    ctx.lineTo(
+        W / 2,
+        TABLE.bottom
+    );
+
     ctx.stroke();
 
     ctx.setLineDash([]);
 }
 
 // ============================================================
-// PALETAS / PELOTA / MARCADOR
+// PALETAS
 // ============================================================
 
 function drawPaddles() {
@@ -1570,13 +2141,20 @@ function drawPaddles() {
     );
 }
 
+// ============================================================
+// PELOTA
+// ============================================================
+
 function drawBall() {
     ctx.fillStyle = "#FFFFFF";
+
     ctx.beginPath();
 
     ctx.arc(
-        ball.x + BALL.size / 2,
-        ball.y + BALL.size / 2,
+        ball.x +
+            BALL.size / 2,
+        ball.y +
+            BALL.size / 2,
         BALL.size / 2,
         0,
         Math.PI * 2
@@ -1585,20 +2163,29 @@ function drawBall() {
     ctx.fill();
 }
 
+// ============================================================
+// MARCADOR
+// ============================================================
+
 function drawScore() {
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 48px monospace";
+
+    ctx.font =
+        "bold 48px monospace";
+
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
 
     ctx.fillText(
-        String(leftScore).padStart(2, "0"),
+        String(leftScore)
+            .padStart(2, "0"),
         W / 4,
         TABLE.bottom - 20
     );
 
     ctx.fillText(
-        String(rightScore).padStart(2, "0"),
+        String(rightScore)
+            .padStart(2, "0"),
         W * 3 / 4,
         TABLE.bottom - 20
     );
@@ -1608,14 +2195,17 @@ function drawScore() {
 }
 
 // ============================================================
-// MENÚ DE PAUSA
+// PAUSA
 // ============================================================
 
 function drawPauseMenu() {
     drawOverlay(0.70);
 
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = UI.menuTitle;
+
+    ctx.font =
+        UI.titleFont;
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -1625,7 +2215,8 @@ function drawPauseMenu() {
         H / 2 - 150
     );
 
-    const bx = (W - UI.buttonW) / 2;
+    const bx =
+        (W - UI.buttonW) / 2;
 
     drawButton(
         "CONTINUAR",
@@ -1658,25 +2249,43 @@ function drawSettingsMenu() {
 
     drawTitle("AJUSTES");
 
-    const bx = (W - 240) / 2;
+    const bx =
+        (W - 240) / 2;
 
     const buttons = [
-        ["CONTROLES", "controls"],
-        ["FONDO", "background"],
-        ["FÍSICAS", "physics"],
-        ["VOLVER", "settingsBack"]
+        [
+            "CONTROLES",
+            "controls"
+        ],
+
+        [
+            "FONDO",
+            "background"
+        ],
+
+        [
+            "FÍSICAS",
+            "physics"
+        ],
+
+        [
+            "VOLVER",
+            "settingsBack"
+        ]
     ];
 
-    buttons.forEach(([text, id], i) => {
-        drawButton(
-            text,
-            bx,
-            settingsButton(i),
-            240,
-            55,
-            id
-        );
-    });
+    buttons.forEach(
+        ([text, id], i) => {
+            drawButton(
+                text,
+                bx,
+                settingsButton(i),
+                240,
+                55,
+                id
+            );
+        }
+    );
 }
 
 // ============================================================
@@ -1685,28 +2294,51 @@ function drawSettingsMenu() {
 
 function drawBackgroundMenu() {
     drawOverlay(0.80);
+
     drawTitle("FONDO");
 
-    const bx = (W - SUBMENU.buttonW) / 2;
+    const bx =
+        (W - SUBMENU.buttonW) / 2;
 
     const buttons = [
-        ["VERDE", "background-green"],
-        ["AZUL", "background-blue"],
-        ["NEGRO", "background-black"],
-        ["RESTABLECER", "background-reset"],
-        ["VOLVER", "backgroundBack"]
+        [
+            "VERDE",
+            "background-green"
+        ],
+
+        [
+            "AZUL",
+            "background-blue"
+        ],
+
+        [
+            "NEGRO",
+            "background-black"
+        ],
+
+        [
+            "RESTABLECER",
+            "background-reset"
+        ],
+
+        [
+            "VOLVER",
+            "backgroundBack"
+        ]
     ];
 
-    buttons.forEach(([text, id], i) => {
-        drawButton(
-            text,
-            bx,
-            backgroundButton(i),
-            SUBMENU.buttonW,
-            SUBMENU.buttonH,
-            id
-        );
-    });
+    buttons.forEach(
+        ([text, id], i) => {
+            drawButton(
+                text,
+                bx,
+                backgroundButton(i),
+                SUBMENU.buttonW,
+                SUBMENU.buttonH,
+                id
+            );
+        }
+    );
 }
 
 // ============================================================
@@ -1715,9 +2347,11 @@ function drawBackgroundMenu() {
 
 function drawPhysicsMenu() {
     drawOverlay(0.80);
+
     drawTitle("FÍSICAS");
 
-    const bx = (W - 300) / 2;
+    const bx =
+        (W - 300) / 2;
 
     drawButton(
         `VELOCIDAD +   ${ballSpeed}`,
@@ -1738,7 +2372,11 @@ function drawPhysicsMenu() {
     );
 
     drawButton(
-        `PROGRESIVA: ${progressiveSpeed ? "ON" : "OFF"}`,
+        `PROGRESIVA: ${
+            progressiveSpeed
+                ? "ON"
+                : "OFF"
+        }`,
         bx,
         physicsButton(2),
         300,
@@ -1746,7 +2384,8 @@ function drawPhysicsMenu() {
         "physics-progressive"
     );
 
-    const sy = physicsButton(3);
+    const sy =
+        physicsButton(3);
 
     drawControlLabel(
         "SENS. PROGRESIVA",
@@ -1781,7 +2420,10 @@ function drawPhysicsMenu() {
     );
 
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 20px monospace";
+
+    ctx.font =
+        "bold 20px monospace";
+
     ctx.textAlign = "center";
 
     ctx.fillText(
@@ -1817,30 +2459,47 @@ function drawPhysicsMenu() {
 
 function drawControlsMenu() {
     drawOverlay(0.80);
+
     drawTitle("CONTROLES");
 
-    ctx.font = "bold 30px monospace";
+    ctx.font =
+        "bold 30px monospace";
+
     ctx.textAlign = "center";
+
     ctx.fillStyle = "#FFFFFF";
 
-    // Columnas centradas de forma simétrica
     const centers = {
         left: 360,
         right: 920
     };
 
-    ctx.fillText("IZQUIERDA", centers.left, 120);
-    ctx.fillText("DERECHA", centers.right, 120);
+    ctx.fillText(
+        "IZQUIERDA",
+        centers.left,
+        120
+    );
 
-    for (const player of ["left", "right"]) {
-        const data = playerControls[player];
+    ctx.fillText(
+        "DERECHA",
+        centers.right,
+        120
+    );
+
+    for (
+        const player of
+        ["left", "right"]
+    ) {
+        const data =
+            playerControls[player];
+
         const px =
-            player === "left"
-                ? CONTROLS.leftX
-                : CONTROLS.rightX;
+            controlPlayerX(player);
 
-        const bx = px + 125;
+        const bx =
+            px + 125;
 
+        // ARRIBA
         drawControlLabel(
             "ARRIBA",
             px,
@@ -1852,13 +2511,16 @@ function drawControlsMenu() {
             waitingForKey?.action === "up"
                 ? "PRESIONÁ..."
                 : formatKey(data.up),
+
             bx,
             controlRow(0),
-            CONTROLS.buttonW,
-            CONTROLS.buttonH,
+            CONTROLS_UI.buttonW,
+            CONTROLS_UI.buttonH,
+
             `${player}-up`
         );
 
+        // ABAJO
         drawControlLabel(
             "ABAJO",
             px,
@@ -1870,13 +2532,16 @@ function drawControlsMenu() {
             waitingForKey?.action === "down"
                 ? "PRESIONÁ..."
                 : formatKey(data.down),
+
             bx,
             controlRow(1),
-            CONTROLS.buttonW,
-            CONTROLS.buttonH,
+            CONTROLS_UI.buttonW,
+            CONTROLS_UI.buttonH,
+
             `${player}-down`
         );
 
+        // MOUSE
         drawControlLabel(
             "MOUSE",
             px,
@@ -1884,14 +2549,19 @@ function drawControlsMenu() {
         );
 
         drawControlButton(
-            data.mouse ? "ON" : "OFF",
+            data.mouse
+                ? "ON"
+                : "OFF",
+
             bx,
             controlRow(2),
-            CONTROLS.buttonW,
-            CONTROLS.buttonH,
+            CONTROLS_UI.buttonW,
+            CONTROLS_UI.buttonH,
+
             `${player}-mouse`
         );
 
+        // SENSIBILIDAD
         drawControlLabel(
             "SENS.",
             px,
@@ -1903,7 +2573,7 @@ function drawControlsMenu() {
             bx,
             controlRow(3),
             45,
-            CONTROLS.buttonH,
+            CONTROLS_UI.buttonH,
             `${player}-sens-minus`
         );
 
@@ -1912,7 +2582,7 @@ function drawControlsMenu() {
             bx + 50,
             controlRow(3),
             80,
-            CONTROLS.buttonH
+            CONTROLS_UI.buttonH
         );
 
         drawControlButton(
@@ -1920,12 +2590,14 @@ function drawControlsMenu() {
             bx + 135,
             controlRow(3),
             45,
-            CONTROLS.buttonH,
+            CONTROLS_UI.buttonH,
             `${player}-sens-plus`
         );
     }
 
-    ctx.font = "16px monospace";
+    ctx.font =
+        "16px monospace";
+
     ctx.fillText(
         "Click en una tecla para reasignarla · ESC cancela",
         W / 2,
@@ -1961,7 +2633,10 @@ function drawVictoryScreen() {
     drawOverlay(0.65);
 
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = UI.winner;
+
+    ctx.font =
+        UI.winnerFont;
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -1987,7 +2662,7 @@ function drawVictoryScreen() {
 }
 
 // ============================================================
-// UTILIDADES GRÁFICAS
+// OVERLAY / TÍTULO
 // ============================================================
 
 function drawOverlay(alpha) {
@@ -1997,14 +2672,19 @@ function drawOverlay(alpha) {
     ctx.fillRect(
         TABLE.left,
         TABLE.top,
-        TABLE.right - TABLE.left,
-        TABLE.bottom - TABLE.top
+        TABLE.right -
+            TABLE.left,
+        TABLE.bottom -
+            TABLE.top
     );
 }
 
 function drawTitle(text) {
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = UI.menuTitle;
+
+    ctx.font =
+        UI.titleFont;
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -2020,18 +2700,26 @@ function drawTitle(text) {
 // ============================================================
 
 function drawGame() {
-    ctx.clearRect(0, 0, W, H);
+    ctx.clearRect(
+        0,
+        0,
+        W,
+        H
+    );
 
+    // Juego base
     drawTable();
     drawPaddles();
     drawBall();
     drawScore();
 
+    // Game Over
     if (gameOver) {
         drawVictoryScreen();
         return;
     }
 
+    // Submenús
     if (controlsOpen) {
         drawControlsMenu();
         return;
@@ -2052,22 +2740,30 @@ function drawGame() {
         return;
     }
 
+    // Pausa
     if (gamePaused) {
         drawPauseMenu();
     }
 }
 
 // ============================================================
-// LOOP
+// LOOP PRINCIPAL
 // ============================================================
 
 function gameLoop() {
     updatePaddles();
     updateBall();
+
     drawGame();
 
-    requestAnimationFrame(gameLoop);
+    requestAnimationFrame(
+        gameLoop
+    );
 }
 
+// ============================================================
+// INICIAR
+// ============================================================
+
+resetBall();
 gameLoop();
-```
