@@ -49,6 +49,22 @@ const BALL = {
     progressiveFactor: 1.04
 };
 
+const SPIN = {
+    defaultEnabled: false,
+    deadZone: 1,
+    fullStrengthPaddleSpeed: 18,
+    curvePerStep: 0.003,
+    speedInfluence: 0.08,
+    decay: 0.985,
+    wallRetention: 0.65,
+    epsilon: 0.001
+};
+
+const TIMING = {
+    stepMs: 1000 / 60,
+    maxSteps: 5
+};
+
 const MATCH = {
     win: 11,
     margin: 2
@@ -122,6 +138,10 @@ let audioMuted = false;
 
 let ballSpeedLevel = BALL.defaultLevel;
 let progressiveSpeed = true;
+let spinEnabled = SPIN.defaultEnabled;
+
+let previousFrameTime = null;
+let frameAccumulator = 0;
 
 let leftScore = 0;
 let rightScore = 0;
@@ -171,19 +191,25 @@ const keys = {};
 
 const leftPaddle = {
     x: PADDLE.margin,
-    y: (H - PADDLE.h) / 2
+    y: (H - PADDLE.h) / 2,
+    previousY: (H - PADDLE.h) / 2,
+    vy: 0
 };
 
 const rightPaddle = {
     x: W - PADDLE.margin - PADDLE.w,
-    y: (H - PADDLE.h) / 2
+    y: (H - PADDLE.h) / 2,
+    previousY: (H - PADDLE.h) / 2,
+    vy: 0
 };
 
 const ball = {
     x: (W - BALL.size) / 2,
     y: (H - BALL.size) / 2,
     vx: 0,
-    vy: 0
+    vy: 0,
+    spin: 0,
+    spinSpeedOffset: 0
 };
 
 
@@ -374,6 +400,9 @@ function resetPhysics() {
     progressiveSpeed =
         true;
 
+    spinEnabled =
+        SPIN.defaultEnabled;
+
     if (
         gameMode &&
         !gameOver
@@ -390,8 +419,20 @@ function resetPaddles() {
     leftPaddle.y =
         centerY;
 
+    leftPaddle.previousY =
+        centerY;
+
+    leftPaddle.vy =
+        0;
+
     rightPaddle.y =
         centerY;
+
+    rightPaddle.previousY =
+        centerY;
+
+    rightPaddle.vy =
+        0;
 }
 
 function resetBall() {
@@ -401,6 +442,12 @@ function resetBall() {
 
     ball.y =
         (H - BALL.size) / 2;
+
+    ball.spin =
+        0;
+
+    ball.spinSpeedOffset =
+        0;
 
     const speed =
         currentBallSpeed();
@@ -636,6 +683,282 @@ function matchPointSide() {
 // FÍSICA
 // ============================================================
 
+function scaleBallVelocity(
+    scale
+) {
+
+    if (
+        !Number.isFinite(scale) ||
+        scale <= 0
+    ) {
+        return;
+    }
+
+    ball.vx *= scale;
+    ball.vy *= scale;
+
+
+    const maxBaseSpeed =
+        BALL.speedLevels[
+            BALL.speedLevels.length - 1
+        ];
+
+    const maxSpeed =
+        Math.hypot(
+            maxBaseSpeed,
+
+            Math.max(
+                3,
+                maxBaseSpeed *
+                BALL.baseYRatio
+            )
+        );
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+
+    if (
+        speed > maxSpeed
+    ) {
+
+        const capScale =
+            maxSpeed /
+            speed;
+
+        ball.vx *= capScale;
+        ball.vy *= capScale;
+    }
+}
+
+function clearBallSpin() {
+
+    const speedFactor =
+        1 +
+        ball.spinSpeedOffset;
+
+
+    if (
+        speedFactor > 0 &&
+        Math.abs(
+            ball.spinSpeedOffset
+        ) >=
+            SPIN.epsilon
+    ) {
+
+        scaleBallVelocity(
+            1 /
+            speedFactor
+        );
+    }
+
+
+    ball.spin =
+        0;
+
+    ball.spinSpeedOffset =
+        0;
+}
+
+function applyBallSpin(
+    paddle
+) {
+
+    if (!spinEnabled) {
+        return;
+    }
+
+
+    const paddleSpeed =
+        paddle.vy;
+
+    const strength =
+        clamp(
+            (
+                Math.abs(
+                    paddleSpeed
+                ) -
+                SPIN.deadZone
+            ) /
+            (
+                SPIN.fullStrengthPaddleSpeed -
+                SPIN.deadZone
+            ),
+
+            0,
+            1
+        );
+
+
+    if (strength <= 0) {
+        return;
+    }
+
+
+    /*
+        La dirección absoluta de la paleta
+        curva la pelota hacia arriba o abajo.
+
+        Multiplicar por la dirección horizontal
+        mantiene el mismo resultado visual
+        para ambos lados de la mesa.
+    */
+
+    ball.spin =
+        Math.sign(
+            paddleSpeed
+        ) *
+        Math.sign(
+            ball.vx
+        ) *
+        strength;
+
+
+    /*
+        Acompañar el movimiento vertical
+        de la pelota genera un golpe ofensivo.
+
+        Contradecirlo genera un golpe flotado.
+        El modificador es temporal y no se acumula.
+    */
+
+    const driveDirection =
+        paddleSpeed *
+        ball.vy >= 0
+
+            ? 1
+            : -1;
+
+
+    const speedFactor =
+        1 +
+        driveDirection *
+        strength *
+        SPIN.speedInfluence;
+
+
+    const speedBefore =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+
+    scaleBallVelocity(
+        speedFactor
+    );
+
+
+    const speedAfter =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+
+    ball.spinSpeedOffset =
+        speedBefore > 0
+
+            ? speedAfter /
+              speedBefore -
+              1
+
+            : 0;
+}
+
+function updateBallSpin() {
+
+    if (!spinEnabled) {
+        return;
+    }
+
+
+    if (
+        Math.abs(
+            ball.spin
+        ) >=
+        SPIN.epsilon
+    ) {
+
+        const angle =
+            ball.spin *
+            SPIN.curvePerStep;
+
+        const cos =
+            Math.cos(angle);
+
+        const sin =
+            Math.sin(angle);
+
+        const vx =
+            ball.vx;
+
+        const vy =
+            ball.vy;
+
+
+        ball.vx =
+            vx * cos -
+            vy * sin;
+
+        ball.vy =
+            vx * sin +
+            vy * cos;
+    }
+
+
+    const previousOffset =
+        ball.spinSpeedOffset;
+
+    const nextOffset =
+        Math.abs(
+            previousOffset
+        ) <
+        SPIN.epsilon
+
+            ? 0
+            : previousOffset *
+              SPIN.decay;
+
+
+    if (
+        previousOffset !==
+        nextOffset
+    ) {
+
+        scaleBallVelocity(
+            (
+                1 +
+                nextOffset
+            ) /
+            (
+                1 +
+                previousOffset
+            )
+        );
+    }
+
+
+    ball.spinSpeedOffset =
+        nextOffset;
+
+    ball.spin *=
+        SPIN.decay;
+
+
+    if (
+        Math.abs(
+            ball.spin
+        ) <
+        SPIN.epsilon
+    ) {
+        ball.spin = 0;
+    }
+}
+
 function increaseBallSpeed() {
 
     if (!progressiveSpeed) {
@@ -807,6 +1130,25 @@ function clampPaddles() {
             TABLE.top,
             maxY
         );
+}
+
+function updatePaddleMotion() {
+
+    for (
+        const paddle of
+        [
+            leftPaddle,
+            rightPaddle
+        ]
+    ) {
+
+        paddle.vy =
+            paddle.y -
+            paddle.previousY;
+
+        paddle.previousY =
+            paddle.y;
+    }
 }
 
 
@@ -1033,6 +1375,8 @@ function bouncePaddle(
     side
 ) {
 
+    clearBallSpin();
+
     ball.x =
         side === "left"
 
@@ -1057,6 +1401,9 @@ function bouncePaddle(
     );
 
     increaseBallSpeed();
+    applyBallSpin(
+        paddle
+    );
     paddleSound();
 }
 
@@ -1075,6 +1422,8 @@ function updateBall() {
     ) {
         return;
     }
+
+    updateBallSpin();
 
     ball.x +=
         ball.vx;
@@ -1098,6 +1447,9 @@ function updateBall() {
                 ball.vy
             );
 
+        ball.spin *=
+            SPIN.wallRetention;
+
         increaseBallSpeed();
         wallSound();
 
@@ -1118,6 +1470,9 @@ function updateBall() {
             -Math.abs(
                 ball.vy
             );
+
+        ball.spin *=
+            SPIN.wallRetention;
 
         increaseBallSpeed();
         wallSound();
@@ -2001,48 +2356,24 @@ function interactiveItems() {
         );
 
         add(
-            "topspin",
-            "TOPSPIN · PRÓXIMAMENTE",
+            "spin",
+
+            `SPIN: ${
+                spinEnabled
+                    ? "ON"
+                    : "OFF"
+            }`,
+
             {
                 x:
-                    W / 2 - 210,
+                    W / 2 - 230,
 
                 y: 320,
 
-                w: 420,
-                h: 44
+                w: 460,
+                h: 55
             },
-            true
-        );
-
-        add(
-            "backspin",
-            "BACKSPIN · PRÓXIMAMENTE",
-            {
-                x:
-                    W / 2 - 210,
-
-                y: 374,
-
-                w: 420,
-                h: 44
-            },
-            true
-        );
-
-        add(
-            "sidespin",
-            "SIDESPIN · PRÓXIMAMENTE",
-            {
-                x:
-                    W / 2 - 210,
-
-                y: 428,
-
-                w: 420,
-                h: 44
-            },
-            true
+            false
         );
 
         add(
@@ -2052,7 +2383,7 @@ function interactiveItems() {
                 x:
                     W / 2 - 190,
 
-                y: 505,
+                y: 415,
 
                 w: 380,
                 h: 50
@@ -2066,7 +2397,7 @@ function interactiveItems() {
                 x:
                     W / 2 - 110,
 
-                y: 570,
+                y: 480,
 
                 w: 220,
                 h: 50
@@ -3079,6 +3410,22 @@ function handleAction(id) {
 
         progressiveSpeed =
             !progressiveSpeed;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "spin"
+    ) {
+
+        spinEnabled =
+            !spinEnabled;
+
+        if (!spinEnabled) {
+            clearBallSpin();
+        }
 
         return;
     }
@@ -4230,10 +4577,50 @@ function drawGame() {
 // LOOP
 // ============================================================
 
-function loop() {
+function loop(
+    timestamp
+) {
 
-    updatePaddles();
-    updateBall();
+    if (
+        previousFrameTime ===
+        null
+    ) {
+        previousFrameTime =
+            timestamp;
+    }
+
+
+    const elapsed =
+        Math.min(
+            timestamp -
+            previousFrameTime,
+
+            TIMING.stepMs *
+            TIMING.maxSteps
+        );
+
+
+    previousFrameTime =
+        timestamp;
+
+    frameAccumulator +=
+        elapsed;
+
+
+    while (
+        frameAccumulator >=
+        TIMING.stepMs
+    ) {
+
+        updatePaddles();
+        updatePaddleMotion();
+        updateBall();
+
+        frameAccumulator -=
+            TIMING.stepMs;
+    }
+
+
     drawGame();
 
     requestAnimationFrame(
@@ -4243,4 +4630,6 @@ function loop() {
 
 
 resetBall();
-loop();
+requestAnimationFrame(
+    loop
+);
