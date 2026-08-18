@@ -15,11 +15,31 @@ const BRAND = {
     ink: "#050B18"
 };
 
+const TABLE_REGULATION = {
+    lengthMeters: 2.74,
+    widthMeters: 1.525
+};
+
+const TABLE_HEIGHT =
+    H - 20;
+
+const TABLE_WIDTH =
+    TABLE_HEIGHT *
+    TABLE_REGULATION.lengthMeters /
+    TABLE_REGULATION.widthMeters;
+
 const TABLE = {
-    left: 10,
-    right: W - 10,
-    top: 10,
-    bottom: H - 10,
+    left:
+        (W - TABLE_WIDTH) / 2,
+
+    right:
+        (W + TABLE_WIDTH) / 2,
+
+    top:
+        (H - TABLE_HEIGHT) / 2,
+
+    bottom:
+        (H + TABLE_HEIGHT) / 2,
 
     colors: {
         green: "#1f5f3a",
@@ -166,6 +186,8 @@ const TEXT = {
         player: "JUGADOR",
         winLeft: "LA IZQUIERDA GANA",
         winRight: "LA DERECHA GANA",
+        youWon: "Ganaste",
+        solWins: "GPT-5.6 Sol Gana",
         replay: "REPETICIONES INSTANTÁNEAS",
         replayAuto: "REPRODUCCIÓN AUTOMÁTICA",
         frequency: "FRECUENCIA",
@@ -176,7 +198,7 @@ const TEXT = {
         defaults: "POR DEFECTO",
         replaySpeed: "VELOCIDAD",
         instantReplay: "REPETICIÓN INSTANTÁNEA",
-        skipReplay: "PRESIONE CUALQUIER TECLA PARA OMITIR",
+        skipReplay: "ESC, ESPACIO, ENTER O CLICK PARA OMITIR",
         language: "IDIOMA",
         automatic: "AUTOMÁTICO",
         spanish: "ESPAÑOL",
@@ -243,6 +265,8 @@ const TEXT = {
         player: "PLAYER",
         winLeft: "LEFT SIDE WINS",
         winRight: "RIGHT SIDE WINS",
+        youWon: "You Won",
+        solWins: "GPT-5.6 Sol Wins",
         replay: "INSTANT REPLAYS",
         replayAuto: "AUTOMATIC REPLAY",
         frequency: "FREQUENCY",
@@ -253,7 +277,7 @@ const TEXT = {
         defaults: "DEFAULTS",
         replaySpeed: "SPEED",
         instantReplay: "INSTANT REPLAY",
-        skipReplay: "PRESS ANY KEY TO SKIP",
+        skipReplay: "ESC, SPACE, ENTER OR CLICK TO SKIP",
         language: "LANGUAGE",
         automatic: "AUTOMATIC",
         spanish: "ESPAÑOL",
@@ -362,17 +386,22 @@ const AI_LEVELS = {
     easy: {
         label: "FÁCIL",
         returns: 5,
-        anticipation: 0.55,
-        response: 0.78,
-        baseSensitivity: 0.72,
-        demandScale: 0.8,
-        tracking: 0.35,
-        reactionSteps: 8,
-        correctionSteps: 15,
-        aimError: 30,
-        shotStrength: 0.62,
-        blockChance: 0.56,
-        backspinChance: 0.16
+        anticipation: 0.44,
+        response: 0.7,
+        baseSensitivity: 0.66,
+        demandScale: 0.72,
+        tracking: 0.31,
+        reactionSteps: 10,
+        correctionSteps: 20,
+        aimError: 42,
+        spinAwareness: 0.12,
+        shotStrength: 0.55,
+        blockChance: 0.5,
+        backspinChance: 0.14,
+        serveBounceDistance: 235,
+        serveVariation: 10,
+        returnBounceDistance: 650,
+        returnVariation: 90
     },
 
     normal: {
@@ -386,9 +415,14 @@ const AI_LEVELS = {
         reactionSteps: 7,
         correctionSteps: 14,
         aimError: 24,
+        spinAwareness: 0.64,
         shotStrength: 0.76,
         blockChance: 0.38,
-        backspinChance: 0.24
+        backspinChance: 0.24,
+        serveBounceDistance: 320,
+        serveVariation: 35,
+        returnBounceDistance: 760,
+        returnVariation: 55
     },
 
     hard: {
@@ -402,9 +436,14 @@ const AI_LEVELS = {
         reactionSteps: 3,
         correctionSteps: 6,
         aimError: 8,
+        spinAwareness: 1,
         shotStrength: 0.94,
         blockChance: 0.22,
-        backspinChance: 0.3
+        backspinChance: 0.3,
+        serveBounceDistance: 410,
+        serveVariation: 55,
+        returnBounceDistance: 880,
+        returnVariation: 30
     }
 };
 
@@ -888,6 +927,126 @@ function resetProfessionalBounce(
         0;
 }
 
+function variedAIValue(
+    value,
+    variation
+) {
+
+    return (
+        value +
+        (
+            Math.random() *
+            2 -
+            1
+        ) *
+        variation
+    );
+}
+
+function setBallVelocityForBounceDistance(
+    speed,
+    horizontalDirection,
+    verticalDirection,
+    horizontalDistance
+) {
+
+    const radius =
+        BALL.size / 2;
+
+    const ballCenterY =
+        ball.y +
+        radius;
+
+    const verticalDistance =
+        verticalDirection < 0
+
+            ? ballCenterY -
+              (
+                  TABLE.top +
+                  radius
+              )
+
+            : TABLE.bottom -
+              radius -
+              ballCenterY;
+
+    const safeHorizontalDistance =
+        Math.max(
+            1,
+            horizontalDistance
+        );
+
+    const verticalToHorizontal =
+        Math.max(
+            0,
+            verticalDistance
+        ) /
+        safeHorizontalDistance;
+
+    const horizontalSpeed =
+        speed /
+        Math.hypot(
+            1,
+            verticalToHorizontal
+        );
+
+    ball.vx =
+        horizontalDirection *
+        horizontalSpeed;
+
+    ball.vy =
+        verticalDirection *
+        horizontalSpeed *
+        verticalToHorizontal;
+}
+
+function configureAIProfessionalServe(
+    speed
+) {
+
+    if (
+        gameMode !== "ai" ||
+        playStyle !==
+            "professional" ||
+        servingPlayer !==
+            otherSide(
+                humanSide
+            )
+    ) {
+        return;
+    }
+
+    const level =
+        AI_LEVELS[
+            aiDifficulty
+        ];
+
+    const horizontalDirection =
+        servingPlayer === "left"
+
+            ? 1
+            : -1;
+
+    const verticalDirection =
+        Math.random() < 0.5
+
+            ? -1
+            : 1;
+
+    const bounceDistance =
+        variedAIValue(
+            level.serveBounceDistance,
+            level.serveVariation
+        );
+
+    setBallVelocityForBounceDistance(
+        speed,
+        horizontalDirection,
+        verticalDirection,
+        bounceDistance
+    );
+}
+
 function resetBall() {
 
     resetProfessionalBounce(
@@ -951,6 +1110,10 @@ function resetBall() {
                 : 1
         ) *
         verticalSpeed;
+
+    configureAIProfessionalServe(
+        speed
+    );
 
     // Cada punto reinicia
     // el desgaste de la IA.
@@ -1714,6 +1877,65 @@ function isAISide(
     );
 }
 
+function prepareAIProfessionalReturn(
+    side
+) {
+
+    if (
+        playStyle !==
+            "professional" ||
+        !isAISide(side)
+    ) {
+        return;
+    }
+
+    const level =
+        AI_LEVELS[
+            aiDifficulty
+        ];
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    const horizontalDirection =
+        side === "left"
+
+            ? 1
+            : -1;
+
+    const verticalDirection =
+        Math.sign(
+            ball.vy
+        ) ||
+        (
+            Math.random() < 0.5
+
+                ? -1
+                : 1
+        );
+
+    const bounceDistance =
+        clamp(
+            variedAIValue(
+                level.returnBounceDistance,
+                level.returnVariation
+            ),
+
+            TABLE_WIDTH * 0.42,
+            TABLE_WIDTH * 0.82
+        );
+
+    setBallVelocityForBounceDistance(
+        speed,
+        horizontalDirection,
+        verticalDirection,
+        bounceDistance
+    );
+}
+
 function spinPaddleSpeed(
     paddle,
     side
@@ -2404,7 +2626,8 @@ function reflectPredictedBallY(
 }
 
 function predictedBallYAtPaddle(
-    side
+    side,
+    spinAwareness = 0
 ) {
 
     const paddle =
@@ -2450,11 +2673,303 @@ function predictedBallYAtPaddle(
         return ballCenterY;
     }
 
-    return reflectPredictedBallY(
+    const linearPrediction =
+        reflectPredictedBallY(
         ballCenterY +
         ball.vy *
         travelSteps
     );
+
+    if (
+        !spinEnabled ||
+        Math.abs(
+            ball.spin
+        ) <
+            SPIN.epsilon ||
+        spinAwareness <= 0
+    ) {
+        return linearPrediction;
+    }
+
+    const spinPrediction =
+        spinPredictedBallYAtPaddle(
+            side,
+            linearPrediction
+        );
+
+    return (
+        linearPrediction +
+        (
+            spinPrediction -
+            linearPrediction
+        ) *
+        clamp(
+            spinAwareness,
+            0,
+            1
+        )
+    );
+}
+
+function spinPredictedBallYAtPaddle(
+    side,
+    fallback
+) {
+
+    const paddle =
+        sidePaddle(
+            side
+        );
+
+    const radius =
+        BALL.size / 2;
+
+    const targetX =
+        side === "left"
+
+            ? paddle.x +
+              PADDLE.w +
+              radius
+
+            : paddle.x -
+              radius;
+
+    let predictedX =
+        ball.x;
+
+    let predictedY =
+        ball.y;
+
+    let predictedVx =
+        ball.vx;
+
+    let predictedVy =
+        ball.vy;
+
+    let predictedSpin =
+        ball.spin;
+
+
+    const applyPredictedBounce =
+        () => {
+
+            const speed =
+                Math.hypot(
+                    predictedVx,
+                    predictedVy
+                );
+
+            if (speed <= 0) {
+                return;
+            }
+
+            const horizontalDirection =
+                Math.sign(
+                    predictedVx
+                ) || 1;
+
+            const verticalDirection =
+                Math.sign(
+                    predictedVy
+                ) || 1;
+
+            if (
+                ball.shotType ===
+                "topspin"
+            ) {
+
+                const verticalSpeed =
+                    Math.min(
+                        speed * 0.94,
+
+                        Math.abs(
+                            predictedVy
+                        ) *
+                        SPIN.topspinBounceVerticalBoost
+                    );
+
+                predictedVy =
+                    verticalDirection *
+                    verticalSpeed;
+
+                predictedVx =
+                    horizontalDirection *
+                    Math.sqrt(
+                        Math.max(
+                            0,
+                            speed * speed -
+                            verticalSpeed *
+                            verticalSpeed
+                        )
+                    );
+
+            } else if (
+                ball.shotType ===
+                "backspin"
+            ) {
+
+                const horizontalSpeed =
+                    Math.abs(
+                        predictedVx
+                    ) *
+                    SPIN.backspinBounceHorizontalRetention;
+
+                predictedVx =
+                    horizontalDirection *
+                    horizontalSpeed;
+
+                predictedVy =
+                    verticalDirection *
+                    Math.sqrt(
+                        Math.max(
+                            0,
+                            speed * speed -
+                            horizontalSpeed *
+                            horizontalSpeed
+                        )
+                    );
+            }
+        };
+
+
+    for (
+        let step = 0;
+        step < 360;
+        step++
+    ) {
+
+        if (
+            Math.abs(
+                predictedSpin
+            ) >=
+            SPIN.epsilon
+        ) {
+
+            const curveMultiplier =
+                ball.shotType ===
+                    "topspin"
+
+                    ? SPIN.topspinCurveMultiplier
+                    : ball.shotType ===
+                        "backspin"
+
+                        ? SPIN.backspinCurveMultiplier
+                        : 1;
+
+            const angle =
+                predictedSpin *
+                SPIN.curvePerStep *
+                curveMultiplier;
+
+            const cos =
+                Math.cos(angle);
+
+            const sin =
+                Math.sin(angle);
+
+            const vx =
+                predictedVx;
+
+            const vy =
+                predictedVy;
+
+            predictedVx =
+                vx * cos -
+                vy * sin;
+
+            predictedVy =
+                vx * sin +
+                vy * cos;
+        }
+
+        predictedSpin *=
+            SPIN.decay;
+
+        if (
+            Math.abs(
+                predictedSpin
+            ) <
+            SPIN.epsilon
+        ) {
+            predictedSpin = 0;
+        }
+
+        predictedX +=
+            predictedVx;
+
+        predictedY +=
+            predictedVy;
+
+
+        if (
+            predictedY <=
+            TABLE.top
+        ) {
+
+            predictedY =
+                TABLE.top;
+
+            predictedVy =
+                Math.abs(
+                    predictedVy
+                );
+
+            predictedSpin *=
+                SPIN.wallRetention;
+
+            applyPredictedBounce();
+
+        } else if (
+            predictedY +
+            BALL.size >=
+            TABLE.bottom
+        ) {
+
+            predictedY =
+                TABLE.bottom -
+                BALL.size;
+
+            predictedVy =
+                -Math.abs(
+                    predictedVy
+                );
+
+            predictedSpin *=
+                SPIN.wallRetention;
+
+            applyPredictedBounce();
+        }
+
+
+        const centerX =
+            predictedX +
+            radius;
+
+        const reachedPaddle =
+            side === "left"
+
+                ? centerX <=
+                  targetX
+
+                : centerX >=
+                  targetX;
+
+        if (reachedPaddle) {
+
+            return clamp(
+                predictedY +
+                radius,
+
+                TABLE.top +
+                radius,
+
+                TABLE.bottom -
+                radius
+            );
+        }
+    }
+
+    return fallback;
 }
 
 function aiFatigueRatio(
@@ -2682,7 +3197,8 @@ function updateAITarget(
 
         const prediction =
             predictedBallYAtPaddle(
-                aiSide
+                aiSide,
+                level.spinAwareness
             );
 
         aiAimY =
@@ -3129,6 +3645,10 @@ function bouncePaddle(
         side
     );
 
+    prepareAIProfessionalReturn(
+        side
+    );
+
     increaseBallSpeed();
     applyBallSpin(
         paddle,
@@ -3353,6 +3873,22 @@ function updateBall(
 // TECLADO
 // ============================================================
 
+function replaySkipKey(
+    event
+) {
+
+    return (
+        event.key ===
+            "Escape" ||
+        event.key ===
+            "Enter" ||
+        event.code ===
+            "Space" ||
+        event.key ===
+            " "
+    );
+}
+
 window.addEventListener(
     "keydown",
     event => {
@@ -3362,8 +3898,15 @@ window.addEventListener(
 
         if (replayPlaying) {
 
-            event.preventDefault();
-            finishReplay();
+            if (
+                replaySkipKey(
+                    event
+                )
+            ) {
+
+                event.preventDefault();
+                finishReplay();
+            }
 
             return;
         }
@@ -4260,7 +4803,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
@@ -4273,7 +4816,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
@@ -4286,7 +4829,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
@@ -4299,7 +4842,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
@@ -4312,7 +4855,7 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
@@ -7214,16 +7757,15 @@ function drawStart() {
     }
 
 
-    if (!aiMenuOpen) {
+    drawArgenPongLogo();
 
-        drawArgenPongLogo();
 
-    } else {
+    if (aiMenuOpen) {
 
         title(
             t("chooseSide"),
-            125,
-            "bold 42px monospace"
+            270,
+            "bold 26px monospace"
         );
 
 
@@ -7240,7 +7782,7 @@ function drawStart() {
         ctx.fillText(
             t("chooseDifficulty"),
             W / 2,
-            180
+            302
         );
     }
 
@@ -8069,17 +8611,38 @@ function drawReplay() {
 // VICTORIA
 // ============================================================
 
+function victoryTitle() {
+
+    if (
+        gameMode ===
+        "ai"
+    ) {
+
+        return (
+            winner ===
+            humanSide
+
+                ? t("youWon")
+                : t("solWins")
+        );
+    }
+
+    return (
+        winner ===
+        "left"
+
+            ? t("winLeft")
+            : t("winRight")
+    );
+}
+
 function drawVictory() {
 
     overlay(0.68);
 
 
     title(
-        winner ===
-        "left"
-
-            ? t("winLeft")
-            : t("winRight"),
+        victoryTitle(),
 
         H / 2 - 50,
 
