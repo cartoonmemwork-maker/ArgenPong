@@ -38,32 +38,32 @@ const BALL = {
     size: 20,
 
     speedLevels: [
-        5,
-        6.1,
-        7.3,
-        8.8,
-        10.5,
-        12.8,
-        15.6,
-        18.9,
-        23.2,
-        25
+        5.2,
+        6.4,
+        7.8,
+        9.4,
+        11,
+        13.5,
+        16.5,
+        20,
+        24.5,
+        29
     ],
 
     defaultLevel: 5,
     baseYRatio: 0.7,
-    progressiveFactor: 1.0457,
-    maxSpeed: 29
+    progressiveFactor: 1.0503,
+    maxSpeed: 34
 };
 
 const SPIN = {
     defaultEnabled: true,
-    deadZone: 0.8,
-    fullStrengthPaddleSpeed: 16,
-    curvePerStep: 0.0075,
-    speedInfluence: 0.13,
-    decay: 0.99,
-    wallRetention: 0.75,
+    deadZone: 0.6,
+    fullStrengthPaddleSpeed: 14,
+    curvePerStep: 0.0095,
+    speedInfluence: 0.16,
+    decay: 0.992,
+    wallRetention: 0.8,
     epsilon: 0.001
 };
 
@@ -159,7 +159,7 @@ const TEXT = {
         player: "JUGADOR",
         winLeft: "LA IZQUIERDA GANA",
         winRight: "LA DERECHA GANA",
-        replay: "REPETICIÓN",
+        replay: "REPETICIONES INSTANTÁNEAS",
         replayAuto: "REPRODUCCIÓN AUTOMÁTICA",
         frequency: "FRECUENCIA",
         replayMatch: "MATCH",
@@ -236,7 +236,7 @@ const TEXT = {
         player: "PLAYER",
         winLeft: "LEFT SIDE WINS",
         winRight: "RIGHT SIDE WINS",
-        replay: "REPLAY",
+        replay: "INSTANT REPLAYS",
         replayAuto: "AUTOMATIC REPLAY",
         frequency: "FREQUENCY",
         replayMatch: "MATCH",
@@ -265,8 +265,9 @@ const RULEBOOK = {
         ],
 
         professional: [
-            "El último jugador en golpear debe enviarla a la mitad rival.",
+            "El golpe debe picar en mitad rival; si sale sin hacerlo, pierde el golpeador.",
             "Si la pelota pica en su propia mitad, pierde el tanto.",
+            "Si el rival la toca antes del pique, el golpeador gana el tanto.",
             "Un pique rival es válido; el segundo da el tanto al atacante.",
             "Cada devolución cambia al atacante y reinicia el conteo.",
             "Recomendado para jugadores avanzados."
@@ -274,8 +275,8 @@ const RULEBOOK = {
 
         glossary: [
             ["SAQUE", "Puesta en juego; cambia cada 2 tantos y en cada tanto desde 10-10."],
-            ["DEVOLUCIÓN", "Golpe de paleta que envía la pelota hacia el rival."],
-            ["PIQUE", "Rebote en un borde de la mesa; la línea central define su mitad."],
+            ["DEVOLUCIÓN", "Golpe válido después de que la pelota picó en tu mitad."],
+            ["PIQUE", "Rebote en la mesa; en Profesional debe ocurrir en la mitad rival."],
             ["SPIN", "Efecto curvo generado por el movimiento de la paleta."],
             ["MATCH", "El próximo tanto puede cerrar la partida."],
             ["IGUALES", "Desde 10-10 hay que ganar por 2 tantos de diferencia."]
@@ -311,8 +312,9 @@ const RULEBOOK = {
         ],
 
         professional: [
-            "The last hitter must send the ball toward the opponent's half.",
+            "The shot must bounce on the opponent's half; missing it loses the point.",
             "A bounce on the hitter's own half loses the point.",
+            "If the opponent touches it before the bounce, the hitter wins the point.",
             "One opponent-side bounce is valid; the second wins the point for the hitter.",
             "Each return changes the hitter and resets the bounce count.",
             "Recommended for advanced players."
@@ -320,8 +322,8 @@ const RULEBOOK = {
 
         glossary: [
             ["SERVE", "Starts the rally; changes every 2 points and every point from 10-10."],
-            ["RETURN", "A paddle hit that sends the ball toward the opponent."],
-            ["BOUNCE", "A rebound off a table edge; the center line defines its half."],
+            ["RETURN", "A valid paddle hit after the ball bounced on your half."],
+            ["BOUNCE", "A table rebound; in Professional it must occur on the opponent's half."],
             ["SPIN", "Curved motion created by paddle movement."],
             ["MATCH", "The next point can end the match."],
             ["DEUCE", "From 10-10, a 2-point lead is required to win."]
@@ -396,17 +398,23 @@ const AI_DEFAULTS = {
 const AI_LEVELS = {
     easy: {
         label: "FÁCIL",
-        returns: 5
+        returns: 5,
+        anticipation: 0.35,
+        response: 0.78
     },
 
     normal: {
         label: "NORMAL",
-        returns: 15
+        returns: 10,
+        anticipation: 0.68,
+        response: 0.92
     },
 
     hard: {
         label: "DIFÍCIL",
-        returns: 30
+        returns: 20,
+        anticipation: 0.92,
+        response: 1.05
     }
 };
 
@@ -449,7 +457,6 @@ let settingsOpen = false;
 let controlsOpen = false;
 let backgroundOpen = false;
 let physicsOpen = false;
-let fpsOpen = false;
 let replayOpen = false;
 let languageOpen = false;
 
@@ -610,7 +617,9 @@ function languageModeLabel() {
     return t("automatic");
 }
 
-function replayModeLabel() {
+function replayModeLabel(
+    mode = replayMode
+) {
 
     const labels = {
         matchSpeed:
@@ -627,7 +636,7 @@ function replayModeLabel() {
     };
 
     return (
-        labels[replayMode] ||
+        labels[mode] ||
         labels[REPLAY.defaultMode]
     );
 }
@@ -977,7 +986,6 @@ function startGame(
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
-    fpsOpen = false;
     replayOpen = false;
     languageOpen = false;
 
@@ -1007,7 +1015,6 @@ function goToStartMenu() {
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
-    fpsOpen = false;
     replayOpen = false;
     languageOpen = false;
 
@@ -2064,7 +2071,7 @@ function aiMovementSensitivity() {
         A medida que devuelve,
         pierde capacidad de movimiento.
 
-        5 / 15 / 30 determinan
+        5 / 10 / 20 determinan
         cuánto tarda en degradarse.
     */
 
@@ -2097,6 +2104,128 @@ function registerAIReturn(side) {
     aiReturns++;
 }
 
+function reflectPredictedBallY(
+    value
+) {
+
+    const radius =
+        BALL.size / 2;
+
+    const minY =
+        TABLE.top +
+        radius;
+
+    const maxY =
+        TABLE.bottom -
+        radius;
+
+    const span =
+        maxY -
+        minY;
+
+    const cycle =
+        span * 2;
+
+    const offset =
+        (
+            (
+                value -
+                minY
+            ) %
+            cycle +
+            cycle
+        ) %
+        cycle;
+
+    return (
+        offset <= span
+
+            ? minY +
+              offset
+
+            : maxY -
+              (
+                  offset -
+                  span
+              )
+    );
+}
+
+function predictedBallYAtPaddle(
+    side
+) {
+
+    const paddle =
+        sidePaddle(
+            side
+        );
+
+    const ballCenterX =
+        ball.x +
+        BALL.size / 2;
+
+    const ballCenterY =
+        ball.y +
+        BALL.size / 2;
+
+    if (
+        Math.abs(
+            ball.vx
+        ) <
+        0.000001
+    ) {
+        return ballCenterY;
+    }
+
+    const targetX =
+        side === "left"
+
+            ? paddle.x +
+              PADDLE.w +
+              BALL.size / 2
+
+            : paddle.x -
+              BALL.size / 2;
+
+    const travelSteps =
+        (
+            targetX -
+            ballCenterX
+        ) /
+        ball.vx;
+
+    if (travelSteps <= 0) {
+        return ballCenterY;
+    }
+
+    return reflectPredictedBallY(
+        ballCenterY +
+        ball.vy *
+        travelSteps
+    );
+}
+
+function professionalAIWaitingForBounce(
+    aiSide
+) {
+
+    const movingTowardAI =
+        aiSide === "left"
+
+            ? ball.vx < 0
+            : ball.vx > 0;
+
+    return (
+        playStyle ===
+            "professional" &&
+        movingTowardAI &&
+        professionalLastHitter &&
+        professionalLastHitter !==
+            aiSide &&
+        professionalBounceCount === 0
+    );
+}
+
 function updateAI(
     stepScale = 1
 ) {
@@ -2107,19 +2236,83 @@ function updateAI(
         return;
     }
 
+    const aiSide =
+        otherSide(
+            humanSide
+        );
+
     const paddle =
         sidePaddle(
-            otherSide(
-                humanSide
-            )
+            aiSide
         );
+
+    const level =
+        AI_LEVELS[
+            aiDifficulty
+        ];
 
     const sensitivity =
         aiMovementSensitivity();
 
-    const target =
+    const ballCenter =
         ball.y +
         BALL.size / 2;
+
+    const movingTowardAI =
+        aiSide === "left"
+
+            ? ball.vx < 0
+            : ball.vx > 0;
+
+    const waitingForBounce =
+        professionalAIWaitingForBounce(
+            aiSide
+        );
+
+    let target =
+        H / 2;
+
+    if (waitingForBounce) {
+
+        const escapeDirection =
+            ballCenter <
+            H / 2
+
+                ? 1
+                : -1;
+
+        target =
+            clamp(
+                ballCenter +
+                escapeDirection *
+                (
+                    PADDLE.h / 2 +
+                    BALL.size +
+                    22
+                ),
+
+                TABLE.top +
+                PADDLE.h / 2,
+
+                TABLE.bottom -
+                PADDLE.h / 2
+            );
+
+    } else if (movingTowardAI) {
+
+        const prediction =
+            predictedBallYAtPaddle(
+                aiSide
+            );
+
+        target =
+            ballCenter +
+            (
+                prediction -
+                ballCenter
+            ) *
+            level.anticipation;
+    }
 
     const center =
         paddle.y +
@@ -2172,13 +2365,25 @@ function updateAI(
             0.35 +
             sensitivity *
             0.9
+        ) *
+        (
+            waitingForBounce
+
+                ? Math.max(
+                    1,
+                    level.response
+                )
+                : level.response
         );
 
 
     const tracking =
-        0.26 +
-        sensitivity *
-        0.18;
+        waitingForBounce
+
+            ? 0.48
+            : 0.24 +
+              sensitivity *
+              0.2;
 
 
     const movement =
@@ -2321,6 +2526,46 @@ function registerProfessionalBounce() {
             ? professionalLastHitter
             : null
     );
+}
+
+function professionalVolleyWinner(
+    paddleSide
+) {
+
+    if (
+        playStyle !==
+            "professional" ||
+        !professionalLastHitter ||
+        paddleSide ===
+            professionalLastHitter ||
+        professionalBounceCount > 0
+    ) {
+        return null;
+    }
+
+    return professionalLastHitter;
+}
+
+function professionalExitWinner(
+    exitSide,
+    standardWinner
+) {
+
+    if (
+        playStyle ===
+            "professional" &&
+        professionalLastHitter &&
+        exitSide ===
+            otherSide(
+                professionalLastHitter
+            ) &&
+        professionalBounceCount === 0
+    ) {
+
+        return exitSide;
+    }
+
+    return standardWinner;
 }
 
 function bouncePaddle(
@@ -2477,6 +2722,24 @@ function updateBall(
         )
     ) {
 
+        const volleyWinner =
+            professionalVolleyWinner(
+                "left"
+            );
+
+        if (volleyWinner) {
+
+            captureReplayFrame(
+                stepScale
+            );
+
+            awardPoint(
+                volleyWinner
+            );
+
+            return;
+        }
+
         bouncePaddle(
             leftPaddle,
             "left"
@@ -2491,6 +2754,24 @@ function updateBall(
             "right"
         )
     ) {
+
+        const volleyWinner =
+            professionalVolleyWinner(
+                "right"
+            );
+
+        if (volleyWinner) {
+
+            captureReplayFrame(
+                stepScale
+            );
+
+            awardPoint(
+                volleyWinner
+            );
+
+            return;
+        }
 
         bouncePaddle(
             rightPaddle,
@@ -2512,7 +2793,10 @@ function updateBall(
     ) {
 
         awardPoint(
-            "right"
+            professionalExitWinner(
+                "left",
+                "right"
+            )
         );
 
 
@@ -2524,7 +2808,10 @@ function updateBall(
     ) {
 
         awardPoint(
-            "left"
+            professionalExitWinner(
+                "right",
+                "left"
+            )
         );
     }
 }
@@ -2712,7 +2999,6 @@ function closeMenusToGame(
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
-    fpsOpen = false;
     replayOpen = false;
     languageOpen = false;
     rulesOpen = false;
@@ -2752,7 +3038,6 @@ function handleEscape() {
         controlsOpen ||
         backgroundOpen ||
         physicsOpen ||
-        fpsOpen ||
         replayOpen ||
         languageOpen ||
         rulesOpen ||
@@ -3676,56 +3961,6 @@ function interactiveItems() {
         return items;
     }
 
-
-    // FPS
-
-    if (fpsOpen) {
-
-        TIMING.options
-            .forEach(
-                (
-                    fps,
-                    index
-                ) => {
-
-                    add(
-                        `fps${fps}`,
-
-                        fps ===
-                        physicsFps
-
-                            ? `${fps} FPS · ${t("active")}`
-                            : `${fps} FPS`,
-
-                        buttonRect(
-                            index,
-                            3,
-                            320,
-                            55,
-                            15,
-                            380
-                        )
-                    );
-                }
-            );
-
-        add(
-            "fpsBack",
-            t("back"),
-            buttonRect(
-                2,
-                3,
-                320,
-                55,
-                15,
-                380
-            )
-        );
-
-        return items;
-    }
-
-
     // FISICAS
 
     if (physicsOpen) {
@@ -3834,57 +4069,66 @@ function interactiveItems() {
                     : "OFF"
             }`,
 
-            buttonRect(
-                0,
-                4,
-                620,
-                58,
-                16,
-                380
-            )
+            {
+                x: 330,
+                y: 125,
+                w: 620,
+                h: 50
+            }
         );
 
-        add(
-            "replayMode",
+        REPLAY.modeOptions
+            .forEach(
+                (
+                    mode,
+                    index
+                ) => {
 
-            `${t("frequency")}: ${
-                replayModeLabel()
-            }`,
+                    add(
+                        `replayMode:${mode}`,
 
-            buttonRect(
-                1,
-                4,
-                620,
-                58,
-                16,
-                380
-            )
-        );
+                        `${replayModeLabel(
+                            mode
+                        )}${
+                            replayMode ===
+                            mode
+
+                                ? ` · ${t("active")}`
+                                : ""
+                        }`,
+
+                        {
+                            x: 315,
+                            y:
+                                225 +
+                                index * 54,
+                            w: 650,
+                            h: 46
+                        }
+                    );
+                }
+            );
 
         add(
             "replayDefaults",
             t("defaults"),
-            buttonRect(
-                2,
-                4,
-                620,
-                58,
-                16,
-                380
-            )
+            {
+                x: 390,
+                y: 465,
+                w: 500,
+                h: 46
+            }
         );
 
         add(
             "replayBack",
             t("back"),
-            buttonRect(
-                3,
-                4,
-                620,
-                58,
-                16,
-                380
-            )
+            {
+                x: 500,
+                y: 525,
+                w: 280,
+                h: 46
+            }
         );
 
         return items;
@@ -4821,8 +5065,12 @@ function handleAction(id) {
         "fps"
     ) {
 
-        fpsOpen =
-            true;
+        setPhysicsFps(
+            physicsFps === 60
+
+                ? 120
+                : 60
+        );
 
         return;
     }
@@ -4914,19 +5162,6 @@ function handleAction(id) {
         return;
     }
 
-
-    if (
-        id ===
-        "fpsBack"
-    ) {
-
-        fpsOpen =
-            false;
-
-        return;
-    }
-
-
     if (
         id ===
         "replayAuto"
@@ -4940,24 +5175,24 @@ function handleAction(id) {
 
 
     if (
-        id ===
-        "replayMode"
+        id.startsWith(
+            "replayMode:"
+        )
     ) {
 
-        const currentIndex =
-            REPLAY.modeOptions
-                .indexOf(
-                    replayMode
-                );
+        const nextMode =
+            id.split(":")[1];
 
-        replayMode =
-            REPLAY.modeOptions[
-                (
-                    currentIndex +
-                    1
-                ) %
-                REPLAY.modeOptions.length
-            ];
+        if (
+            REPLAY.modeOptions
+                .includes(
+                    nextMode
+                )
+        ) {
+
+            replayMode =
+                nextMode;
+        }
 
         return;
     }
@@ -5017,22 +5252,6 @@ function handleAction(id) {
 
         return;
     }
-
-
-    if (
-        id === "fps60" ||
-        id === "fps120"
-    ) {
-
-        setPhysicsFps(
-            Number(
-                id.slice(3)
-            )
-        );
-
-        return;
-    }
-
 
     if (
         [
@@ -6792,21 +7011,6 @@ function drawBackground() {
         );
 }
 
-function drawFps() {
-
-    overlay(0.82);
-
-    title(
-        "FPS",
-        75
-    );
-
-    interactiveItems()
-        .forEach(
-            drawButton
-        );
-}
-
 function drawReplaySettings() {
 
     overlay(0.82);
@@ -6814,6 +7018,24 @@ function drawReplaySettings() {
     title(
         t("replay"),
         75
+    );
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.82)";
+
+    ctx.font =
+        "bold 18px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.fillText(
+        t("frequency"),
+        W / 2,
+        202
     );
 
     interactiveItems()
@@ -7594,15 +7816,6 @@ function drawGame() {
 
         return;
     }
-
-
-    if (fpsOpen) {
-
-        drawFps();
-
-        return;
-    }
-
 
     if (replayOpen) {
 
