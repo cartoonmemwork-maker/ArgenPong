@@ -69,14 +69,21 @@ const SPIN = {
 
 const TIMING = {
     defaultFps: 60,
-    options: [24, 60, 120],
+    options: [60, 120],
     referenceFps: 60,
     maxSteps: 5
 };
 
 const REPLAY = {
     defaultEnabled: true,
-    defaultMode: "match",
+    defaultMode: "matchSpeed",
+    modeOptions: [
+        "matchSpeed",
+        "match",
+        "speed",
+        "all"
+    ],
+    speedThresholdKmh: 100,
     captureFps: 60,
     playbackFps: 60,
     startSpeed: 0.9,
@@ -100,11 +107,19 @@ const TEXT = {
         onlinePvp: "PVP ONLINE",
         rules: "REGLAMENTO",
         rulesTitle: "REGLAMENTO Y GLOSARIO",
-        rulesIntro: "Dos variantes, mismo tanteo: primero a 11 y con 2 de diferencia.",
-        gameStyle: "MODO DE JUEGO",
+        rulesIntro: "Seleccioná un reglamento. El tanteo sigue siendo a 11, con 2 de diferencia.",
         arcade: "ARCADE",
         professional: "PROFESIONAL",
         glossary: "GLOSARIO",
+        advancedGlossary: "GLOSARIO DE JUEGO",
+        strokes: "GOLPES BÁSICOS Y AVANZADOS",
+        spinTypes: "TIPOS DE EFECTOS (SPIN)",
+        gameDynamics: "DINÁMICA Y JUEGO",
+        previous: "ANTERIOR",
+        next: "SIGUIENTE",
+        confirmRules: "¿CAMBIAR REGLAMENTO?",
+        rulesRestart: "La partida actual se reiniciará.",
+        advancedWarning: "PROFESIONAL ES PARA JUGADORES AVANZADOS.",
         side: "LADO",
         left: "IZQUIERDA",
         right: "DERECHA",
@@ -148,7 +163,10 @@ const TEXT = {
         replayAuto: "REPRODUCCIÓN AUTOMÁTICA",
         frequency: "FRECUENCIA",
         replayMatch: "MATCH",
+        replayMatchSpeed: "MATCH + MÁS DE 100 KM/H",
+        replayFast: "MÁS DE 100 KM/H",
         replayAll: "TODOS LOS TANTOS",
+        defaults: "POR DEFECTO",
         replaySpeed: "VELOCIDAD",
         instantReplay: "REPETICIÓN INSTANTÁNEA",
         skipReplay: "PRESIONE CUALQUIER TECLA PARA OMITIR",
@@ -166,11 +184,19 @@ const TEXT = {
         onlinePvp: "ONLINE PVP",
         rules: "RULES",
         rulesTitle: "RULES AND GLOSSARY",
-        rulesIntro: "Two variants, same scoring: first to 11 with a 2-point lead.",
-        gameStyle: "GAME MODE",
+        rulesIntro: "Select a ruleset. Scoring remains first to 11 with a 2-point lead.",
         arcade: "ARCADE",
         professional: "PROFESSIONAL",
         glossary: "GLOSSARY",
+        advancedGlossary: "GAME GLOSSARY",
+        strokes: "BASIC AND ADVANCED SHOTS",
+        spinTypes: "TYPES OF SPIN",
+        gameDynamics: "GAME DYNAMICS",
+        previous: "PREVIOUS",
+        next: "NEXT",
+        confirmRules: "CHANGE RULESET?",
+        rulesRestart: "The current match will restart.",
+        advancedWarning: "PROFESSIONAL IS FOR ADVANCED PLAYERS.",
         side: "SIDE",
         left: "LEFT",
         right: "RIGHT",
@@ -214,7 +240,10 @@ const TEXT = {
         replayAuto: "AUTOMATIC REPLAY",
         frequency: "FREQUENCY",
         replayMatch: "MATCH",
+        replayMatchSpeed: "MATCH + OVER 62 MPH",
+        replayFast: "OVER 62 MPH",
         replayAll: "EVERY POINT",
+        defaults: "DEFAULTS",
         replaySpeed: "SPEED",
         instantReplay: "INSTANT REPLAY",
         skipReplay: "PRESS ANY KEY TO SKIP",
@@ -229,16 +258,18 @@ const TEXT = {
 const RULEBOOK = {
     es: {
         arcade: [
-            "Pong continuo: los rebotes contra la mesa no limitan la jugada.",
+            "Modalidad rápida inspirada en Pong clásico.",
+            "Los piques no generan faltas; el tanto termina al superar una paleta.",
             "La velocidad aumenta solamente con cada devolución.",
-            "Ideal para partidas rápidas y físicas de spin libres."
+            "Permite aprovechar libremente la velocidad y el spin."
         ],
 
         professional: [
-            "Cada mitad permite un solo pique consecutivo.",
-            "El segundo pique en la misma mitad da el punto al rival.",
-            "Cada devolución con paleta reinicia el conteo de piques.",
-            "Mantiene el tanteo y el saque reglamentario."
+            "El último jugador en golpear debe enviarla a la mitad rival.",
+            "Si la pelota pica en su propia mitad, pierde el tanto.",
+            "Un pique rival es válido; el segundo da el tanto al atacante.",
+            "Cada devolución cambia al atacante y reinicia el conteo.",
+            "Recomendado para jugadores avanzados."
         ],
 
         glossary: [
@@ -248,21 +279,43 @@ const RULEBOOK = {
             ["SPIN", "Efecto curvo generado por el movimiento de la paleta."],
             ["MATCH", "El próximo tanto puede cerrar la partida."],
             ["IGUALES", "Desde 10-10 hay que ganar por 2 tantos de diferencia."]
+        ],
+
+        strokes: [
+            ["DRIVE", "Golpe ofensivo rápido y plano que se hace de frente."],
+            ["REVÉS (BACKHAND)", "Golpe ejecutado con el reverso de la mano hacia adelante."],
+            ["SMASH (REMATE)", "Golpe muy fuerte y seco para terminar el punto."],
+            ["BLOQUEO", "Devolución pasiva y rápida cerca de la red para frenar un ataque rival."],
+            ["FLIP", "Movimiento rápido de muñeca para atacar una pelota corta cerca de la red."]
+        ],
+
+        spinTypes: [
+            ["TOPSPIN", "Efecto hacia adelante; hace que la pelota baje rápido y caiga en la mesa."],
+            ["BACKSPIN (CORTADO)", "Efecto hacia atrás; frena la pelota o la hace retroceder al rebotar."],
+            ["SIDESPIN", "Efecto lateral que desvía la trayectoria de la pelota en el aire."]
+        ],
+
+        dynamics: [
+            ["RALLY", "Intercambio continuo de golpes entre los jugadores."],
+            ["LET (NULA)", "Jugada que se repite si la pelota toca la red durante el saque."],
+            ["ACE", "Punto directo de saque sin que el rival toque la pelota."]
         ]
     },
 
     en: {
         arcade: [
-            "Continuous Pong: table rebounds do not limit the rally.",
+            "A fast mode inspired by classic Pong.",
+            "Bounces do not cause faults; a point ends when the ball passes a paddle.",
             "Ball speed increases only on each paddle return.",
-            "Best for quick matches and unrestricted spin physics."
+            "Speed and spin can be used without bounce restrictions."
         ],
 
         professional: [
-            "Each half allows one consecutive bounce.",
-            "A second bounce on the same half awards the point to the opponent.",
-            "Each paddle return resets the bounce count.",
-            "Regulation scoring and service rotation remain active."
+            "The last hitter must send the ball toward the opponent's half.",
+            "A bounce on the hitter's own half loses the point.",
+            "One opponent-side bounce is valid; the second wins the point for the hitter.",
+            "Each return changes the hitter and resets the bounce count.",
+            "Recommended for advanced players."
         ],
 
         glossary: [
@@ -272,6 +325,26 @@ const RULEBOOK = {
             ["SPIN", "Curved motion created by paddle movement."],
             ["MATCH", "The next point can end the match."],
             ["DEUCE", "From 10-10, a 2-point lead is required to win."]
+        ],
+
+        strokes: [
+            ["DRIVE", "A fast, flat offensive shot played from the front."],
+            ["BACKHAND", "A shot played with the back of the hand facing forward."],
+            ["SMASH", "A very powerful, sharp shot used to finish the point."],
+            ["BLOCK", "A quick passive return near the net that absorbs an opponent's attack."],
+            ["FLIP", "A quick wrist movement used to attack a short ball near the net."]
+        ],
+
+        spinTypes: [
+            ["TOPSPIN", "Forward spin that makes the ball dip quickly onto the table."],
+            ["BACKSPIN", "Backward spin that slows the ball or makes it pull back after bouncing."],
+            ["SIDESPIN", "Sideways spin that bends the ball's path through the air."]
+        ],
+
+        dynamics: [
+            ["RALLY", "A continuous exchange of shots between the players."],
+            ["LET", "A serve that is replayed after touching the net."],
+            ["ACE", "A direct serve winner that the opponent does not touch."]
         ]
     }
 };
@@ -370,6 +443,7 @@ let gameMode = null;
 let startMenuOpen = true;
 let aiMenuOpen = false;
 let rulesOpen = false;
+let rulesPage = 0;
 
 let settingsOpen = false;
 let controlsOpen = false;
@@ -380,6 +454,7 @@ let replayOpen = false;
 let languageOpen = false;
 
 let confirmOpen = null;
+let pendingPlayStyle = null;
 let hoveredButton = null;
 let waitingForKey = null;
 
@@ -387,7 +462,7 @@ let humanSide = "left";
 let aiDifficulty = "normal";
 let aiReturns = 0;
 
-let professionalBounceSide = null;
+let professionalLastHitter = null;
 let professionalBounceCount = 0;
 
 let previousMouseY = null;
@@ -409,6 +484,7 @@ let replayPosition = 0;
 let replayLastTime = null;
 let replayPlaybackAccumulator = 0;
 let replayFinishTime = -Infinity;
+let replayReachedSpeedThreshold = false;
 
 const localControls = {
     left: { ...LOCAL_DEFAULTS.left },
@@ -532,6 +608,28 @@ function languageModeLabel() {
     }
 
     return t("automatic");
+}
+
+function replayModeLabel() {
+
+    const labels = {
+        matchSpeed:
+            t("replayMatchSpeed"),
+
+        match:
+            t("replayMatch"),
+
+        speed:
+            t("replayFast"),
+
+        all:
+            t("replayAll")
+    };
+
+    return (
+        labels[replayMode] ||
+        labels[REPLAY.defaultMode]
+    );
 }
 
 function setPhysicsFps(
@@ -752,10 +850,12 @@ function resetPaddles() {
         0;
 }
 
-function resetProfessionalBounce() {
+function resetProfessionalBounce(
+    lastHitter = null
+) {
 
-    professionalBounceSide =
-        null;
+    professionalLastHitter =
+        lastHitter;
 
     professionalBounceCount =
         0;
@@ -763,7 +863,9 @@ function resetProfessionalBounce() {
 
 function resetBall() {
 
-    resetProfessionalBounce();
+    resetProfessionalBounce(
+        servingPlayer
+    );
 
     ball.x =
         (W - BALL.size) / 2;
@@ -843,6 +945,7 @@ function resetMatch() {
 
     gamePaused = false;
     confirmOpen = null;
+    pendingPlayStyle = null;
 
     resetPaddles();
     resetBall();
@@ -868,6 +971,7 @@ function startGame(
     startMenuOpen = false;
     aiMenuOpen = false;
     rulesOpen = false;
+    rulesPage = 0;
 
     settingsOpen = false;
     controlsOpen = false;
@@ -887,6 +991,7 @@ function goToStartMenu() {
     startMenuOpen = true;
     aiMenuOpen = false;
     rulesOpen = false;
+    rulesPage = 0;
 
     gamePaused = false;
     gameOver = false;
@@ -894,6 +999,7 @@ function goToStartMenu() {
     winner = null;
 
     confirmOpen = null;
+    pendingPlayStyle = null;
     hoveredButton = null;
     waitingForKey = null;
 
@@ -922,6 +1028,23 @@ function resetReplayCapture() {
     replayFrames = [];
     replayReturnIndices = [];
     replayCaptureAccumulator = 0;
+    replayReachedSpeedThreshold = false;
+}
+
+function registerReplaySpeedThreshold() {
+
+    if (
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        ) *
+        REPLAY.kmhPerSpeedUnit >
+        REPLAY.speedThresholdKmh
+    ) {
+
+        replayReachedSpeedThreshold =
+            true;
+    }
 }
 
 function replaySnapshot() {
@@ -989,6 +1112,8 @@ function captureReplayFrame(
         return;
     }
 
+    registerReplaySpeedThreshold();
+
     replayCaptureAccumulator +=
         stepScale *
         REPLAY.captureFps /
@@ -1044,22 +1169,41 @@ function shouldReplayPoint(
         return false;
     }
 
-    if (
-        replayMode === "all"
-    ) {
-        return true;
-    }
-
     const enteredMatch =
         !previousMatchSide &&
         Boolean(
             matchPointSide()
         );
 
-    return (
+    const matchReplay =
         enteredMatch ||
-        checkWinner()
-    );
+        checkWinner();
+
+    if (
+        replayMode === "all"
+    ) {
+        return true;
+    }
+
+    if (
+        replayMode === "speed"
+    ) {
+        return (
+            replayReachedSpeedThreshold ||
+            checkWinner()
+        );
+    }
+
+    if (
+        replayMode === "matchSpeed"
+    ) {
+        return (
+            matchReplay ||
+            replayReachedSpeedThreshold
+        );
+    }
+
+    return matchReplay;
 }
 
 function startPointReplay(
@@ -2145,7 +2289,8 @@ function registerProfessionalBounce() {
 
     if (
         playStyle !==
-        "professional"
+        "professional" ||
+        !professionalLastHitter
     ) {
         return null;
     }
@@ -2159,27 +2304,21 @@ function registerProfessionalBounce() {
             : "right";
 
     if (
-        professionalBounceSide ===
-        bounceSide
+        bounceSide ===
+        professionalLastHitter
     ) {
 
-        professionalBounceCount++;
-
-    } else {
-
-        professionalBounceSide =
-            bounceSide;
-
-        professionalBounceCount =
-            1;
+        return otherSide(
+            professionalLastHitter
+        );
     }
+
+    professionalBounceCount++;
 
     return (
         professionalBounceCount >= 2
 
-            ? otherSide(
-                bounceSide
-            )
+            ? professionalLastHitter
             : null
     );
 }
@@ -2189,7 +2328,9 @@ function bouncePaddle(
     side
 ) {
 
-    resetProfessionalBounce();
+    resetProfessionalBounce(
+        side
+    );
 
     clearBallSpin();
 
@@ -2220,6 +2361,8 @@ function bouncePaddle(
     applyBallSpin(
         paddle
     );
+
+    registerReplaySpeedThreshold();
 
     markReplayReturn();
     paddleSound();
@@ -2572,8 +2715,11 @@ function closeMenusToGame(
     fpsOpen = false;
     replayOpen = false;
     languageOpen = false;
+    rulesOpen = false;
+    rulesPage = 0;
 
     confirmOpen = null;
+    pendingPlayStyle = null;
 
     waitingForKey = null;
     hoveredButton = null;
@@ -2609,6 +2755,7 @@ function handleEscape() {
         fpsOpen ||
         replayOpen ||
         languageOpen ||
+        rulesOpen ||
         Boolean(
             confirmOpen
         );
@@ -3154,27 +3301,95 @@ function interactiveItems() {
         });
     };
 
+    const addChoice = (
+        id,
+        rect
+    ) => {
+
+        items.push({
+            id,
+            rect,
+            disabled: false,
+            type: "choice"
+        });
+    };
+
 
     // MENU INICIAL
 
     if (
-        startMenuOpen &&
-        rulesOpen
+        rulesOpen &&
+        !confirmOpen
     ) {
 
-        add(
-            "rulesBack",
-            t("back"),
-            {
-                x:
-                    W / 2 - 110,
+        if (rulesPage === 0) {
 
-                y: 650,
+            addChoice(
+                "rulesArcade",
+                {
+                    x: 40,
+                    y: 88,
+                    w: 570,
+                    h: 204
+                }
+            );
 
-                w: 220,
-                h: 46
-            }
-        );
+            addChoice(
+                "rulesProfessional",
+                {
+                    x: 670,
+                    y: 88,
+                    w: 570,
+                    h: 204
+                }
+            );
+
+            add(
+                "rulesBack",
+                t("back"),
+                {
+                    x: 410,
+                    y: 650,
+                    w: 180,
+                    h: 46
+                }
+            );
+
+            add(
+                "rulesNext",
+                t("next"),
+                {
+                    x: 690,
+                    y: 650,
+                    w: 180,
+                    h: 46
+                }
+            );
+
+        } else {
+
+            add(
+                "rulesPrevious",
+                t("previous"),
+                {
+                    x: 410,
+                    y: 650,
+                    w: 180,
+                    h: 46
+                }
+            );
+
+            add(
+                "rulesBack",
+                t("back"),
+                {
+                    x: 690,
+                    y: 650,
+                    w: 180,
+                    h: 46
+                }
+            );
+        }
 
         return items;
     }
@@ -3186,8 +3401,8 @@ function interactiveItems() {
     ) {
 
         add(
-            "local",
-            t("localPvp"),
+            "ai",
+            t("vsAi"),
             buttonRect(
                 0,
                 4,
@@ -3199,23 +3414,10 @@ function interactiveItems() {
         );
 
         add(
-            "ai",
-            t("vsAi"),
+            "local",
+            t("localPvp"),
             buttonRect(
                 1,
-                4,
-                340,
-                50,
-                12,
-                410
-            )
-        );
-
-        add(
-            "rules",
-            t("rules"),
-            buttonRect(
-                2,
                 4,
                 340,
                 50,
@@ -3228,7 +3430,7 @@ function interactiveItems() {
             "online",
             t("onlinePvp"),
             buttonRect(
-                3,
+                2,
                 4,
                 340,
                 50,
@@ -3236,6 +3438,19 @@ function interactiveItems() {
                 410
             ),
             true
+        );
+
+        add(
+            "rules",
+            t("rules"),
+            buttonRect(
+                3,
+                4,
+                340,
+                50,
+                12,
+                410
+            )
         );
 
         return items;
@@ -3484,7 +3699,7 @@ function interactiveItems() {
 
                         buttonRect(
                             index,
-                            4,
+                            3,
                             320,
                             55,
                             15,
@@ -3498,8 +3713,8 @@ function interactiveItems() {
             "fpsBack",
             t("back"),
             buttonRect(
+                2,
                 3,
-                4,
                 320,
                 55,
                 15,
@@ -3621,8 +3836,8 @@ function interactiveItems() {
 
             buttonRect(
                 0,
-                3,
-                520,
+                4,
+                620,
                 58,
                 16,
                 380
@@ -3633,15 +3848,26 @@ function interactiveItems() {
             "replayMode",
 
             `${t("frequency")}: ${
-                replayMode === "match"
-                    ? t("replayMatch")
-                    : t("replayAll")
+                replayModeLabel()
             }`,
 
             buttonRect(
                 1,
-                3,
-                520,
+                4,
+                620,
+                58,
+                16,
+                380
+            )
+        );
+
+        add(
+            "replayDefaults",
+            t("defaults"),
+            buttonRect(
+                2,
+                4,
+                620,
                 58,
                 16,
                 380
@@ -3652,9 +3878,9 @@ function interactiveItems() {
             "replayBack",
             t("back"),
             buttonRect(
-                2,
                 3,
-                520,
+                4,
+                620,
                 58,
                 16,
                 380
@@ -3742,15 +3968,8 @@ function interactiveItems() {
             ],
 
             [
-                "gameStyle",
-
-                `${t("gameStyle")}: ${
-                    playStyle ===
-                    "arcade"
-
-                        ? t("arcade")
-                        : t("professional")
-                }`
+                "rulesSettings",
+                t("rules")
             ],
 
             [
@@ -4275,12 +4494,15 @@ function handleAction(id) {
 
 
     if (
-        id ===
-        "rules"
+        id === "rules" ||
+        id === "rulesSettings"
     ) {
 
         rulesOpen =
             true;
+
+        rulesPage =
+            0;
 
         return;
     }
@@ -4293,6 +4515,77 @@ function handleAction(id) {
 
         rulesOpen =
             false;
+
+        rulesPage =
+            0;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "rulesNext"
+    ) {
+
+        rulesPage =
+            1;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "rulesPrevious"
+    ) {
+
+        rulesPage =
+            0;
+
+        return;
+    }
+
+
+    if (
+        id === "rulesArcade" ||
+        id === "rulesProfessional"
+    ) {
+
+        const nextStyle =
+            id ===
+            "rulesProfessional"
+
+                ? "professional"
+                : "arcade";
+
+        if (
+            nextStyle ===
+            playStyle
+        ) {
+            return;
+        }
+
+        if (
+            startMenuOpen ||
+            !gameMode
+        ) {
+
+            playStyle =
+                nextStyle;
+
+            resetProfessionalBounce(
+                servingPlayer
+            );
+
+            return;
+        }
+
+        pendingPlayStyle =
+            nextStyle;
+
+        confirmOpen =
+            "rules";
 
         return;
     }
@@ -4438,6 +4731,31 @@ function handleAction(id) {
 
             resetMatch();
 
+        } else if (
+            action ===
+            "rules"
+        ) {
+
+            if (pendingPlayStyle) {
+
+                playStyle =
+                    pendingPlayStyle;
+            }
+
+            pendingPlayStyle =
+                null;
+
+            rulesOpen =
+                false;
+
+            rulesPage =
+                0;
+
+            settingsOpen =
+                false;
+
+            resetMatch();
+
         } else {
 
             goToStartMenu();
@@ -4453,6 +4771,9 @@ function handleAction(id) {
     ) {
 
         confirmOpen =
+            null;
+
+        pendingPlayStyle =
             null;
 
         return;
@@ -4490,31 +4811,6 @@ function handleAction(id) {
 
         physicsOpen =
             true;
-
-        return;
-    }
-
-
-    if (
-        id ===
-        "gameStyle"
-    ) {
-
-        playStyle =
-            playStyle ===
-            "arcade"
-
-                ? "professional"
-                : "arcade";
-
-        resetProfessionalBounce();
-
-        if (
-            gameMode &&
-            !gameOver
-        ) {
-            resetBall();
-        }
 
         return;
     }
@@ -4648,11 +4944,35 @@ function handleAction(id) {
         "replayMode"
     ) {
 
-        replayMode =
-            replayMode === "match"
+        const currentIndex =
+            REPLAY.modeOptions
+                .indexOf(
+                    replayMode
+                );
 
-                ? "all"
-                : "match";
+        replayMode =
+            REPLAY.modeOptions[
+                (
+                    currentIndex +
+                    1
+                ) %
+                REPLAY.modeOptions.length
+            ];
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "replayDefaults"
+    ) {
+
+        replayAutoEnabled =
+            REPLAY.defaultEnabled;
+
+        replayMode =
+            REPLAY.defaultMode;
 
         return;
     }
@@ -4700,7 +5020,6 @@ function handleAction(id) {
 
 
     if (
-        id === "fps24" ||
         id === "fps60" ||
         id === "fps120"
     ) {
@@ -5890,10 +6209,202 @@ function drawRules() {
             currentLanguage()
         ];
 
+    ctx.fillStyle =
+        "#000000";
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    const drawGlossaryEntry = (
+        term,
+        description,
+        x,
+        y,
+        color,
+        maxWidth = 540
+    ) => {
+
+        ctx.fillStyle =
+            color;
+
+        ctx.font =
+            "bold 16px monospace";
+
+        ctx.textAlign =
+            "left";
+
+        ctx.fillText(
+            term,
+            x,
+            y
+        );
+
+        ctx.fillStyle =
+            "rgba(255,255,255,.82)";
+
+        ctx.font =
+            "14px monospace";
+
+        drawWrappedText(
+            description,
+            x,
+            y + 23,
+            maxWidth,
+            17
+        );
+    };
+
+
+    if (rulesPage === 1) {
+
+        title(
+            t("advancedGlossary"),
+            34,
+            "bold 32px monospace"
+        );
+
+        ctx.fillStyle =
+            "rgba(255,255,255,.62)";
+
+        ctx.font =
+            "14px monospace";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.fillText(
+            "2 / 2",
+            W / 2,
+            68
+        );
+
+        ctx.fillStyle =
+            BRAND.blue;
+
+        ctx.font =
+            "bold 20px monospace";
+
+        ctx.textAlign =
+            "left";
+
+        ctx.fillText(
+            t("strokes"),
+            60,
+            108
+        );
+
+        book.strokes
+            .forEach(
+                (
+                    [
+                        term,
+                        description
+                    ],
+                    index
+                ) => {
+
+                    drawGlossaryEntry(
+                        term,
+                        description,
+                        60,
+                        145 +
+                        index * 92,
+                        BRAND.blue,
+                        540
+                    );
+                }
+            );
+
+        ctx.fillStyle =
+            BRAND.gold;
+
+        ctx.font =
+            "bold 20px monospace";
+
+        ctx.fillText(
+            t("spinTypes"),
+            660,
+            108
+        );
+
+        book.spinTypes
+            .forEach(
+                (
+                    [
+                        term,
+                        description
+                    ],
+                    index
+                ) => {
+
+                    drawGlossaryEntry(
+                        term,
+                        description,
+                        660,
+                        145 +
+                        index * 82,
+                        BRAND.gold,
+                        560
+                    );
+                }
+            );
+
+        ctx.fillStyle =
+            BRAND.gold;
+
+        ctx.font =
+            "bold 20px monospace";
+
+        ctx.fillText(
+            t("gameDynamics"),
+            660,
+            390
+        );
+
+        book.dynamics
+            .forEach(
+                (
+                    [
+                        term,
+                        description
+                    ],
+                    index
+                ) => {
+
+                    drawGlossaryEntry(
+                        term,
+                        description,
+                        660,
+                        425 +
+                        index * 70,
+                        BRAND.gold,
+                        560
+                    );
+                }
+            );
+
+        interactiveItems()
+            .filter(
+                item =>
+                    item.type ===
+                    "button"
+            )
+            .forEach(
+                drawButton
+            );
+
+        return;
+    }
+
     title(
         t("rulesTitle"),
-        38,
-        "bold 34px monospace"
+        32,
+        "bold 32px monospace"
     );
 
     ctx.fillStyle =
@@ -5911,7 +6422,7 @@ function drawRules() {
     ctx.fillText(
         t("rulesIntro"),
         W / 2,
-        76
+        68
     );
 
     const drawMode = (
@@ -5924,36 +6435,51 @@ function drawRules() {
             playStyle ===
             mode;
 
+        const hover =
+            hoveredButton ===
+            `rules${
+                mode === "arcade"
+
+                    ? "Arcade"
+                    : "Professional"
+            }`;
+
         ctx.fillStyle =
             active
 
                 ? "rgba(108,172,228,.10)"
-                : "rgba(255,255,255,.025)";
+                : hover
+                    ? "rgba(255,255,255,.08)"
+                    : "rgba(255,255,255,.025)";
 
         ctx.fillRect(
             x,
-            96,
+            88,
             570,
-            188
+            204
         );
 
         ctx.strokeStyle =
             active
 
                 ? BRAND.blue
-                : "rgba(255,255,255,.34)";
+                : hover
+                    ? "#FFFFFF"
+                    : "rgba(255,255,255,.34)";
 
         ctx.lineWidth =
             active
 
                 ? 3
-                : 2;
+                : hover
+                    ? 3
+                    : 2;
 
         ctx.strokeRect(
             x,
-            96,
+            88,
             570,
-            188
+            204
         );
 
         ctx.fillStyle =
@@ -5976,32 +6502,51 @@ function drawRules() {
                     : ""
             }`,
             x + 20,
-            126
+            119
         );
 
         ctx.fillStyle =
             "rgba(255,255,255,.88)";
 
         ctx.font =
-            "15px monospace";
+            "14px monospace";
 
         let lineY =
-            154;
+            143;
 
         for (
-            const line of
-            lines
+            let index = 0;
+            index < lines.length;
+            index++
         ) {
+
+            const warning =
+                mode ===
+                "professional" &&
+                index ===
+                lines.length - 1;
+
+            ctx.fillStyle =
+                warning
+
+                    ? BRAND.gold
+                    : "rgba(255,255,255,.88)";
+
+            ctx.font =
+                warning
+
+                    ? "bold 13px monospace"
+                    : "14px monospace";
 
             lineY =
                 drawWrappedText(
-                    `• ${line}`,
+                    `• ${lines[index]}`,
                     x + 20,
                     lineY,
                     530,
-                    18
+                    17
                 ) +
-                4;
+                3;
         }
     };
 
@@ -6019,8 +6564,8 @@ function drawRules() {
 
     title(
         t("glossary"),
-        315,
-        "bold 25px monospace"
+        320,
+        "bold 24px monospace"
     );
 
     book.glossary
@@ -6048,44 +6593,30 @@ function drawRules() {
                         : 660;
 
                 const y =
-                    350 +
-                    row * 92;
+                    352 +
+                    row * 91;
 
-                ctx.fillStyle =
+                drawGlossaryEntry(
+                    term,
+                    description,
+                    x,
+                    y,
                     column === 0
 
                         ? BRAND.blue
-                        : BRAND.gold;
+                        : BRAND.gold,
 
-                ctx.font =
-                    "bold 17px monospace";
-
-                ctx.textAlign =
-                    "left";
-
-                ctx.fillText(
-                    term,
-                    x,
-                    y
-                );
-
-                ctx.fillStyle =
-                    "rgba(255,255,255,.82)";
-
-                ctx.font =
-                    "14px monospace";
-
-                drawWrappedText(
-                    description,
-                    x,
-                    y + 24,
-                    540,
-                    17
+                    540
                 );
             }
         );
 
     interactiveItems()
+        .filter(
+            item =>
+                item.type ===
+                "button"
+        )
         .forEach(
             drawButton
         );
@@ -6197,10 +6728,13 @@ function drawStart() {
 
             ctx.fillText(
                 t("comingSoon"),
-                W / 2,
+                online.rect.x +
+                online.rect.w +
+                105,
+
                 online.rect.y +
-                online.rect.h +
-                22
+                online.rect.h / 2 +
+                5
             );
 
             ctx.restore();
@@ -6308,12 +6842,18 @@ function drawConfirm() {
     overlay(0.84);
 
 
+    const changingRules =
+        confirmOpen ===
+        "rules";
+
     title(
         confirmOpen ===
         "restart"
 
             ? t("confirmRestart")
-            : t("confirmMenu"),
+            : changingRules
+                ? t("confirmRules")
+                : t("confirmMenu"),
 
         H / 2 - 80,
 
@@ -6332,10 +6872,34 @@ function drawConfirm() {
 
 
     ctx.fillText(
-        t("loseCurrent"),
+        changingRules
+
+            ? t("rulesRestart")
+            : t("loseCurrent"),
+
         W / 2,
         H / 2 - 25
     );
+
+
+    if (
+        changingRules &&
+        pendingPlayStyle ===
+        "professional"
+    ) {
+
+        ctx.fillStyle =
+            BRAND.gold;
+
+        ctx.font =
+            "bold 17px monospace";
+
+        ctx.fillText(
+            t("advancedWarning"),
+            W / 2,
+            H / 2 + 8
+        );
+    }
 
 
     interactiveItems()
@@ -7003,6 +7567,14 @@ function drawGame() {
     if (confirmOpen) {
 
         drawConfirm();
+
+        return;
+    }
+
+
+    if (rulesOpen) {
+
+        drawRules();
 
         return;
     }
