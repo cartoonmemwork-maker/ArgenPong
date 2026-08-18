@@ -891,7 +891,9 @@ function captureReplayFrame(
     }
 
     replayCaptureAccumulator +=
-        stepScale;
+        stepScale *
+        REPLAY.captureFps /
+        TIMING.referenceFps;
 
     while (
         replayCaptureAccumulator >= 1
