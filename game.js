@@ -59,9 +59,16 @@ const BALL = {
 const SPIN = {
     defaultEnabled: true,
     deadZone: 0.6,
+    blockMaxPaddleSpeed: 1.1,
     fullStrengthPaddleSpeed: 14,
     curvePerStep: 0.0095,
     speedInfluence: 0.16,
+    backspinSpeedInfluence: 0.14,
+    blockSpeedRetention: 0.82,
+    topspinCurveMultiplier: 1.08,
+    backspinCurveMultiplier: 1.18,
+    topspinBounceVerticalBoost: 1.08,
+    backspinBounceHorizontalRetention: 0.84,
     decay: 0.992,
     wallRetention: 0.8,
     epsilon: 0.001
@@ -258,95 +265,51 @@ const TEXT = {
 const RULEBOOK = {
     es: {
         arcade: [
-            "Modalidad rápida inspirada en Pong clásico.",
+            "Reglas libres inspiradas en Pong clásico.",
             "Los piques no generan faltas; el tanto termina al superar una paleta.",
-            "La velocidad aumenta solamente con cada devolución.",
-            "Permite aprovechar libremente la velocidad y el spin."
+            "La velocidad crece con cada devolución y el spin puede usarse libremente."
         ],
 
         professional: [
-            "El golpe debe picar en mitad rival; si sale sin hacerlo, pierde el golpeador.",
-            "Si la pelota pica en su propia mitad, pierde el tanto.",
-            "Si el rival la toca antes del pique, el golpeador gana el tanto.",
-            "Un pique rival es válido; el segundo da el tanto al atacante.",
-            "Cada devolución cambia al atacante y reinicia el conteo.",
-            "Recomendado para jugadores avanzados."
+            "Cada golpe debe picar una vez en la mitad rival.",
+            "Si pica en tu mitad o sale sin picar del lado rival, perdés.",
+            "Si el rival la toca antes del pique, ganás el tanto.",
+            "Un segundo pique rival también te da el tanto.",
+            "Cada devolución cambia al atacante. Para jugadores avanzados."
         ],
 
         glossary: [
             ["SAQUE", "Puesta en juego; cambia cada 2 tantos y en cada tanto desde 10-10."],
-            ["DEVOLUCIÓN", "Golpe válido después de que la pelota picó en tu mitad."],
-            ["PIQUE", "Rebote en la mesa; en Profesional debe ocurrir en la mitad rival."],
-            ["SPIN", "Efecto curvo generado por el movimiento de la paleta."],
-            ["MATCH", "El próximo tanto puede cerrar la partida."],
-            ["IGUALES", "Desde 10-10 hay que ganar por 2 tantos de diferencia."]
-        ],
-
-        strokes: [
-            ["DRIVE", "Golpe ofensivo rápido y plano que se hace de frente."],
-            ["REVÉS (BACKHAND)", "Golpe ejecutado con el reverso de la mano hacia adelante."],
-            ["SMASH (REMATE)", "Golpe muy fuerte y seco para terminar el punto."],
-            ["BLOQUEO", "Devolución pasiva y rápida cerca de la red para frenar un ataque rival."],
-            ["FLIP", "Movimiento rápido de muñeca para atacar una pelota corta cerca de la red."]
-        ],
-
-        spinTypes: [
-            ["TOPSPIN", "Efecto hacia adelante; hace que la pelota baje rápido y caiga en la mesa."],
-            ["BACKSPIN (CORTADO)", "Efecto hacia atrás; frena la pelota o la hace retroceder al rebotar."],
-            ["SIDESPIN", "Efecto lateral que desvía la trayectoria de la pelota en el aire."]
-        ],
-
-        dynamics: [
-            ["RALLY", "Intercambio continuo de golpes entre los jugadores."],
-            ["LET (NULA)", "Jugada que se repite si la pelota toca la red durante el saque."],
-            ["ACE", "Punto directo de saque sin que el rival toque la pelota."]
+            ["DEVOLUCIÓN", "Golpe de paleta hacia el rival; en Profesional sólo vale después del pique."],
+            ["PIQUE", "Contacto con la mesa; en Profesional debe producirse en la mitad rival."],
+            ["SPIN", "Paleta quieta: bloqueo. Acompañar: topspin. Contradecir: backspin."],
+            ["VELOCIDAD PROGRESIVA", "La pelota acelera únicamente al ser devuelta por una paleta."],
+            ["MATCH / IGUALES", "MATCH anuncia un posible cierre; desde 10-10 se gana por 2."]
         ]
     },
 
     en: {
         arcade: [
-            "A fast mode inspired by classic Pong.",
+            "Free rules inspired by classic Pong.",
             "Bounces do not cause faults; a point ends when the ball passes a paddle.",
-            "Ball speed increases only on each paddle return.",
-            "Speed and spin can be used without bounce restrictions."
+            "Speed rises on each return and spin can be used without restrictions."
         ],
 
         professional: [
-            "The shot must bounce on the opponent's half; missing it loses the point.",
-            "A bounce on the hitter's own half loses the point.",
-            "If the opponent touches it before the bounce, the hitter wins the point.",
-            "One opponent-side bounce is valid; the second wins the point for the hitter.",
-            "Each return changes the hitter and resets the bounce count.",
-            "Recommended for advanced players."
+            "Every hit must bounce once on the opponent's half.",
+            "A bounce on your half or an exit without a rival bounce loses the point.",
+            "If the opponent touches it before the bounce, you win the point.",
+            "A second rival-side bounce also wins the point.",
+            "Each return changes the hitter. Recommended for advanced players."
         ],
 
         glossary: [
             ["SERVE", "Starts the rally; changes every 2 points and every point from 10-10."],
-            ["RETURN", "A valid paddle hit after the ball bounced on your half."],
-            ["BOUNCE", "A table rebound; in Professional it must occur on the opponent's half."],
-            ["SPIN", "Curved motion created by paddle movement."],
-            ["MATCH", "The next point can end the match."],
-            ["DEUCE", "From 10-10, a 2-point lead is required to win."]
-        ],
-
-        strokes: [
-            ["DRIVE", "A fast, flat offensive shot played from the front."],
-            ["BACKHAND", "A shot played with the back of the hand facing forward."],
-            ["SMASH", "A very powerful, sharp shot used to finish the point."],
-            ["BLOCK", "A quick passive return near the net that absorbs an opponent's attack."],
-            ["FLIP", "A quick wrist movement used to attack a short ball near the net."]
-        ],
-
-        spinTypes: [
-            ["TOPSPIN", "Forward spin that makes the ball dip quickly onto the table."],
-            ["BACKSPIN", "Backward spin that slows the ball or makes it pull back after bouncing."],
-            ["SIDESPIN", "Sideways spin that bends the ball's path through the air."]
-        ],
-
-        dynamics: [
-            ["RALLY", "A continuous exchange of shots between the players."],
-            ["LET", "A serve that is replayed after touching the net."],
-            ["ACE", "A direct serve winner that the opponent does not touch."]
+            ["RETURN", "A paddle hit toward the rival; in Professional it is valid after the bounce."],
+            ["BOUNCE", "Ball contact with the table; in Professional it must occur on the rival half."],
+            ["SPIN", "Still paddle: block. Move with the ball: topspin. Oppose it: backspin."],
+            ["PROGRESSIVE SPEED", "The ball accelerates only when it is returned by a paddle."],
+            ["MATCH / DEUCE", "MATCH warns of a possible finish; from 10-10 a 2-point lead wins."]
         ]
     }
 };
@@ -399,22 +362,49 @@ const AI_LEVELS = {
     easy: {
         label: "FÁCIL",
         returns: 5,
-        anticipation: 0.35,
-        response: 0.78
+        anticipation: 0.55,
+        response: 0.78,
+        baseSensitivity: 0.72,
+        demandScale: 0.8,
+        tracking: 0.35,
+        reactionSteps: 8,
+        correctionSteps: 15,
+        aimError: 30,
+        shotStrength: 0.62,
+        blockChance: 0.56,
+        backspinChance: 0.16
     },
 
     normal: {
         label: "NORMAL",
         returns: 10,
-        anticipation: 0.68,
-        response: 0.92
+        anticipation: 0.62,
+        response: 0.84,
+        baseSensitivity: 0.78,
+        demandScale: 0.82,
+        tracking: 0.35,
+        reactionSteps: 7,
+        correctionSteps: 14,
+        aimError: 24,
+        shotStrength: 0.76,
+        blockChance: 0.38,
+        backspinChance: 0.24
     },
 
     hard: {
         label: "DIFÍCIL",
         returns: 20,
-        anticipation: 0.92,
-        response: 1.05
+        anticipation: 0.9,
+        response: 1,
+        baseSensitivity: 0.94,
+        demandScale: 1,
+        tracking: 0.44,
+        reactionSteps: 3,
+        correctionSteps: 6,
+        aimError: 8,
+        shotStrength: 0.94,
+        blockChance: 0.22,
+        backspinChance: 0.3
     }
 };
 
@@ -468,6 +458,12 @@ let waitingForKey = null;
 let humanSide = "left";
 let aiDifficulty = "normal";
 let aiReturns = 0;
+let aiState = "idle";
+let aiReactionRemaining = 0;
+let aiCorrectionRemaining = 0;
+let aiAimY = H / 2;
+let aiAimError = 0;
+let aiShotIntent = "block";
 
 let professionalLastHitter = null;
 let professionalBounceCount = 0;
@@ -529,7 +525,8 @@ const ball = {
     vx: 0,
     vy: 0,
     spin: 0,
-    spinSpeedOffset: 0
+    spinSpeedOffset: 0,
+    shotType: "none"
 };
 
 
@@ -816,6 +813,27 @@ function resetAIControls() {
     waitingForKey = null;
 }
 
+function resetAIThinking() {
+
+    aiState =
+        "idle";
+
+    aiReactionRemaining =
+        0;
+
+    aiCorrectionRemaining =
+        0;
+
+    aiAimY =
+        H / 2;
+
+    aiAimError =
+        0;
+
+    aiShotIntent =
+        "block";
+}
+
 function resetPhysics() {
 
     ballSpeedLevel =
@@ -888,6 +906,9 @@ function resetBall() {
     ball.spinSpeedOffset =
         0;
 
+    ball.shotType =
+        "none";
+
     const speed =
         currentBallSpeed();
 
@@ -934,6 +955,8 @@ function resetBall() {
     // Cada punto reinicia
     // el desgaste de la IA.
     aiReturns = 0;
+
+    resetAIThinking();
 
     resetReplayCapture();
 }
@@ -1673,10 +1696,108 @@ function clearBallSpin() {
 
     ball.spinSpeedOffset =
         0;
+
+    ball.shotType =
+        "none";
+}
+
+function isAISide(
+    side
+) {
+
+    return (
+        gameMode === "ai" &&
+        side ===
+            otherSide(
+                humanSide
+            )
+    );
+}
+
+function spinPaddleSpeed(
+    paddle,
+    side
+) {
+
+    if (!isAISide(side)) {
+        return paddle.vy;
+    }
+
+    if (
+        aiShotIntent ===
+        "block"
+    ) {
+        return 0;
+    }
+
+    const contactDistance =
+        Math.abs(
+            ball.y +
+            BALL.size / 2 -
+            (
+                paddle.y +
+                PADDLE.h / 2
+            )
+        );
+
+    if (
+        contactDistance >
+        PADDLE.h * 0.38
+    ) {
+        return 0;
+    }
+
+    const level =
+        AI_LEVELS[
+            aiDifficulty
+        ];
+
+    const strengthSpeed =
+        SPIN.deadZone +
+        (
+            SPIN.fullStrengthPaddleSpeed -
+            SPIN.deadZone
+        ) *
+        level.shotStrength;
+
+    const incomingDirection =
+        Math.sign(
+            ball.vy
+        ) || 1;
+
+    return (
+        aiShotIntent ===
+        "topspin"
+
+            ? incomingDirection
+            : -incomingDirection
+    ) *
+    strengthSpeed;
+}
+
+function storeSpinSpeedFactor(
+    speedBefore
+) {
+
+    const speedAfter =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    ball.spinSpeedOffset =
+        speedBefore > 0
+
+            ? speedAfter /
+              speedBefore -
+              1
+
+            : 0;
 }
 
 function applyBallSpin(
-    paddle
+    paddle,
+    side
 ) {
 
     if (!spinEnabled) {
@@ -1685,7 +1806,46 @@ function applyBallSpin(
 
 
     const paddleSpeed =
-        paddle.vy;
+        spinPaddleSpeed(
+            paddle,
+            side
+        );
+
+    const speedBefore =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+
+    /*
+        Una paleta prácticamente quieta
+        absorbe parte de la velocidad.
+
+        El bloqueo no agrega curva
+        y el cambio dura hasta la devolución.
+    */
+
+    if (
+        Math.abs(
+            paddleSpeed
+        ) <=
+        SPIN.blockMaxPaddleSpeed
+    ) {
+
+        ball.shotType =
+            "block";
+
+        scaleBallVelocity(
+            SPIN.blockSpeedRetention
+        );
+
+        storeSpinSpeedFactor(
+            speedBefore
+        );
+
+        return;
+    }
 
     const strength =
         clamp(
@@ -1703,11 +1863,6 @@ function applyBallSpin(
             0,
             1
         );
-
-
-    if (strength <= 0) {
-        return;
-    }
 
 
     /*
@@ -1746,18 +1901,23 @@ function applyBallSpin(
             : -1;
 
 
+    ball.shotType =
+        driveDirection > 0
+
+            ? "topspin"
+            : "backspin";
+
+
     const speedFactor =
-        1 +
-        driveDirection *
-        strength *
-        SPIN.speedInfluence;
+        driveDirection > 0
 
+            ? 1 +
+              strength *
+              SPIN.speedInfluence
 
-    const speedBefore =
-        Math.hypot(
-            ball.vx,
-            ball.vy
-        );
+            : 1 -
+              strength *
+              SPIN.backspinSpeedInfluence;
 
 
     scaleBallVelocity(
@@ -1765,21 +1925,9 @@ function applyBallSpin(
     );
 
 
-    const speedAfter =
-        Math.hypot(
-            ball.vx,
-            ball.vy
-        );
-
-
-    ball.spinSpeedOffset =
-        speedBefore > 0
-
-            ? speedAfter /
-              speedBefore -
-              1
-
-            : 0;
+    storeSpinSpeedFactor(
+        speedBefore
+    );
 }
 
 function updateBallSpin(
@@ -1798,9 +1946,21 @@ function updateBallSpin(
         SPIN.epsilon
     ) {
 
+        const curveMultiplier =
+            ball.shotType ===
+                "topspin"
+
+                ? SPIN.topspinCurveMultiplier
+                : ball.shotType ===
+                    "backspin"
+
+                    ? SPIN.backspinCurveMultiplier
+                    : 1;
+
         const angle =
             ball.spin *
             SPIN.curvePerStep *
+            curveMultiplier *
             stepScale;
 
         const cos =
@@ -1840,6 +2000,91 @@ function updateBallSpin(
         SPIN.epsilon
     ) {
         ball.spin = 0;
+    }
+}
+
+function applySpinBounceResponse() {
+
+    if (!spinEnabled) {
+        return;
+    }
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    if (speed <= 0) {
+        return;
+    }
+
+    const horizontalDirection =
+        Math.sign(
+            ball.vx
+        ) || 1;
+
+    const verticalDirection =
+        Math.sign(
+            ball.vy
+        ) || 1;
+
+
+    if (
+        ball.shotType ===
+        "topspin"
+    ) {
+
+        const verticalSpeed =
+            Math.min(
+                speed * 0.94,
+
+                Math.abs(
+                    ball.vy
+                ) *
+                SPIN.topspinBounceVerticalBoost
+            );
+
+        ball.vy =
+            verticalDirection *
+            verticalSpeed;
+
+        ball.vx =
+            horizontalDirection *
+            Math.sqrt(
+                Math.max(
+                    0,
+                    speed * speed -
+                    verticalSpeed *
+                    verticalSpeed
+                )
+            );
+
+    } else if (
+        ball.shotType ===
+        "backspin"
+    ) {
+
+        const horizontalSpeed =
+            Math.abs(
+                ball.vx
+            ) *
+            SPIN.backspinBounceHorizontalRetention;
+
+        ball.vx =
+            horizontalDirection *
+            horizontalSpeed;
+
+        ball.vy =
+            verticalDirection *
+            Math.sqrt(
+                Math.max(
+                    0,
+                    speed * speed -
+                    horizontalSpeed *
+                    horizontalSpeed
+                )
+            );
     }
 }
 
@@ -2052,10 +2297,13 @@ function updatePaddleMotion(
 
 function aiMovementSensitivity() {
 
-    const limit =
+    const level =
         AI_LEVELS[
             aiDifficulty
-        ].returns;
+        ];
+
+    const limit =
+        level.returns;
 
     const progress =
         clamp(
@@ -2066,7 +2314,8 @@ function aiMovementSensitivity() {
         );
 
     /*
-        Empieza al 100%.
+        Cada dificultad parte de
+        una capacidad distinta.
 
         A medida que devuelve,
         pierde capacidad de movimiento.
@@ -2076,11 +2325,14 @@ function aiMovementSensitivity() {
     */
 
     return Math.max(
-        0.08,
+        0.1,
 
-        1 -
-        progress *
-        0.92
+        level.baseSensitivity *
+        (
+            1 -
+            progress *
+            0.78
+        )
     );
 }
 
@@ -2205,6 +2457,258 @@ function predictedBallYAtPaddle(
     );
 }
 
+function aiFatigueRatio(
+    level
+) {
+
+    return clamp(
+        aiReturns /
+        level.returns,
+        0,
+        1
+    );
+}
+
+function chooseAIShotIntent(
+    level
+) {
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    const fatigue =
+        aiFatigueRatio(
+            level
+        );
+
+
+    /*
+        Ante una pelota extrema o al final
+        de su capacidad, la IA prioriza
+        una devolución defensiva.
+    */
+
+    if (
+        speed >= 27 ||
+        fatigue >= 0.96
+    ) {
+        return "block";
+    }
+
+    const speedPressure =
+        clamp(
+            (
+                speed -
+                14
+            ) /
+            16,
+            0,
+            1
+        );
+
+    const blockChance =
+        clamp(
+            level.blockChance +
+            speedPressure *
+                0.12 +
+            fatigue *
+                0.14,
+            0,
+            0.85
+        );
+
+    const backspinChance =
+        clamp(
+            level.backspinChance +
+            (
+                playStyle ===
+                "professional"
+
+                    ? 0.08
+                    : 0
+            ),
+            0,
+            0.45
+        );
+
+    const roll =
+        Math.random();
+
+    if (roll < blockChance) {
+        return "block";
+    }
+
+    if (
+        roll <
+        blockChance +
+        backspinChance
+    ) {
+        return "backspin";
+    }
+
+    return "topspin";
+}
+
+function transitionAIState(
+    nextState,
+    level,
+    paddle
+) {
+
+    if (
+        aiState ===
+        nextState
+    ) {
+        return;
+    }
+
+    aiState =
+        nextState;
+
+    aiCorrectionRemaining =
+        0;
+
+
+    if (
+        nextState ===
+            "arcadeTracking" ||
+        nextState ===
+            "professionalReturn"
+    ) {
+
+        const fatigue =
+            aiFatigueRatio(
+                level
+            );
+
+        aiReactionRemaining =
+            level.reactionSteps;
+
+        aiAimY =
+            paddle.y +
+            PADDLE.h / 2;
+
+        aiAimError =
+            (
+                Math.random() *
+                2 -
+                1
+            ) *
+            level.aimError *
+            (
+                1 +
+                fatigue *
+                0.75
+            );
+
+        aiShotIntent =
+            chooseAIShotIntent(
+                level
+            );
+
+        return;
+    }
+
+
+    aiReactionRemaining =
+        0;
+
+    aiAimError =
+        0;
+
+    aiShotIntent =
+        "block";
+}
+
+function desiredAIState(
+    aiSide,
+    movingTowardAI
+) {
+
+    if (!movingTowardAI) {
+        return "recovering";
+    }
+
+    if (
+        professionalAIWaitingForBounce(
+            aiSide
+        )
+    ) {
+        return "waitingBounce";
+    }
+
+    return (
+        playStyle ===
+        "professional"
+
+            ? "professionalReturn"
+            : "arcadeTracking"
+    );
+}
+
+function updateAITarget(
+    aiSide,
+    level,
+    ballCenter,
+    stepScale
+) {
+
+    if (
+        aiReactionRemaining >
+        0
+    ) {
+
+        aiReactionRemaining =
+            Math.max(
+                0,
+                aiReactionRemaining -
+                stepScale
+            );
+
+        return aiAimY;
+    }
+
+
+    aiCorrectionRemaining -=
+        stepScale;
+
+    if (
+        aiCorrectionRemaining <=
+        0
+    ) {
+
+        const prediction =
+            predictedBallYAtPaddle(
+                aiSide
+            );
+
+        aiAimY =
+            clamp(
+                ballCenter +
+                (
+                    prediction -
+                    ballCenter
+                ) *
+                level.anticipation +
+                aiAimError,
+
+                TABLE.top +
+                PADDLE.h / 2,
+
+                TABLE.bottom -
+                PADDLE.h / 2
+            );
+
+        aiCorrectionRemaining =
+            level.correctionSteps;
+    }
+
+    return aiAimY;
+}
+
 function professionalAIWaitingForBounce(
     aiSide
 ) {
@@ -2254,6 +2758,13 @@ function updateAI(
     const sensitivity =
         aiMovementSensitivity();
 
+    const endurance =
+        1 -
+        aiFatigueRatio(
+            level
+        ) *
+        0.7;
+
     const ballCenter =
         ball.y +
         BALL.size / 2;
@@ -2264,10 +2775,21 @@ function updateAI(
             ? ball.vx < 0
             : ball.vx > 0;
 
-    const waitingForBounce =
-        professionalAIWaitingForBounce(
-            aiSide
+    const nextState =
+        desiredAIState(
+            aiSide,
+            movingTowardAI
         );
+
+    transitionAIState(
+        nextState,
+        level,
+        paddle
+    );
+
+    const waitingForBounce =
+        aiState ===
+        "waitingBounce";
 
     let target =
         H / 2;
@@ -2300,18 +2822,13 @@ function updateAI(
 
     } else if (movingTowardAI) {
 
-        const prediction =
-            predictedBallYAtPaddle(
-                aiSide
-            );
-
         target =
-            ballCenter +
-            (
-                prediction -
-                ballCenter
-            ) *
-            level.anticipation;
+            updateAITarget(
+                aiSide,
+                level,
+                ballCenter,
+                stepScale
+            );
     }
 
     const center =
@@ -2360,30 +2877,40 @@ function updateAI(
     */
 
     const maxStep =
-        ballDemand *
-        (
-            0.35 +
-            sensitivity *
-            0.9
-        ) *
-        (
-            waitingForBounce
+        waitingForBounce
 
-                ? Math.max(
-                    1,
-                    level.response
-                )
-                : level.response
-        );
+            ? ballDemand *
+              Math.max(
+                  1,
+                  level.response
+              )
+
+            : ballDemand *
+              level.demandScale *
+              (
+                  0.28 +
+                  sensitivity *
+                  0.72
+              ) *
+              level.response *
+              endurance;
 
 
     const tracking =
         waitingForBounce
 
-            ? 0.48
-            : 0.24 +
-              sensitivity *
-              0.2;
+            ? 0.46
+            : level.tracking *
+              (
+                  0.65 +
+                  sensitivity *
+                  0.35
+              ) *
+              (
+                  0.55 +
+                  endurance *
+                  0.45
+              );
 
 
     const movement =
@@ -2604,7 +3131,8 @@ function bouncePaddle(
 
     increaseBallSpeed();
     applyBallSpin(
-        paddle
+        paddle,
+        side
     );
 
     registerReplaySpeedThreshold();
@@ -2666,6 +3194,8 @@ function updateBall(
         ball.spin *=
             SPIN.wallRetention;
 
+        applySpinBounceResponse();
+
         wallSound();
 
         professionalPoint =
@@ -2691,6 +3221,8 @@ function updateBall(
 
         ball.spin *=
             SPIN.wallRetention;
+
+        applySpinBounceResponse();
 
         wallSound();
 
@@ -3607,74 +4139,36 @@ function interactiveItems() {
         !confirmOpen
     ) {
 
-        if (rulesPage === 0) {
+        addChoice(
+            "rulesArcade",
+            {
+                x: 40,
+                y: 88,
+                w: 570,
+                h: 220
+            }
+        );
 
-            addChoice(
-                "rulesArcade",
-                {
-                    x: 40,
-                    y: 88,
-                    w: 570,
-                    h: 204
-                }
-            );
+        addChoice(
+            "rulesProfessional",
+            {
+                x: 670,
+                y: 88,
+                w: 570,
+                h: 220
+            }
+        );
 
-            addChoice(
-                "rulesProfessional",
-                {
-                    x: 670,
-                    y: 88,
-                    w: 570,
-                    h: 204
-                }
-            );
-
-            add(
-                "rulesBack",
-                t("back"),
-                {
-                    x: 410,
-                    y: 650,
-                    w: 180,
-                    h: 46
-                }
-            );
-
-            add(
-                "rulesNext",
-                t("next"),
-                {
-                    x: 690,
-                    y: 650,
-                    w: 180,
-                    h: 46
-                }
-            );
-
-        } else {
-
-            add(
-                "rulesPrevious",
-                t("previous"),
-                {
-                    x: 410,
-                    y: 650,
-                    w: 180,
-                    h: 46
-                }
-            );
-
-            add(
-                "rulesBack",
-                t("back"),
-                {
-                    x: 690,
-                    y: 650,
-                    w: 180,
-                    h: 46
-                }
-            );
-        }
+        add(
+            "rulesBack",
+            t("back"),
+            {
+                x: 550,
+                y: 650,
+                w: 180,
+                h: 46
+            }
+        );
 
         return items;
     }
@@ -6478,148 +6972,6 @@ function drawRules() {
         );
     };
 
-
-    if (rulesPage === 1) {
-
-        title(
-            t("advancedGlossary"),
-            34,
-            "bold 32px monospace"
-        );
-
-        ctx.fillStyle =
-            "rgba(255,255,255,.62)";
-
-        ctx.font =
-            "14px monospace";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillText(
-            "2 / 2",
-            W / 2,
-            68
-        );
-
-        ctx.fillStyle =
-            BRAND.blue;
-
-        ctx.font =
-            "bold 20px monospace";
-
-        ctx.textAlign =
-            "left";
-
-        ctx.fillText(
-            t("strokes"),
-            60,
-            108
-        );
-
-        book.strokes
-            .forEach(
-                (
-                    [
-                        term,
-                        description
-                    ],
-                    index
-                ) => {
-
-                    drawGlossaryEntry(
-                        term,
-                        description,
-                        60,
-                        145 +
-                        index * 92,
-                        BRAND.blue,
-                        540
-                    );
-                }
-            );
-
-        ctx.fillStyle =
-            BRAND.gold;
-
-        ctx.font =
-            "bold 20px monospace";
-
-        ctx.fillText(
-            t("spinTypes"),
-            660,
-            108
-        );
-
-        book.spinTypes
-            .forEach(
-                (
-                    [
-                        term,
-                        description
-                    ],
-                    index
-                ) => {
-
-                    drawGlossaryEntry(
-                        term,
-                        description,
-                        660,
-                        145 +
-                        index * 82,
-                        BRAND.gold,
-                        560
-                    );
-                }
-            );
-
-        ctx.fillStyle =
-            BRAND.gold;
-
-        ctx.font =
-            "bold 20px monospace";
-
-        ctx.fillText(
-            t("gameDynamics"),
-            660,
-            390
-        );
-
-        book.dynamics
-            .forEach(
-                (
-                    [
-                        term,
-                        description
-                    ],
-                    index
-                ) => {
-
-                    drawGlossaryEntry(
-                        term,
-                        description,
-                        660,
-                        425 +
-                        index * 70,
-                        BRAND.gold,
-                        560
-                    );
-                }
-            );
-
-        interactiveItems()
-            .filter(
-                item =>
-                    item.type ===
-                    "button"
-            )
-            .forEach(
-                drawButton
-            );
-
-        return;
-    }
-
     title(
         t("rulesTitle"),
         32,
@@ -6675,7 +7027,7 @@ function drawRules() {
             x,
             88,
             570,
-            204
+            220
         );
 
         ctx.strokeStyle =
@@ -6698,7 +7050,7 @@ function drawRules() {
             x,
             88,
             570,
-            204
+            220
         );
 
         ctx.fillStyle =
@@ -6783,7 +7135,7 @@ function drawRules() {
 
     title(
         t("glossary"),
-        320,
+        335,
         "bold 24px monospace"
     );
 
@@ -6812,8 +7164,8 @@ function drawRules() {
                         : 660;
 
                 const y =
-                    352 +
-                    row * 91;
+                    370 +
+                    row * 85;
 
                 drawGlossaryEntry(
                     term,
