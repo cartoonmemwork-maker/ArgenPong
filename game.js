@@ -32,36 +32,39 @@ const BALL = {
     size: 20,
 
     speedLevels: [
-        4,
         5,
-        6,
-        7.2,
-        8.6,
+        6.1,
+        7.3,
+        8.8,
         10.5,
         12.8,
-        15.5,
-        19,
-        24
+        15.6,
+        18.9,
+        23.2,
+        25
     ],
 
     defaultLevel: 5,
     baseYRatio: 0.7,
-    progressiveFactor: 1.04
+    progressiveFactor: 1.04,
+    maxSpeed: 25
 };
 
 const SPIN = {
-    defaultEnabled: false,
-    deadZone: 1,
-    fullStrengthPaddleSpeed: 18,
-    curvePerStep: 0.003,
-    speedInfluence: 0.08,
-    decay: 0.985,
-    wallRetention: 0.65,
+    defaultEnabled: true,
+    deadZone: 0.8,
+    fullStrengthPaddleSpeed: 16,
+    curvePerStep: 0.006,
+    speedInfluence: 0.12,
+    decay: 0.99,
+    wallRetention: 0.75,
     epsilon: 0.001
 };
 
 const TIMING = {
-    stepMs: 1000 / 60,
+    defaultFps: 60,
+    options: [24, 60, 120],
+    referenceFps: 60,
     maxSteps: 5
 };
 
@@ -74,7 +77,7 @@ const SENS = {
     min: 0.1,
     max: 1,
     step: 0.1,
-    default: 0.5
+    default: 0.6
 };
 
 const UI = {
@@ -88,7 +91,7 @@ const LOCAL_DEFAULTS = {
     left: {
         up: "w",
         down: "s",
-        mouse: false,
+        mouse: true,
         sensitivity: SENS.default
     },
 
@@ -139,6 +142,7 @@ let audioMuted = false;
 let ballSpeedLevel = BALL.defaultLevel;
 let progressiveSpeed = true;
 let spinEnabled = SPIN.defaultEnabled;
+let physicsFps = TIMING.defaultFps;
 
 let previousFrameTime = null;
 let frameAccumulator = 0;
@@ -161,6 +165,7 @@ let settingsOpen = false;
 let controlsOpen = false;
 let backgroundOpen = false;
 let physicsOpen = false;
+let fpsOpen = false;
 
 let confirmOpen = null;
 let hoveredButton = null;
@@ -172,6 +177,8 @@ let aiReturns = 0;
 
 let previousMouseY = null;
 let activeSlider = null;
+let pointerUnlockPauseTime = -Infinity;
+let pendingMouseDelta = 0;
 
 const localControls = {
     left: { ...LOCAL_DEFAULTS.left },
@@ -237,6 +244,35 @@ const currentBallSpeed = () =>
     BALL.speedLevels[
         ballSpeedLevel - 1
     ];
+
+const currentStepMs = () =>
+    1000 /
+    physicsFps;
+
+const currentStepScale = () =>
+    TIMING.referenceFps /
+    physicsFps;
+
+function setPhysicsFps(
+    fps
+) {
+
+    if (
+        !TIMING.options
+            .includes(fps)
+    ) {
+        return;
+    }
+
+    physicsFps =
+        fps;
+
+    previousFrameTime =
+        null;
+
+    frameAccumulator =
+        0;
+}
 
 function inside(x, y, rect) {
     return (
@@ -452,13 +488,37 @@ function resetBall() {
     const speed =
         currentBallSpeed();
 
+    const verticalRatio =
+        BALL.baseYRatio /
+        Math.hypot(
+            1,
+            BALL.baseYRatio
+        );
+
+    const verticalSpeed =
+        Math.max(
+            3,
+            speed *
+            verticalRatio
+        );
+
+    const horizontalSpeed =
+        Math.sqrt(
+            Math.max(
+                0,
+                speed * speed -
+                verticalSpeed *
+                verticalSpeed
+            )
+        );
+
     ball.vx =
         (
             servingPlayer === "left"
                 ? 1
                 : -1
         ) *
-        speed;
+        horizontalSpeed;
 
     ball.vy =
         (
@@ -466,11 +526,7 @@ function resetBall() {
                 ? -1
                 : 1
         ) *
-        Math.max(
-            3,
-            speed *
-            BALL.baseYRatio
-        );
+        verticalSpeed;
 
     // Cada punto reinicia
     // el desgaste de la IA.
@@ -493,6 +549,8 @@ function resetMatch() {
 
     resetPaddles();
     resetBall();
+
+    requestMouseCapture();
 }
 
 function startGame(
@@ -517,11 +575,14 @@ function startGame(
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    fpsOpen = false;
 
     resetMatch();
 }
 
 function goToStartMenu() {
+
+    releaseMouseCapture();
 
     startMenuOpen = true;
     aiMenuOpen = false;
@@ -539,6 +600,7 @@ function goToStartMenu() {
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    fpsOpen = false;
 
     gameMode = null;
 }
@@ -609,6 +671,8 @@ function handlePoint() {
 
                 ? "left"
                 : "right";
+
+        releaseMouseCapture();
 
         return;
     }
@@ -698,22 +762,6 @@ function scaleBallVelocity(
     ball.vy *= scale;
 
 
-    const maxBaseSpeed =
-        BALL.speedLevels[
-            BALL.speedLevels.length - 1
-        ];
-
-    const maxSpeed =
-        Math.hypot(
-            maxBaseSpeed,
-
-            Math.max(
-                3,
-                maxBaseSpeed *
-                BALL.baseYRatio
-            )
-        );
-
     const speed =
         Math.hypot(
             ball.vx,
@@ -722,11 +770,11 @@ function scaleBallVelocity(
 
 
     if (
-        speed > maxSpeed
+        speed > BALL.maxSpeed
     ) {
 
         const capScale =
-            maxSpeed /
+            BALL.maxSpeed /
             speed;
 
         ball.vx *= capScale;
@@ -743,10 +791,8 @@ function clearBallSpin() {
 
     if (
         speedFactor > 0 &&
-        Math.abs(
-            ball.spinSpeedOffset
-        ) >=
-            SPIN.epsilon
+        ball.spinSpeedOffset !==
+            0
     ) {
 
         scaleBallVelocity(
@@ -822,7 +868,8 @@ function applyBallSpin(
         de la pelota genera un golpe ofensivo.
 
         Contradecirlo genera un golpe flotado.
-        El modificador es temporal y no se acumula.
+        El modificador dura hasta el próximo golpe
+        y nunca se acumula entre paletas.
     */
 
     const driveDirection =
@@ -869,7 +916,9 @@ function applyBallSpin(
             : 0;
 }
 
-function updateBallSpin() {
+function updateBallSpin(
+    stepScale = 1
+) {
 
     if (!spinEnabled) {
         return;
@@ -885,7 +934,8 @@ function updateBallSpin() {
 
         const angle =
             ball.spin *
-            SPIN.curvePerStep;
+            SPIN.curvePerStep *
+            stepScale;
 
         const cos =
             Math.cos(angle);
@@ -910,43 +960,11 @@ function updateBallSpin() {
     }
 
 
-    const previousOffset =
-        ball.spinSpeedOffset;
-
-    const nextOffset =
-        Math.abs(
-            previousOffset
-        ) <
-        SPIN.epsilon
-
-            ? 0
-            : previousOffset *
-              SPIN.decay;
-
-
-    if (
-        previousOffset !==
-        nextOffset
-    ) {
-
-        scaleBallVelocity(
-            (
-                1 +
-                nextOffset
-            ) /
-            (
-                1 +
-                previousOffset
-            )
-        );
-    }
-
-
-    ball.spinSpeedOffset =
-        nextOffset;
-
     ball.spin *=
-        SPIN.decay;
+        Math.pow(
+            SPIN.decay,
+            stepScale
+        );
 
 
     if (
@@ -965,11 +983,6 @@ function increaseBallSpeed() {
         return;
     }
 
-    const maxSpeed =
-        BALL.speedLevels[
-            BALL.speedLevels.length - 1
-        ];
-
     const currentSpeed =
         Math.hypot(
             ball.vx,
@@ -978,7 +991,7 @@ function increaseBallSpeed() {
 
     if (
         currentSpeed <= 0 ||
-        currentSpeed >= maxSpeed
+        currentSpeed >= BALL.maxSpeed
     ) {
         return;
     }
@@ -988,7 +1001,7 @@ function increaseBallSpeed() {
             currentSpeed *
             BALL.progressiveFactor,
 
-            maxSpeed
+            BALL.maxSpeed
         );
 
     const scale =
@@ -1020,11 +1033,11 @@ function keyboardSpeed(
 
     /*
         0.1 = 6
-        0.5 = ~12.2
+        0.6 = ~13.8
         1.0 = 20
 
-        El valor por defecto 0.5
-        ahora se siente mucho más ágil.
+        El valor por defecto 0.6
+        acompaña el nuevo estándar de juego.
     */
 
     return (
@@ -1038,7 +1051,9 @@ function keyboardSpeed(
 // PVP LOCAL
 // ============================================================
 
-function localMove() {
+function localMove(
+    stepScale = 1
+) {
 
     for (
         const side of
@@ -1057,7 +1072,8 @@ function localMove() {
         const speed =
             keyboardSpeed(
                 controls.sensitivity
-            );
+            ) *
+            stepScale;
 
         if (
             keys[
@@ -1082,7 +1098,9 @@ function localMove() {
 // JUGADOR VS IA
 // ============================================================
 
-function humanMoveAI() {
+function humanMoveAI(
+    stepScale = 1
+) {
 
     const paddle =
         sidePaddle(
@@ -1092,7 +1110,8 @@ function humanMoveAI() {
     const speed =
         keyboardSpeed(
             aiControls.sensitivity
-        );
+        ) *
+        stepScale;
 
     const up =
         keys[aiControls.up1] ||
@@ -1132,7 +1151,9 @@ function clampPaddles() {
         );
 }
 
-function updatePaddleMotion() {
+function updatePaddleMotion(
+    stepScale = 1
+) {
 
     for (
         const paddle of
@@ -1143,8 +1164,15 @@ function updatePaddleMotion() {
     ) {
 
         paddle.vy =
-            paddle.y -
-            paddle.previousY;
+            stepScale > 0
+
+                ? (
+                    paddle.y -
+                    paddle.previousY
+                ) /
+                stepScale
+
+                : 0;
 
         paddle.previousY =
             paddle.y;
@@ -1210,7 +1238,9 @@ function registerAIReturn(side) {
     aiReturns++;
 }
 
-function updateAI() {
+function updateAI(
+    stepScale = 1
+) {
 
     if (
         gameMode !== "ai"
@@ -1292,17 +1322,36 @@ function updateAI() {
         0.18;
 
 
-    paddle.y +=
+    const movement =
         clamp(
             delta *
             tracking,
 
             -maxStep,
             maxStep
+        ) *
+        stepScale;
+
+
+    paddle.y +=
+        clamp(
+            movement,
+
+            Math.min(
+                0,
+                delta
+            ),
+
+            Math.max(
+                0,
+                delta
+            )
         );
 }
 
-function updatePaddles() {
+function updatePaddles(
+    stepScale = 1
+) {
 
     if (
         startMenuOpen ||
@@ -1318,15 +1367,22 @@ function updatePaddles() {
         "local"
     ) {
 
-        localMove();
+        localMove(
+            stepScale
+        );
 
     } else if (
         gameMode ===
         "ai"
     ) {
 
-        humanMoveAI();
-        updateAI();
+        humanMoveAI(
+            stepScale
+        );
+
+        updateAI(
+            stepScale
+        );
     }
 
     clampPaddles();
@@ -1412,7 +1468,9 @@ function bouncePaddle(
 // PELOTA
 // ============================================================
 
-function updateBall() {
+function updateBall(
+    stepScale = 1
+) {
 
     if (
         startMenuOpen ||
@@ -1423,13 +1481,17 @@ function updateBall() {
         return;
     }
 
-    updateBallSpin();
+    updateBallSpin(
+        stepScale
+    );
 
     ball.x +=
-        ball.vx;
+        ball.vx *
+        stepScale;
 
     ball.y +=
-        ball.vy;
+        ball.vy *
+        stepScale;
 
 
     // PARED SUPERIOR
@@ -1450,7 +1512,6 @@ function updateBall() {
         ball.spin *=
             SPIN.wallRetention;
 
-        increaseBallSpeed();
         wallSound();
 
 
@@ -1474,7 +1535,6 @@ function updateBall() {
         ball.spin *=
             SPIN.wallRetention;
 
-        increaseBallSpeed();
         wallSound();
     }
 
@@ -1702,14 +1762,26 @@ function closeMenusToGame() {
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    fpsOpen = false;
 
     confirmOpen = null;
 
     waitingForKey = null;
     hoveredButton = null;
+
+    requestMouseCapture();
 }
 
 function handleEscape() {
+
+    if (
+        gamePaused &&
+        performance.now() -
+        pointerUnlockPauseTime <
+        250
+    ) {
+        return;
+    }
 
     if (startMenuOpen) {
 
@@ -1730,6 +1802,7 @@ function handleEscape() {
         controlsOpen ||
         backgroundOpen ||
         physicsOpen ||
+        fpsOpen ||
         confirmOpen
     ) {
 
@@ -1740,6 +1813,8 @@ function handleEscape() {
 
     gamePaused =
         true;
+
+    releaseMouseCapture();
 }
 
 
@@ -1747,9 +1822,235 @@ function handleEscape() {
 // MOUSE
 // ============================================================
 
+function mouseControlActive() {
+
+    if (
+        gameMode === "ai"
+    ) {
+        return aiControls.mouse;
+    }
+
+    if (
+        gameMode === "local"
+    ) {
+
+        return (
+            localControls.left.mouse ||
+            localControls.right.mouse
+        );
+    }
+
+    return false;
+}
+
+function moveMousePaddles(
+    delta
+) {
+
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        !Number.isFinite(delta)
+    ) {
+        return;
+    }
+
+
+    // VS IA
+
+    if (
+        gameMode === "ai" &&
+        aiControls.mouse
+    ) {
+
+        sidePaddle(
+            humanSide
+        ).y +=
+            delta *
+            (
+                0.75 +
+                aiControls.sensitivity *
+                2
+            );
+
+
+    // PVP LOCAL
+
+    } else if (
+        gameMode === "local"
+    ) {
+
+        for (
+            const side of
+            [
+                "left",
+                "right"
+            ]
+        ) {
+
+            const controls =
+                localControls[side];
+
+            if (
+                controls.mouse
+            ) {
+
+                sidePaddle(
+                    side
+                ).y +=
+                    delta *
+                    (
+                        0.75 +
+                        controls.sensitivity *
+                        2
+                    );
+            }
+        }
+    }
+
+    clampPaddles();
+}
+
+function queueMouseMovement(
+    delta
+) {
+
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        !Number.isFinite(delta)
+    ) {
+        return;
+    }
+
+    pendingMouseDelta +=
+        delta;
+}
+
+function requestMouseCapture() {
+
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        !mouseControlActive() ||
+        document.pointerLockElement ===
+            canvas ||
+        typeof canvas.requestPointerLock !==
+            "function"
+    ) {
+        return;
+    }
+
+    previousMouseY =
+        null;
+
+    pendingMouseDelta =
+        0;
+
+    let request =
+        null;
+
+    try {
+
+        request =
+            canvas.requestPointerLock();
+
+    } catch {
+        return;
+    }
+
+    if (
+        request &&
+        typeof request.catch ===
+            "function"
+    ) {
+        request.catch(
+            () => {}
+        );
+    }
+}
+
+function releaseMouseCapture() {
+
+    if (
+        document.pointerLockElement ===
+            canvas &&
+        typeof document.exitPointerLock ===
+            "function"
+    ) {
+        document.exitPointerLock();
+    }
+
+    previousMouseY =
+        null;
+
+    pendingMouseDelta =
+        0;
+}
+
+document.addEventListener(
+    "mousemove",
+    event => {
+
+        if (
+            document.pointerLockElement !==
+            canvas
+        ) {
+            return;
+        }
+
+        const rect =
+            canvas.getBoundingClientRect();
+
+        const delta =
+            event.movementY *
+            H /
+            rect.height;
+
+        queueMouseMovement(
+            delta
+        );
+    }
+);
+
+document.addEventListener(
+    "pointerlockchange",
+    () => {
+
+        previousMouseY =
+            null;
+
+        if (
+            document.pointerLockElement !==
+                canvas &&
+            !startMenuOpen &&
+            !gamePaused &&
+            !gameOver &&
+            mouseControlActive()
+        ) {
+
+            gamePaused =
+                true;
+
+            pointerUnlockPauseTime =
+                performance.now();
+        }
+    }
+);
+
 canvas.addEventListener(
     "mousemove",
     event => {
+
+        if (
+            document.pointerLockElement ===
+            canvas
+        ) {
+            return;
+        }
 
         const {
             x,
@@ -1771,65 +2072,9 @@ canvas.addEventListener(
                 previousMouseY;
 
 
-            // VS IA
-
-            if (
-                gameMode ===
-                    "ai" &&
-                aiControls.mouse
-            ) {
-
-                sidePaddle(
-                    humanSide
-                ).y +=
-                    delta *
-                    (
-                        0.75 +
-                        aiControls
-                            .sensitivity *
-                        2
-                    );
-
-
-            // PVP LOCAL
-
-            } else if (
-                gameMode ===
-                "local"
-            ) {
-
-                for (
-                    const side of
-                    [
-                        "left",
-                        "right"
-                    ]
-                ) {
-
-                    const controls =
-                        localControls[
-                            side
-                        ];
-
-                    if (
-                        controls.mouse
-                    ) {
-
-                        sidePaddle(
-                            side
-                        ).y +=
-                            delta *
-                            (
-                                0.75 +
-                                controls
-                                    .sensitivity *
-                                2
-                            );
-                    }
-                }
-            }
-
-            clampPaddles();
+            queueMouseMovement(
+                delta
+            );
         }
 
 
@@ -1947,6 +2192,10 @@ canvas.addEventListener(
             handleAction(
                 hit.id
             );
+
+        } else {
+
+            requestMouseCapture();
         }
     }
 );
@@ -2313,6 +2562,55 @@ function interactiveItems() {
     }
 
 
+    // FPS
+
+    if (fpsOpen) {
+
+        TIMING.options
+            .forEach(
+                (
+                    fps,
+                    index
+                ) => {
+
+                    add(
+                        `fps${fps}`,
+
+                        fps ===
+                        physicsFps
+
+                            ? `${fps} FPS · ACTIVO`
+                            : `${fps} FPS`,
+
+                        buttonRect(
+                            index,
+                            4,
+                            320,
+                            55,
+                            15,
+                            380
+                        )
+                    );
+                }
+            );
+
+        add(
+            "fpsBack",
+            "VOLVER",
+            buttonRect(
+                3,
+                4,
+                320,
+                55,
+                15,
+                380
+            )
+        );
+
+        return items;
+    }
+
+
     // FISICAS
 
     if (physicsOpen) {
@@ -2429,6 +2727,11 @@ function interactiveItems() {
             ],
 
             [
+                "fps",
+                `FPS: ${physicsFps}`
+            ],
+
+            [
                 "sound",
 
                 `SONIDO: ${
@@ -2458,10 +2761,10 @@ function interactiveItems() {
 
                     buttonRect(
                         index,
-                        5,
+                        6,
                         300,
-                        55,
-                        14,
+                        50,
+                        11,
                         390
                     )
                 );
@@ -3014,6 +3317,8 @@ function handleAction(id) {
         gamePaused =
             false;
 
+        requestMouseCapture();
+
         return;
     }
 
@@ -3131,6 +3436,18 @@ function handleAction(id) {
 
     if (
         id ===
+        "fps"
+    ) {
+
+        fpsOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
         "sound"
     ) {
 
@@ -3187,6 +3504,34 @@ function handleAction(id) {
 
         physicsOpen =
             false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "fpsBack"
+    ) {
+
+        fpsOpen =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id === "fps24" ||
+        id === "fps60" ||
+        id === "fps120"
+    ) {
+
+        setPhysicsFps(
+            Number(
+                id.slice(3)
+            )
+        );
 
         return;
     }
@@ -4170,6 +4515,21 @@ function drawBackground() {
         );
 }
 
+function drawFps() {
+
+    overlay(0.82);
+
+    title(
+        "FPS",
+        75
+    );
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
 function drawConfirm() {
 
     overlay(0.84);
@@ -4550,6 +4910,14 @@ function drawGame() {
     }
 
 
+    if (fpsOpen) {
+
+        drawFps();
+
+        return;
+    }
+
+
     if (physicsOpen) {
 
         drawPhysics();
@@ -4590,12 +4958,19 @@ function loop(
     }
 
 
+    const stepMs =
+        currentStepMs();
+
+    const stepScale =
+        currentStepScale();
+
+
     const elapsed =
         Math.min(
             timestamp -
             previousFrameTime,
 
-            TIMING.stepMs *
+            stepMs *
             TIMING.maxSteps
         );
 
@@ -4607,17 +4982,78 @@ function loop(
         elapsed;
 
 
-    while (
-        frameAccumulator >=
-        TIMING.stepMs
+    const stepsToRun =
+        Math.min(
+            TIMING.maxSteps,
+
+            Math.floor(
+                frameAccumulator /
+                stepMs
+            )
+        );
+
+    const mouseDeltaPerStep =
+        stepsToRun > 0
+
+            ? pendingMouseDelta /
+              stepsToRun
+
+            : 0;
+
+
+    if (
+        stepsToRun > 0
+    ) {
+        pendingMouseDelta =
+            0;
+    }
+
+
+    for (
+        let frameStep = 0;
+        frameStep < stepsToRun;
+        frameStep++
     ) {
 
-        updatePaddles();
-        updatePaddleMotion();
-        updateBall();
+        moveMousePaddles(
+            mouseDeltaPerStep
+        );
+
+        updatePaddles(
+            stepScale
+        );
+
+        updatePaddleMotion(
+            stepScale
+        );
+
+
+        const ballSubsteps =
+            Math.max(
+                1,
+                Math.ceil(
+                    stepScale
+                )
+            );
+
+        const ballStepScale =
+            stepScale /
+            ballSubsteps;
+
+
+        for (
+            let step = 0;
+            step < ballSubsteps;
+            step++
+        ) {
+
+            updateBall(
+                ballStepScale
+            );
+        }
 
         frameAccumulator -=
-            TIMING.stepMs;
+            stepMs;
     }
 
 
