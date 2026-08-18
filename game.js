@@ -324,6 +324,7 @@ let aiReturns = 0;
 let previousMouseY = null;
 let activeSlider = null;
 let pointerUnlockPauseTime = -Infinity;
+let escapeResumeTime = -Infinity;
 let pendingMouseDelta = 0;
 
 let replayAutoEnabled = REPLAY.defaultEnabled;
@@ -848,6 +849,11 @@ function replaySnapshot() {
         ballY: ball.y,
         ballVx: ball.vx,
         ballVy: ball.vy,
+        ballSpeed:
+            Math.hypot(
+                ball.vx,
+                ball.vy
+            ),
         leftPaddleY: leftPaddle.y,
         rightPaddleY: rightPaddle.y
     };
@@ -1053,11 +1059,19 @@ function replaySpeedText(
     frame
 ) {
 
+    const speedUnits =
+        Number.isFinite(
+            frame.ballSpeed
+        )
+
+            ? frame.ballSpeed
+            : Math.hypot(
+                frame.ballVx,
+                frame.ballVy
+            );
+
     const speedKmh =
-        Math.hypot(
-            frame.ballVx,
-            frame.ballVy
-        ) *
+        speedUnits *
         REPLAY.kmhPerSpeedUnit;
 
     if (
@@ -2211,7 +2225,9 @@ window.addEventListener(
                 waitingForKey =
                     null;
 
-                closeMenusToGame();
+                closeMenusToGame(
+                    true
+                );
 
                 return;
             }
@@ -2334,13 +2350,21 @@ function setRebindKey(
 // ESC / NAVEGACIÓN
 // ============================================================
 
-function closeMenusToGame() {
+function closeMenusToGame(
+    fromEscape = false
+) {
 
     if (
         !gameMode ||
         startMenuOpen
     ) {
         return;
+    }
+
+    if (fromEscape) {
+
+        escapeResumeTime =
+            performance.now();
     }
 
     gamePaused = false;
@@ -2390,7 +2414,9 @@ function handleEscape() {
 
     if (submenuOpen) {
 
-        closeMenusToGame();
+        closeMenusToGame(
+            true
+        );
 
         return;
     }
@@ -2408,7 +2434,9 @@ function handleEscape() {
         gamePaused
     ) {
 
-        closeMenusToGame();
+        closeMenusToGame(
+            true
+        );
 
         return;
     }
@@ -2637,6 +2665,9 @@ document.addEventListener(
             !replayPlaying &&
             performance.now() -
                 replayFinishTime >
+                250 &&
+            performance.now() -
+                escapeResumeTime >
                 250 &&
             mouseControlActive()
         ) {
@@ -6019,12 +6050,15 @@ function replayFrameAt(
         ballY: mix("ballY"),
         ballVx: mix("ballVx"),
         ballVy: mix("ballVy"),
+        ballSpeed: mix("ballSpeed"),
         leftPaddleY: mix("leftPaddleY"),
         rightPaddleY: mix("rightPaddleY")
     };
 }
 
-function drawReplayTrajectory() {
+function drawReplayTrajectory(
+    visibleFrame
+) {
 
     if (
         replayClip.length < 2
@@ -6034,10 +6068,10 @@ function drawReplayTrajectory() {
 
     const currentIndex =
         clamp(
-            Math.ceil(
+            Math.floor(
                 replayPosition
             ),
-            1,
+            0,
             replayClip.length - 1
         );
 
@@ -6045,13 +6079,42 @@ function drawReplayTrajectory() {
         Math.max(
             1,
             currentIndex -
-            REPLAY.trailFrames
+            REPLAY.trailFrames +
+            1
         );
+
+    const fractionalProgress =
+        clamp(
+            replayPosition -
+            currentIndex,
+            0,
+            1
+        );
+
+    const completeSegments =
+        Math.max(
+            0,
+            currentIndex -
+            startIndex +
+            1
+        );
+
+    const segmentCount =
+        completeSegments +
+        (
+            fractionalProgress > 0
+                ? 1
+                : 0
+        );
+
+    if (!segmentCount) {
+        return;
+    }
 
     ctx.save();
 
     ctx.lineWidth =
-        6;
+        4;
 
     ctx.lineCap =
         "round";
@@ -6060,31 +6123,21 @@ function drawReplayTrajectory() {
         BRAND.blue;
 
     ctx.shadowBlur =
-        7;
+        5;
 
-    for (
-        let index = startIndex;
-        index <= currentIndex;
-        index++
-    ) {
+    let drawnSegments =
+        0;
 
-        const previous =
-            replayClip[index - 1];
+    const drawSegment = (
+        previous,
+        current
+    ) => {
 
-        const current =
-            replayClip[index];
+        drawnSegments++;
 
         const ageRatio =
-            (
-                index -
-                startIndex +
-                1
-            ) /
-            (
-                currentIndex -
-                startIndex +
-                1
-            );
+            drawnSegments /
+            segmentCount;
 
         ctx.globalAlpha =
             0.08 +
@@ -6111,6 +6164,36 @@ function drawReplayTrajectory() {
         );
 
         ctx.stroke();
+    };
+
+    for (
+        let index = startIndex;
+        index <= currentIndex;
+        index++
+    ) {
+
+        const previous =
+            replayClip[index - 1];
+
+        const current =
+            replayClip[index];
+
+        drawSegment(
+            previous,
+            current
+        );
+    }
+
+    if (
+        fractionalProgress > 0 &&
+        currentIndex <
+            replayClip.length - 1
+    ) {
+
+        drawSegment(
+            replayClip[currentIndex],
+            visibleFrame
+        );
     }
 
     ctx.restore();
@@ -6124,7 +6207,9 @@ function drawReplay() {
         );
 
     drawTable();
-    drawReplayTrajectory();
+    drawReplayTrajectory(
+        frame
+    );
 
     ctx.fillStyle =
         "#FFFFFF";
@@ -6182,7 +6267,7 @@ function drawReplay() {
         "left";
 
     ctx.font =
-        "bold 15px monospace";
+        "bold 20px monospace";
 
     ctx.fillStyle =
         BRAND.blue;
@@ -6202,26 +6287,43 @@ function drawReplay() {
     ctx.fillStyle =
         "#FFFFFF";
 
+    const speedLabel =
+        `${t("replaySpeed")}: `;
+
     ctx.font =
         "bold 18px monospace";
 
     ctx.fillText(
-        `${t("replaySpeed")}: ${
-            replaySpeedText(
-                frame
-            )
-        }`,
+        speedLabel,
         TABLE.left + 22,
-        TABLE.top + 54
+        TABLE.top + 58
+    );
+
+    const speedLabelWidth =
+        ctx.measureText(
+            speedLabel
+        ).width;
+
+    ctx.font =
+        "18px monospace";
+
+    ctx.fillText(
+        replaySpeedText(
+            frame
+        ),
+        TABLE.left +
+        22 +
+        speedLabelWidth,
+        TABLE.top + 58
     );
 
     ctx.font =
-        "bold 13px monospace";
+        "16px monospace";
 
     ctx.fillText(
         t("skipReplay"),
         TABLE.left + 22,
-        TABLE.top + 77
+        TABLE.top + 84
     );
 
     ctx.restore();
