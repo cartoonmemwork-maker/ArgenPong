@@ -54,8 +54,8 @@ const SPIN = {
     defaultEnabled: true,
     deadZone: 0.8,
     fullStrengthPaddleSpeed: 16,
-    curvePerStep: 0.006,
-    speedInfluence: 0.12,
+    curvePerStep: 0.0075,
+    speedInfluence: 0.13,
     decay: 0.99,
     wallRetention: 0.75,
     epsilon: 0.001
@@ -66,6 +66,139 @@ const TIMING = {
     options: [24, 60, 120],
     referenceFps: 60,
     maxSteps: 5
+};
+
+const REPLAY = {
+    defaultEnabled: true,
+    defaultMode: "match",
+    captureFps: 60,
+    playbackFps: 60,
+    slowMotion: 0.4,
+    trailFrames: 90,
+    maxFrames: 1200
+};
+
+const LANGUAGE = {
+    defaultMode: "auto",
+    options: ["auto", "es", "en"]
+};
+
+const TEXT = {
+    es: {
+        space: "ESPACIO",
+        localPvp: "PVP LOCAL",
+        vsAi: "VS IA",
+        onlinePvp: "PVP ONLINE",
+        side: "LADO",
+        left: "IZQUIERDA",
+        right: "DERECHA",
+        easy: "FÁCIL",
+        normal: "NORMAL",
+        hard: "DIFÍCIL",
+        back: "VOLVER",
+        rematch: "¿REVANCHA?",
+        mainMenu: "MENÚ INICIAL",
+        yes: "SÍ",
+        no: "NO",
+        green: "VERDE",
+        blue: "AZUL",
+        black: "NEGRO",
+        velocity: "VELOCIDAD",
+        progressive: "VELOCIDAD PROGRESIVA",
+        resetDefaults: "RESTABLECER POR DEFECTO",
+        controls: "CONTROLES",
+        background: "FONDO",
+        physics: "FÍSICAS",
+        sound: "SONIDO",
+        continue: "CONTINUAR",
+        restart: "REINICIAR PARTIDA",
+        settings: "AJUSTES",
+        press: "PRESIONÁ...",
+        pause: "PAUSA",
+        chooseSide: "ELEGÍ TU LADO",
+        chooseDifficulty: "Después seleccioná la dificultad",
+        comingSoon: "PRÓXIMAMENTE",
+        confirmRestart: "¿REINICIAR PARTIDA?",
+        confirmMenu: "¿VOLVER AL MENÚ?",
+        loseCurrent: "Se perderá la partida actual.",
+        up: "ARRIBA",
+        down: "ABAJO",
+        mouse: "MOUSE",
+        sensitivity: "SENS.",
+        player: "JUGADOR",
+        winLeft: "LA IZQUIERDA GANA",
+        winRight: "LA DERECHA GANA",
+        replay: "REPETICIÓN",
+        replayAuto: "REPRODUCCIÓN AUTOMÁTICA",
+        frequency: "FRECUENCIA",
+        replayMatch: "MATCH",
+        replayAll: "TODOS LOS TANTOS",
+        replaySpeed: "VELOCIDAD",
+        skipReplay: "CLICK · ESC · ESPACIO · ENTER PARA SALTAR",
+        language: "IDIOMA",
+        automatic: "AUTOMÁTICO",
+        spanish: "ESPAÑOL",
+        english: "ENGLISH",
+        active: "ACTIVO"
+    },
+
+    en: {
+        space: "SPACE",
+        localPvp: "LOCAL PVP",
+        vsAi: "VS AI",
+        onlinePvp: "ONLINE PVP",
+        side: "SIDE",
+        left: "LEFT",
+        right: "RIGHT",
+        easy: "EASY",
+        normal: "NORMAL",
+        hard: "HARD",
+        back: "BACK",
+        rematch: "REMATCH?",
+        mainMenu: "MAIN MENU",
+        yes: "YES",
+        no: "NO",
+        green: "GREEN",
+        blue: "BLUE",
+        black: "BLACK",
+        velocity: "SPEED",
+        progressive: "PROGRESSIVE SPEED",
+        resetDefaults: "RESTORE DEFAULTS",
+        controls: "CONTROLS",
+        background: "BACKGROUND",
+        physics: "PHYSICS",
+        sound: "SOUND",
+        continue: "CONTINUE",
+        restart: "RESTART MATCH",
+        settings: "SETTINGS",
+        press: "PRESS...",
+        pause: "PAUSE",
+        chooseSide: "CHOOSE YOUR SIDE",
+        chooseDifficulty: "Then select the difficulty",
+        comingSoon: "COMING SOON",
+        confirmRestart: "RESTART MATCH?",
+        confirmMenu: "RETURN TO MENU?",
+        loseCurrent: "The current match will be lost.",
+        up: "UP",
+        down: "DOWN",
+        mouse: "MOUSE",
+        sensitivity: "SENS.",
+        player: "PLAYER",
+        winLeft: "LEFT SIDE WINS",
+        winRight: "RIGHT SIDE WINS",
+        replay: "REPLAY",
+        replayAuto: "AUTOMATIC REPLAY",
+        frequency: "FREQUENCY",
+        replayMatch: "MATCH",
+        replayAll: "EVERY POINT",
+        replaySpeed: "SPEED",
+        skipReplay: "CLICK · ESC · SPACE · ENTER TO SKIP",
+        language: "LANGUAGE",
+        automatic: "AUTOMATIC",
+        spanish: "ESPAÑOL",
+        english: "ENGLISH",
+        active: "ACTIVE"
+    }
 };
 
 const MATCH = {
@@ -166,6 +299,8 @@ let controlsOpen = false;
 let backgroundOpen = false;
 let physicsOpen = false;
 let fpsOpen = false;
+let replayOpen = false;
+let languageOpen = false;
 
 let confirmOpen = null;
 let hoveredButton = null;
@@ -179,6 +314,20 @@ let previousMouseY = null;
 let activeSlider = null;
 let pointerUnlockPauseTime = -Infinity;
 let pendingMouseDelta = 0;
+
+let replayAutoEnabled = REPLAY.defaultEnabled;
+let replayMode = REPLAY.defaultMode;
+let languageMode = LANGUAGE.defaultMode;
+
+let replayPlaying = false;
+let replayFrames = [];
+let replayReturnIndices = [];
+let replayCaptureAccumulator = 0;
+let replayClip = [];
+let replayPosition = 0;
+let replayLastTime = null;
+let replayPlaybackAccumulator = 0;
+let replayFinishTime = -Infinity;
 
 const localControls = {
     left: { ...LOCAL_DEFAULTS.left },
@@ -253,6 +402,57 @@ const currentStepScale = () =>
     TIMING.referenceFps /
     physicsFps;
 
+function currentLanguage() {
+
+    if (
+        languageMode !== "auto"
+    ) {
+        return languageMode;
+    }
+
+    const browserLanguage =
+        typeof navigator !== "undefined"
+
+            ? navigator.language || "es"
+            : "es";
+
+    return browserLanguage
+        .toLowerCase()
+        .startsWith("es")
+
+            ? "es"
+            : "en";
+}
+
+function t(key) {
+
+    const language =
+        currentLanguage();
+
+    return (
+        TEXT[language][key] ||
+        TEXT.es[key] ||
+        key
+    );
+}
+
+function languageModeLabel() {
+
+    if (
+        languageMode === "es"
+    ) {
+        return t("spanish");
+    }
+
+    if (
+        languageMode === "en"
+    ) {
+        return t("english");
+    }
+
+    return t("automatic");
+}
+
 function setPhysicsFps(
     fps
 ) {
@@ -308,7 +508,7 @@ function formatKey(key) {
         ArrowDown: "↓",
         ArrowLeft: "←",
         ArrowRight: "→",
-        " ": "SPACE"
+        " ": t("space")
     };
 
     return (
@@ -531,9 +731,14 @@ function resetBall() {
     // Cada punto reinicia
     // el desgaste de la IA.
     aiReturns = 0;
+
+    resetReplayCapture();
 }
 
 function resetMatch() {
+
+    replayPlaying = false;
+    replayClip = [];
 
     leftScore = 0;
     rightScore = 0;
@@ -576,6 +781,8 @@ function startGame(
     backgroundOpen = false;
     physicsOpen = false;
     fpsOpen = false;
+    replayOpen = false;
+    languageOpen = false;
 
     resetMatch();
 }
@@ -601,8 +808,275 @@ function goToStartMenu() {
     backgroundOpen = false;
     physicsOpen = false;
     fpsOpen = false;
+    replayOpen = false;
+    languageOpen = false;
+
+    replayPlaying = false;
+    replayClip = [];
+    resetReplayCapture();
 
     gameMode = null;
+}
+
+
+// ============================================================
+// REPETICIÓN
+// ============================================================
+
+function resetReplayCapture() {
+
+    replayFrames = [];
+    replayReturnIndices = [];
+    replayCaptureAccumulator = 0;
+}
+
+function replaySnapshot() {
+
+    return {
+        ballX: ball.x,
+        ballY: ball.y,
+        ballVx: ball.vx,
+        ballVy: ball.vy,
+        leftPaddleY: leftPaddle.y,
+        rightPaddleY: rightPaddle.y
+    };
+}
+
+function pushReplaySnapshot() {
+
+    replayFrames.push(
+        replaySnapshot()
+    );
+
+    if (
+        replayFrames.length >
+        REPLAY.maxFrames
+    ) {
+
+        const removeCount =
+            replayFrames.length -
+            REPLAY.maxFrames;
+
+        replayFrames.splice(
+            0,
+            removeCount
+        );
+
+        replayReturnIndices =
+            replayReturnIndices
+                .map(
+                    index =>
+                        index -
+                        removeCount
+                )
+                .filter(
+                    index =>
+                        index >= 0
+                );
+    }
+}
+
+function captureReplayFrame(
+    stepScale
+) {
+
+    if (
+        replayPlaying ||
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        !gameMode
+    ) {
+        return;
+    }
+
+    replayCaptureAccumulator +=
+        stepScale;
+
+    while (
+        replayCaptureAccumulator >= 1
+    ) {
+
+        pushReplaySnapshot();
+
+        replayCaptureAccumulator -=
+            1;
+    }
+}
+
+function markReplayReturn() {
+
+    replayReturnIndices.push(
+        replayFrames.length
+    );
+
+    if (
+        replayReturnIndices.length > 2
+    ) {
+
+        const keepFrom =
+            replayReturnIndices[
+                replayReturnIndices.length - 2
+            ];
+
+        replayFrames =
+            replayFrames.slice(
+                keepFrom
+            );
+
+        replayReturnIndices =
+            replayReturnIndices
+                .slice(-2)
+                .map(
+                    index =>
+                        index -
+                        keepFrom
+                );
+    }
+}
+
+function shouldReplayPoint(
+    previousMatchSide
+) {
+
+    if (!replayAutoEnabled) {
+        return false;
+    }
+
+    if (
+        replayMode === "all"
+    ) {
+        return true;
+    }
+
+    const enteredMatch =
+        !previousMatchSide &&
+        Boolean(
+            matchPointSide()
+        );
+
+    return (
+        enteredMatch ||
+        checkWinner()
+    );
+}
+
+function startPointReplay(
+    previousMatchSide
+) {
+
+    if (
+        !shouldReplayPoint(
+            previousMatchSide
+        )
+    ) {
+        return false;
+    }
+
+    pushReplaySnapshot();
+
+    const startIndex =
+        replayReturnIndices.length >= 2
+
+            ? replayReturnIndices[
+                replayReturnIndices.length - 2
+            ]
+            : 0;
+
+    replayClip =
+        replayFrames.slice(
+            startIndex
+        );
+
+    if (
+        replayClip.length < 2
+    ) {
+        return false;
+    }
+
+    replayPlaying = true;
+    replayPosition = 0;
+    replayLastTime = null;
+    replayPlaybackAccumulator = 0;
+
+    return true;
+}
+
+function updateReplay(
+    timestamp
+) {
+
+    if (!replayPlaying) {
+        return;
+    }
+
+    if (
+        replayLastTime === null
+    ) {
+
+        replayLastTime =
+            timestamp;
+
+        return;
+    }
+
+    const elapsed =
+        Math.min(
+            timestamp -
+            replayLastTime,
+            100
+        );
+
+    replayLastTime =
+        timestamp;
+
+    replayPlaybackAccumulator +=
+        elapsed;
+
+    const playbackStepMs =
+        1000 /
+        REPLAY.playbackFps;
+
+    while (
+        replayPlaybackAccumulator >=
+        playbackStepMs
+    ) {
+
+        replayPosition +=
+            REPLAY.slowMotion;
+
+        replayPlaybackAccumulator -=
+            playbackStepMs;
+    }
+
+    if (
+        replayPosition >=
+        replayClip.length - 1
+    ) {
+        finishReplay();
+    }
+}
+
+function finishReplay() {
+
+    if (!replayPlaying) {
+        return;
+    }
+
+    replayPlaying = false;
+    replayClip = [];
+    replayPosition = 0;
+    replayLastTime = null;
+    replayPlaybackAccumulator = 0;
+    replayFinishTime =
+        performance.now();
+
+    finalizePoint();
+    resetReplayCapture();
+
+    if (!gameOver) {
+        requestMouseCapture();
+    }
 }
 
 
@@ -658,7 +1132,7 @@ function updateServe() {
             : "right";
 }
 
-function handlePoint() {
+function finalizePoint() {
 
     if (checkWinner()) {
 
@@ -673,12 +1147,28 @@ function handlePoint() {
                 : "right";
 
         releaseMouseCapture();
+        resetReplayCapture();
 
         return;
     }
 
     updateServe();
     resetBall();
+}
+
+function handlePoint(
+    previousMatchSide
+) {
+
+    if (
+        startPointReplay(
+            previousMatchSide
+        )
+    ) {
+        return;
+    }
+
+    finalizePoint();
 }
 
 
@@ -1460,6 +1950,8 @@ function bouncePaddle(
     applyBallSpin(
         paddle
     );
+
+    markReplayReturn();
     paddleSound();
 }
 
@@ -1476,6 +1968,7 @@ function updateBall(
         startMenuOpen ||
         gamePaused ||
         gameOver ||
+        replayPlaying ||
         !gameMode
     ) {
         return;
@@ -1570,6 +2063,14 @@ function updateBall(
     }
 
 
+    captureReplayFrame(
+        stepScale
+    );
+
+    const previousMatchSide =
+        matchPointSide();
+
+
     // PUNTO DERECHA
 
     if (
@@ -1581,7 +2082,9 @@ function updateBall(
         rightScore++;
 
         pointSound();
-        handlePoint();
+        handlePoint(
+            previousMatchSide
+        );
 
 
     // PUNTO IZQUIERDA
@@ -1594,7 +2097,9 @@ function updateBall(
         leftScore++;
 
         pointSound();
-        handlePoint();
+        handlePoint(
+            previousMatchSide
+        );
     }
 }
 
@@ -1608,6 +2113,22 @@ window.addEventListener(
     event => {
 
         initAudio();
+
+
+        if (
+            replayPlaying &&
+            (
+                event.key === "Escape" ||
+                event.key === " " ||
+                event.key === "Enter"
+            )
+        ) {
+
+            event.preventDefault();
+            finishReplay();
+
+            return;
+        }
 
 
         // REASIGNAR TECLA
@@ -1763,6 +2284,8 @@ function closeMenusToGame() {
     backgroundOpen = false;
     physicsOpen = false;
     fpsOpen = false;
+    replayOpen = false;
+    languageOpen = false;
 
     confirmOpen = null;
 
@@ -1803,6 +2326,8 @@ function handleEscape() {
         backgroundOpen ||
         physicsOpen ||
         fpsOpen ||
+        replayOpen ||
+        languageOpen ||
         confirmOpen
     ) {
 
@@ -1851,6 +2376,7 @@ function moveMousePaddles(
         startMenuOpen ||
         gamePaused ||
         gameOver ||
+        replayPlaying ||
         !Number.isFinite(delta)
     ) {
         return;
@@ -1920,6 +2446,7 @@ function queueMouseMovement(
         startMenuOpen ||
         gamePaused ||
         gameOver ||
+        replayPlaying ||
         !Number.isFinite(delta)
     ) {
         return;
@@ -1935,6 +2462,7 @@ function requestMouseCapture() {
         startMenuOpen ||
         gamePaused ||
         gameOver ||
+        replayPlaying ||
         !mouseControlActive() ||
         document.pointerLockElement ===
             canvas ||
@@ -2029,6 +2557,10 @@ document.addEventListener(
             !startMenuOpen &&
             !gamePaused &&
             !gameOver &&
+            !replayPlaying &&
+            performance.now() -
+                replayFinishTime >
+                250 &&
             mouseControlActive()
         ) {
 
@@ -2125,6 +2657,10 @@ canvas.addEventListener(
     "mousedown",
     event => {
 
+        if (replayPlaying) {
+            return;
+        }
+
         const {
             x,
             y
@@ -2163,6 +2699,13 @@ canvas.addEventListener(
 canvas.addEventListener(
     "click",
     event => {
+
+        if (replayPlaying) {
+
+            finishReplay();
+
+            return;
+        }
 
         const {
             x,
@@ -2312,7 +2855,7 @@ function interactiveItems() {
 
         add(
             "local",
-            "PVP LOCAL",
+            t("localPvp"),
             buttonRect(
                 0,
                 3
@@ -2321,7 +2864,7 @@ function interactiveItems() {
 
         add(
             "ai",
-            "VS IA",
+            t("vsAi"),
             buttonRect(
                 1,
                 3
@@ -2330,7 +2873,7 @@ function interactiveItems() {
 
         add(
             "online",
-            "PVP ONLINE",
+            t("onlinePvp"),
             buttonRect(
                 2,
                 3
@@ -2352,12 +2895,12 @@ function interactiveItems() {
         add(
             "side",
 
-            `LADO: ${
+            `${t("side")}: ${
                 humanSide ===
                 "left"
 
-                    ? "IZQUIERDA"
-                    : "DERECHA"
+                    ? t("left")
+                    : t("right")
             }`,
 
             buttonRect(
@@ -2372,7 +2915,7 @@ function interactiveItems() {
 
         add(
             "easy",
-            "FÁCIL",
+            t("easy"),
             buttonRect(
                 1,
                 5,
@@ -2385,7 +2928,7 @@ function interactiveItems() {
 
         add(
             "normal",
-            "NORMAL",
+            t("normal"),
             buttonRect(
                 2,
                 5,
@@ -2398,7 +2941,7 @@ function interactiveItems() {
 
         add(
             "hard",
-            "DIFÍCIL",
+            t("hard"),
             buttonRect(
                 3,
                 5,
@@ -2411,7 +2954,7 @@ function interactiveItems() {
 
         add(
             "aiBack",
-            "VOLVER",
+            t("back"),
             buttonRect(
                 4,
                 5,
@@ -2432,7 +2975,7 @@ function interactiveItems() {
 
         add(
             "revenge",
-            "¿REVANCHA?",
+            t("rematch"),
             {
                 x:
                     W / 2 - 130,
@@ -2447,7 +2990,7 @@ function interactiveItems() {
 
         add(
             "victoryMenu",
-            "MENÚ INICIAL",
+            t("mainMenu"),
             {
                 x:
                     W / 2 - 130,
@@ -2470,7 +3013,7 @@ function interactiveItems() {
 
         add(
             "confirmYes",
-            "SÍ",
+            t("yes"),
             {
                 x:
                     W / 2 - 200,
@@ -2485,7 +3028,7 @@ function interactiveItems() {
 
         add(
             "confirmNo",
-            "NO",
+            t("no"),
             {
                 x:
                     W / 2 + 20,
@@ -2528,10 +3071,10 @@ function interactiveItems() {
     if (backgroundOpen) {
 
         [
-            ["green", "VERDE"],
-            ["blue", "AZUL"],
-            ["black", "NEGRO"],
-            ["backgroundBack", "VOLVER"]
+            ["green", t("green")],
+            ["blue", t("blue")],
+            ["black", t("black")],
+            ["backgroundBack", t("back")]
 
         ].forEach(
             (
@@ -2579,7 +3122,7 @@ function interactiveItems() {
                         fps ===
                         physicsFps
 
-                            ? `${fps} FPS · ACTIVO`
+                            ? `${fps} FPS · ${t("active")}`
                             : `${fps} FPS`,
 
                         buttonRect(
@@ -2596,7 +3139,7 @@ function interactiveItems() {
 
         add(
             "fpsBack",
-            "VOLVER",
+            t("back"),
             buttonRect(
                 3,
                 4,
@@ -2618,7 +3161,7 @@ function interactiveItems() {
         addSlider(
             items,
             "ballSpeed",
-            "VELOCIDAD",
+            t("velocity"),
             ballSpeedLevel,
             1,
             10,
@@ -2636,7 +3179,7 @@ function interactiveItems() {
         add(
             "progressive",
 
-            `VELOCIDAD PROGRESIVA: ${
+            `${t("progressive")}: ${
                 progressiveSpeed
                     ? "ON"
                     : "OFF"
@@ -2676,7 +3219,7 @@ function interactiveItems() {
 
         add(
             "physicsReset",
-            "RESTABLECER POR DEFECTO",
+            t("resetDefaults"),
             {
                 x:
                     W / 2 - 190,
@@ -2690,7 +3233,7 @@ function interactiveItems() {
 
         add(
             "physicsBack",
-            "VOLVER",
+            t("back"),
             {
                 x:
                     W / 2 - 110,
@@ -2706,6 +3249,121 @@ function interactiveItems() {
     }
 
 
+    // REPETICIÓN
+
+    if (replayOpen) {
+
+        add(
+            "replayAuto",
+
+            `${t("replayAuto")}: ${
+                replayAutoEnabled
+                    ? "ON"
+                    : "OFF"
+            }`,
+
+            buttonRect(
+                0,
+                3,
+                520,
+                58,
+                16,
+                380
+            )
+        );
+
+        add(
+            "replayMode",
+
+            `${t("frequency")}: ${
+                replayMode === "match"
+                    ? t("replayMatch")
+                    : t("replayAll")
+            }`,
+
+            buttonRect(
+                1,
+                3,
+                520,
+                58,
+                16,
+                380
+            )
+        );
+
+        add(
+            "replayBack",
+            t("back"),
+            buttonRect(
+                2,
+                3,
+                520,
+                58,
+                16,
+                380
+            )
+        );
+
+        return items;
+    }
+
+
+    // IDIOMA
+
+    if (languageOpen) {
+
+        [
+            ["langAuto", "auto", t("automatic")],
+            ["langEs", "es", t("spanish")],
+            ["langEn", "en", t("english")]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    mode,
+                    label
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+
+                    mode === languageMode
+
+                        ? `${label} · ${t("active")}`
+                        : label,
+
+                    buttonRect(
+                        index,
+                        4,
+                        360,
+                        55,
+                        15,
+                        380
+                    )
+                );
+            }
+        );
+
+        add(
+            "languageBack",
+            t("back"),
+            buttonRect(
+                3,
+                4,
+                360,
+                55,
+                15,
+                380
+            )
+        );
+
+        return items;
+    }
+
+
     // AJUSTES
 
     if (settingsOpen) {
@@ -2713,17 +3371,17 @@ function interactiveItems() {
         [
             [
                 "controls",
-                "CONTROLES"
+                t("controls")
             ],
 
             [
                 "background",
-                "FONDO"
+                t("background")
             ],
 
             [
                 "physics",
-                "FÍSICAS"
+                t("physics")
             ],
 
             [
@@ -2732,9 +3390,19 @@ function interactiveItems() {
             ],
 
             [
+                "replay",
+                t("replay")
+            ],
+
+            [
+                "language",
+                `${t("language")}: ${languageModeLabel()}`
+            ],
+
+            [
                 "sound",
 
-                `SONIDO: ${
+                `${t("sound")}: ${
                     audioMuted
                         ? "OFF"
                         : "ON"
@@ -2743,7 +3411,7 @@ function interactiveItems() {
 
             [
                 "settingsBack",
-                "VOLVER"
+                t("back")
             ]
 
         ].forEach(
@@ -2761,10 +3429,10 @@ function interactiveItems() {
 
                     buttonRect(
                         index,
-                        6,
-                        300,
-                        50,
-                        11,
+                        8,
+                        390,
+                        43,
+                        7,
                         390
                     )
                 );
@@ -2782,22 +3450,22 @@ function interactiveItems() {
         [
             [
                 "continue",
-                "CONTINUAR"
+                t("continue")
             ],
 
             [
                 "restart",
-                "REINICIAR PARTIDA"
+                t("restart")
             ],
 
             [
                 "mainMenu",
-                "MENÚ INICIAL"
+                t("mainMenu")
             ],
 
             [
                 "settings",
-                "AJUSTES"
+                t("settings")
             ]
 
         ].forEach(
@@ -2867,7 +3535,7 @@ function localControlItems(
             waitingForKey ===
             `${side}:up`
 
-                ? "PRESIONÁ..."
+                ? t("press")
                 : formatKey(
                     controls.up
                 ),
@@ -2890,7 +3558,7 @@ function localControlItems(
             waitingForKey ===
             `${side}:down`
 
-                ? "PRESIONÁ..."
+                ? t("press")
                 : formatKey(
                     controls.down
                 ),
@@ -2959,7 +3627,7 @@ function localControlItems(
 
     add(
         "localControlsReset",
-        "RESTABLECER POR DEFECTO",
+        t("resetDefaults"),
         {
             x:
                 W / 2 - 185,
@@ -2974,7 +3642,7 @@ function localControlItems(
 
     add(
         "controlsBack",
-        "VOLVER",
+        t("back"),
         {
             x:
                 W / 2 - 110,
@@ -3009,7 +3677,7 @@ function aiControlItems(
         waitingForKey ===
         "up1"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.up1
             ),
@@ -3030,7 +3698,7 @@ function aiControlItems(
         waitingForKey ===
         "up2"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.up2
             ),
@@ -3053,7 +3721,7 @@ function aiControlItems(
         waitingForKey ===
         "down1"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.down1
             ),
@@ -3074,7 +3742,7 @@ function aiControlItems(
         waitingForKey ===
         "down2"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.down2
             ),
@@ -3138,7 +3806,7 @@ function aiControlItems(
 
     add(
         "aiControlsReset",
-        "RESTABLECER POR DEFECTO",
+        t("resetDefaults"),
         {
             x:
                 W / 2 - 185,
@@ -3153,7 +3821,7 @@ function aiControlItems(
 
     add(
         "controlsBack",
-        "VOLVER",
+        t("back"),
         {
             x:
                 W / 2 - 110,
@@ -3448,6 +4116,30 @@ function handleAction(id) {
 
     if (
         id ===
+        "replay"
+    ) {
+
+        replayOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "language"
+    ) {
+
+        languageOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
         "sound"
     ) {
 
@@ -3516,6 +4208,74 @@ function handleAction(id) {
 
         fpsOpen =
             false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "replayAuto"
+    ) {
+
+        replayAutoEnabled =
+            !replayAutoEnabled;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "replayMode"
+    ) {
+
+        replayMode =
+            replayMode === "match"
+
+                ? "all"
+                : "match";
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "replayBack"
+    ) {
+
+        replayOpen =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "languageBack"
+    ) {
+
+        languageOpen =
+            false;
+
+        return;
+    }
+
+
+    const languageActions = {
+        langAuto: "auto",
+        langEs: "es",
+        langEn: "en"
+    };
+
+    if (
+        languageActions[id]
+    ) {
+
+        languageMode =
+            languageActions[id];
 
         return;
     }
@@ -3828,7 +4588,10 @@ function updateHover(
     ) {
 
         if (
-            !item.disabled &&
+            (
+                !item.disabled ||
+                item.id === "online"
+            ) &&
             inside(
                 x,
                 y,
@@ -3845,7 +4608,8 @@ function updateHover(
     }
 
     canvas.style.cursor =
-        hoveredButton
+        hoveredButton &&
+        hoveredButton !== "online"
             ? "pointer"
             : "default";
 }
@@ -4399,7 +5163,7 @@ function drawStart() {
     } else {
 
         title(
-            "ELEGÍ TU LADO",
+            t("chooseSide"),
             125,
             "bold 42px monospace"
         );
@@ -4416,7 +5180,7 @@ function drawStart() {
 
 
         ctx.fillText(
-            "Después seleccioná la dificultad",
+            t("chooseDifficulty"),
             W / 2,
             180
         );
@@ -4432,7 +5196,10 @@ function drawStart() {
     );
 
 
-    if (!aiMenuOpen) {
+    if (
+        !aiMenuOpen &&
+        hoveredButton === "online"
+    ) {
 
         const online =
             items.find(
@@ -4443,6 +5210,23 @@ function drawStart() {
 
 
         if (online) {
+
+            const blink =
+                0.25 +
+                0.75 *
+                (
+                    Math.sin(
+                        performance.now() /
+                        260
+                    ) +
+                    1
+                ) /
+                2;
+
+            ctx.save();
+
+            ctx.globalAlpha =
+                blink;
 
             ctx.fillStyle =
                 "rgba(255,255,255,.65)";
@@ -4455,12 +5239,14 @@ function drawStart() {
 
 
             ctx.fillText(
-                "PRÓXIMAMENTE",
+                t("comingSoon"),
                 W / 2,
                 online.rect.y +
                 online.rect.h +
                 22
             );
+
+            ctx.restore();
         }
     }
 }
@@ -4475,7 +5261,7 @@ function drawPause() {
     overlay(0.72);
 
     title(
-        "PAUSA",
+        t("pause"),
         110
     );
 
@@ -4490,7 +5276,7 @@ function drawSettings() {
     overlay(0.8);
 
     title(
-        "AJUSTES",
+        t("settings"),
         75
     );
 
@@ -4505,7 +5291,7 @@ function drawBackground() {
     overlay(0.82);
 
     title(
-        "FONDO",
+        t("background"),
         75
     );
 
@@ -4530,6 +5316,36 @@ function drawFps() {
         );
 }
 
+function drawReplaySettings() {
+
+    overlay(0.82);
+
+    title(
+        t("replay"),
+        75
+    );
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
+function drawLanguage() {
+
+    overlay(0.82);
+
+    title(
+        t("language"),
+        75
+    );
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
 function drawConfirm() {
 
     overlay(0.84);
@@ -4539,8 +5355,8 @@ function drawConfirm() {
         confirmOpen ===
         "restart"
 
-            ? "¿REINICIAR PARTIDA?"
-            : "¿VOLVER AL MENÚ?",
+            ? t("confirmRestart")
+            : t("confirmMenu"),
 
         H / 2 - 80,
 
@@ -4559,7 +5375,7 @@ function drawConfirm() {
 
 
     ctx.fillText(
-        "Se perderá la partida actual.",
+        t("loseCurrent"),
         W / 2,
         H / 2 - 25
     );
@@ -4576,7 +5392,7 @@ function drawPhysics() {
     overlay(0.84);
 
     title(
-        "FÍSICAS",
+        t("physics"),
         65
     );
 
@@ -4633,7 +5449,7 @@ function drawControls() {
 function drawLocalControls() {
 
     title(
-        "CONTROLES",
+        t("controls"),
         65
     );
 
@@ -4655,14 +5471,14 @@ function drawLocalControls() {
 
 
     ctx.fillText(
-        "IZQUIERDA",
+        t("left"),
         360,
         125
     );
 
 
     ctx.fillText(
-        "DERECHA",
+        t("right"),
         940,
         125
     );
@@ -4693,28 +5509,28 @@ function drawLocalControls() {
 
 
         ctx.fillText(
-            "ARRIBA",
+            t("up"),
             x,
             202
         );
 
 
         ctx.fillText(
-            "ABAJO",
+            t("down"),
             x,
             262
         );
 
 
         ctx.fillText(
-            "MOUSE",
+            t("mouse"),
             x,
             322
         );
 
 
         ctx.fillText(
-            "SENS.",
+            t("sensitivity"),
             x,
             392
         );
@@ -4746,7 +5562,7 @@ function drawLocalControls() {
 function drawAIControls() {
 
     title(
-        "CONTROLES",
+        t("controls"),
         65
     );
 
@@ -4762,7 +5578,7 @@ function drawAIControls() {
 
 
     ctx.fillText(
-        "JUGADOR",
+        t("player"),
         W / 2,
         125
     );
@@ -4776,10 +5592,10 @@ function drawAIControls() {
 
 
     [
-        ["ARRIBA", 202],
-        ["ABAJO", 262],
-        ["MOUSE", 322],
-        ["SENS.", 392]
+        [t("up"), 202],
+        [t("down"), 262],
+        [t("mouse"), 322],
+        [t("sensitivity"), 392]
 
     ].forEach(
         (
@@ -4822,6 +5638,242 @@ function drawAIControls() {
 
 
 // ============================================================
+// REPETICIÓN
+// ============================================================
+
+function replayFrameAt(
+    position
+) {
+
+    if (!replayClip.length) {
+        return replaySnapshot();
+    }
+
+    const firstIndex =
+        clamp(
+            Math.floor(position),
+            0,
+            replayClip.length - 1
+        );
+
+    const secondIndex =
+        clamp(
+            firstIndex + 1,
+            0,
+            replayClip.length - 1
+        );
+
+    const ratio =
+        clamp(
+            position - firstIndex,
+            0,
+            1
+        );
+
+    const first =
+        replayClip[firstIndex];
+
+    const second =
+        replayClip[secondIndex];
+
+    const mix =
+        key =>
+            first[key] +
+            (
+                second[key] -
+                first[key]
+            ) *
+            ratio;
+
+    return {
+        ballX: mix("ballX"),
+        ballY: mix("ballY"),
+        ballVx: mix("ballVx"),
+        ballVy: mix("ballVy"),
+        leftPaddleY: mix("leftPaddleY"),
+        rightPaddleY: mix("rightPaddleY")
+    };
+}
+
+function drawReplayTrajectory() {
+
+    if (
+        replayClip.length < 2
+    ) {
+        return;
+    }
+
+    const currentIndex =
+        clamp(
+            Math.ceil(
+                replayPosition
+            ),
+            1,
+            replayClip.length - 1
+        );
+
+    const startIndex =
+        Math.max(
+            1,
+            currentIndex -
+            REPLAY.trailFrames
+        );
+
+    ctx.save();
+
+    ctx.lineWidth =
+        3;
+
+    ctx.lineCap =
+        "round";
+
+    for (
+        let index = startIndex;
+        index <= currentIndex;
+        index++
+    ) {
+
+        const previous =
+            replayClip[index - 1];
+
+        const current =
+            replayClip[index];
+
+        const ageRatio =
+            (
+                index -
+                startIndex +
+                1
+            ) /
+            (
+                currentIndex -
+                startIndex +
+                1
+            );
+
+        ctx.globalAlpha =
+            0.08 +
+            ageRatio *
+            0.72;
+
+        ctx.strokeStyle =
+            "#8DEBFF";
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            previous.ballX +
+            BALL.size / 2,
+            previous.ballY +
+            BALL.size / 2
+        );
+
+        ctx.lineTo(
+            current.ballX +
+            BALL.size / 2,
+            current.ballY +
+            BALL.size / 2
+        );
+
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+function drawReplay() {
+
+    const frame =
+        replayFrameAt(
+            replayPosition
+        );
+
+    drawTable();
+    drawReplayTrajectory();
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.fillRect(
+        leftPaddle.x,
+        frame.leftPaddleY,
+        PADDLE.w,
+        PADDLE.h
+    );
+
+    ctx.fillRect(
+        rightPaddle.x,
+        frame.rightPaddleY,
+        PADDLE.w,
+        PADDLE.h
+    );
+
+    ctx.beginPath();
+
+    ctx.arc(
+        frame.ballX +
+        BALL.size / 2,
+        frame.ballY +
+        BALL.size / 2,
+        BALL.size / 2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    drawScore();
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.textBaseline =
+        "alphabetic";
+
+    ctx.textAlign =
+        "left";
+
+    ctx.font =
+        "bold 18px monospace";
+
+    ctx.fillText(
+        `${t("replaySpeed")}: ${
+            Math.hypot(
+                frame.ballVx,
+                frame.ballVy
+            ).toFixed(1)
+        }`,
+        TABLE.left + 22,
+        TABLE.top + 30
+    );
+
+    ctx.textAlign =
+        "center";
+
+    ctx.font =
+        "bold 22px monospace";
+
+    ctx.fillText(
+        `${t("replay")} · ${
+            REPLAY.slowMotion
+                .toFixed(1)
+        }x`,
+        W / 2,
+        TABLE.top + 30
+    );
+
+    ctx.font =
+        "bold 14px monospace";
+
+    ctx.fillText(
+        t("skipReplay"),
+        W / 2,
+        TABLE.top + 55
+    );
+}
+
+
+// ============================================================
 // VICTORIA
 // ============================================================
 
@@ -4834,8 +5886,8 @@ function drawVictory() {
         winner ===
         "left"
 
-            ? "LA IZQUIERDA GANA"
-            : "LA DERECHA GANA",
+            ? t("winLeft")
+            : t("winRight"),
 
         H / 2 - 50,
 
@@ -4867,6 +5919,14 @@ function drawGame() {
     if (startMenuOpen) {
 
         drawStart();
+
+        return;
+    }
+
+
+    if (replayPlaying) {
+
+        drawReplay();
 
         return;
     }
@@ -4918,6 +5978,22 @@ function drawGame() {
     }
 
 
+    if (replayOpen) {
+
+        drawReplaySettings();
+
+        return;
+    }
+
+
+    if (languageOpen) {
+
+        drawLanguage();
+
+        return;
+    }
+
+
     if (physicsOpen) {
 
         drawPhysics();
@@ -4948,6 +6024,27 @@ function drawGame() {
 function loop(
     timestamp
 ) {
+
+    if (replayPlaying) {
+
+        updateReplay(
+            timestamp
+        );
+
+        previousFrameTime =
+            timestamp;
+
+        frameAccumulator =
+            0;
+
+        drawGame();
+
+        requestAnimationFrame(
+            loop
+        );
+
+        return;
+    }
 
     if (
         previousFrameTime ===
@@ -5050,10 +6147,22 @@ function loop(
             updateBall(
                 ballStepScale
             );
+
+            if (replayPlaying) {
+                break;
+            }
         }
 
         frameAccumulator -=
             stepMs;
+
+        if (replayPlaying) {
+
+            frameAccumulator =
+                0;
+
+            break;
+        }
     }
 
 
