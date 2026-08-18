@@ -9,6 +9,12 @@ const ctx = canvas.getContext("2d");
 // CONFIG
 // ============================================================
 
+const BRAND = {
+    blue: "#6CACE4",
+    gold: "#FFB81C",
+    ink: "#050B18"
+};
+
 const TABLE = {
     left: 10,
     right: W - 10,
@@ -73,7 +79,10 @@ const REPLAY = {
     defaultMode: "match",
     captureFps: 60,
     playbackFps: 60,
-    slowMotion: 0.4,
+    startSpeed: 0.9,
+    endSpeed: 0.25,
+    kmhPerSpeedUnit: 4,
+    mphPerKmh: 0.621371,
     trailFrames: 90,
     maxFrames: 1200
 };
@@ -134,7 +143,8 @@ const TEXT = {
         replayMatch: "MATCH",
         replayAll: "TODOS LOS TANTOS",
         replaySpeed: "VELOCIDAD",
-        skipReplay: "CLICK · ESC · ESPACIO · ENTER PARA SALTAR",
+        instantReplay: "REPETICIÓN INSTANTÁNEA",
+        skipReplay: "PRESIONE CUALQUIER TECLA PARA OMITIR",
         language: "IDIOMA",
         automatic: "AUTOMÁTICO",
         spanish: "ESPAÑOL",
@@ -192,7 +202,8 @@ const TEXT = {
         replayMatch: "MATCH",
         replayAll: "EVERY POINT",
         replaySpeed: "SPEED",
-        skipReplay: "CLICK · ESC · SPACE · ENTER TO SKIP",
+        instantReplay: "INSTANT REPLAY",
+        skipReplay: "PRESS ANY KEY TO SKIP",
         language: "LANGUAGE",
         automatic: "AUTOMATIC",
         spanish: "ESPAÑOL",
@@ -1004,6 +1015,66 @@ function startPointReplay(
     return true;
 }
 
+function replayPlaybackSpeed() {
+
+    const progress =
+        replayClip.length > 1
+
+            ? clamp(
+                replayPosition /
+                (
+                    replayClip.length - 1
+                ),
+                0,
+                1
+            )
+            : 0;
+
+    const easedProgress =
+        progress *
+        progress *
+        (
+            3 -
+            2 *
+            progress
+        );
+
+    return (
+        REPLAY.startSpeed +
+        (
+            REPLAY.endSpeed -
+            REPLAY.startSpeed
+        ) *
+        easedProgress
+    );
+}
+
+function replaySpeedText(
+    frame
+) {
+
+    const speedKmh =
+        Math.hypot(
+            frame.ballVx,
+            frame.ballVy
+        ) *
+        REPLAY.kmhPerSpeedUnit;
+
+    if (
+        currentLanguage() === "en"
+    ) {
+
+        return `${Math.round(
+            speedKmh *
+            REPLAY.mphPerKmh
+        )} mph`;
+    }
+
+    return `${Math.round(
+        speedKmh
+    )} km/h`;
+}
+
 function updateReplay(
     timestamp
 ) {
@@ -1045,7 +1116,7 @@ function updateReplay(
     ) {
 
         replayPosition +=
-            REPLAY.slowMotion;
+            replayPlaybackSpeed();
 
         replayPlaybackAccumulator -=
             playbackStepMs;
@@ -2117,14 +2188,7 @@ window.addEventListener(
         initAudio();
 
 
-        if (
-            replayPlaying &&
-            (
-                event.key === "Escape" ||
-                event.key === " " ||
-                event.key === "Enter"
-            )
-        ) {
+        if (replayPlaying) {
 
             event.preventDefault();
             finishReplay();
@@ -2299,15 +2363,6 @@ function closeMenusToGame() {
 
 function handleEscape() {
 
-    if (
-        gamePaused &&
-        performance.now() -
-        pointerUnlockPauseTime <
-        250
-    ) {
-        return;
-    }
-
     if (startMenuOpen) {
 
         if (aiMenuOpen) {
@@ -2321,8 +2376,7 @@ function handleEscape() {
         return;
     }
 
-    if (
-        gamePaused ||
+    const submenuOpen =
         settingsOpen ||
         controlsOpen ||
         backgroundOpen ||
@@ -2330,7 +2384,28 @@ function handleEscape() {
         fpsOpen ||
         replayOpen ||
         languageOpen ||
-        confirmOpen
+        Boolean(
+            confirmOpen
+        );
+
+    if (submenuOpen) {
+
+        closeMenusToGame();
+
+        return;
+    }
+
+    if (
+        gamePaused &&
+        performance.now() -
+        pointerUnlockPauseTime <
+        250
+    ) {
+        return;
+    }
+
+    if (
+        gamePaused
     ) {
 
         closeMenusToGame();
@@ -5124,6 +5199,279 @@ function drawSlider(item) {
 // START
 // ============================================================
 
+function drawArgenPongLogo() {
+
+    const centerX =
+        W / 2;
+
+    ctx.save();
+
+    ctx.shadowColor =
+        "rgba(108,172,228,.35)";
+
+    ctx.shadowBlur =
+        24;
+
+    ctx.fillStyle =
+        BRAND.ink;
+
+    ctx.strokeStyle =
+        BRAND.blue;
+
+    ctx.lineWidth =
+        3;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        centerX - 245,
+        42
+    );
+
+    ctx.lineTo(
+        centerX + 245,
+        42
+    );
+
+    ctx.lineTo(
+        centerX + 215,
+        205
+    );
+
+    ctx.lineTo(
+        centerX,
+        244
+    );
+
+    ctx.lineTo(
+        centerX - 215,
+        205
+    );
+
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowBlur =
+        0;
+
+    ctx.fillStyle =
+        BRAND.blue;
+
+    ctx.font =
+        "900 32px Arial, sans-serif";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.fillText(
+        "ARGEN",
+        centerX,
+        82
+    );
+
+    ctx.font =
+        "900 66px Arial, sans-serif";
+
+    const pWidth =
+        ctx.measureText("P").width;
+
+    const ngWidth =
+        ctx.measureText("NG").width;
+
+    const ballDiameter =
+        48;
+
+    const letterGap =
+        8;
+
+    const wordWidth =
+        pWidth +
+        ngWidth +
+        ballDiameter +
+        letterGap * 2;
+
+    const wordStart =
+        centerX -
+        wordWidth / 2;
+
+
+    // Paleta integrada al escudo.
+
+    ctx.save();
+
+    ctx.translate(
+        wordStart - 48,
+        147
+    );
+
+    ctx.rotate(-0.2);
+
+    ctx.fillStyle =
+        BRAND.blue;
+
+    ctx.fillRect(
+        -6,
+        20,
+        12,
+        31
+    );
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        0,
+        -5,
+        22,
+        31,
+        0,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+    ctx.restore();
+
+
+    // La pelota reemplaza la O de PONG.
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.textAlign =
+        "left";
+
+    ctx.fillText(
+        "P",
+        wordStart,
+        148
+    );
+
+    const ballCenterX =
+        wordStart +
+        pWidth +
+        letterGap +
+        ballDiameter / 2;
+
+    ctx.fillStyle =
+        BRAND.gold;
+
+    ctx.shadowColor =
+        "rgba(255,184,28,.55)";
+
+    ctx.shadowBlur =
+        18;
+
+    ctx.beginPath();
+
+    ctx.arc(
+        ballCenterX,
+        148,
+        ballDiameter / 2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.shadowBlur =
+        0;
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.65)";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        ballCenterX - 7,
+        140,
+        5,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.fillText(
+        "NG",
+        ballCenterX +
+        ballDiameter / 2 +
+        letterGap,
+        148
+    );
+
+
+    // Remate angular de estética eSport.
+
+    ctx.strokeStyle =
+        BRAND.blue;
+
+    ctx.lineWidth =
+        5;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        centerX - 155,
+        194
+    );
+
+    ctx.lineTo(
+        centerX - 30,
+        213
+    );
+
+    ctx.lineTo(
+        centerX + 155,
+        194
+    );
+
+    ctx.stroke();
+
+    ctx.strokeStyle =
+        BRAND.gold;
+
+    ctx.lineWidth =
+        3;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        centerX - 30,
+        213
+    );
+
+    ctx.lineTo(
+        centerX + 35,
+        207
+    );
+
+    ctx.stroke();
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.78)";
+
+    ctx.font =
+        "bold 12px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.fillText(
+        "1.1 BETA",
+        centerX,
+        226
+    );
+
+    ctx.restore();
+}
+
 function drawStart() {
 
     ctx.fillStyle =
@@ -5139,28 +5487,7 @@ function drawStart() {
 
     if (!aiMenuOpen) {
 
-        title(
-            "ARGENPONG",
-            145,
-            "bold 64px monospace"
-        );
-
-
-        ctx.font =
-            "42px monospace";
-
-        ctx.fillStyle =
-            "#FFFFFF";
-
-        ctx.textAlign =
-            "center";
-
-
-        ctx.fillText(
-            "🏓",
-            W / 2,
-            220
-        );
+        drawArgenPongLogo();
 
     } else {
 
@@ -5724,10 +6051,16 @@ function drawReplayTrajectory() {
     ctx.save();
 
     ctx.lineWidth =
-        3;
+        6;
 
     ctx.lineCap =
         "round";
+
+    ctx.shadowColor =
+        BRAND.blue;
+
+    ctx.shadowBlur =
+        7;
 
     for (
         let index = startIndex;
@@ -5759,7 +6092,7 @@ function drawReplayTrajectory() {
             0.72;
 
         ctx.strokeStyle =
-            "#8DEBFF";
+            BRAND.blue;
 
         ctx.beginPath();
 
@@ -5826,8 +6159,21 @@ function drawReplay() {
 
     drawScore();
 
-    ctx.fillStyle =
-        "#FFFFFF";
+    const blink =
+        0.25 +
+        0.75 *
+        (
+            (
+                Math.sin(
+                    performance.now() /
+                    260
+                ) +
+                1
+            ) /
+            2
+        );
+
+    ctx.save();
 
     ctx.textBaseline =
         "alphabetic";
@@ -5836,42 +6182,49 @@ function drawReplay() {
         "left";
 
     ctx.font =
+        "bold 15px monospace";
+
+    ctx.fillStyle =
+        BRAND.blue;
+
+    ctx.globalAlpha =
+        blink;
+
+    ctx.fillText(
+        t("instantReplay"),
+        TABLE.left + 22,
+        TABLE.top + 28
+    );
+
+    ctx.globalAlpha =
+        1;
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.font =
         "bold 18px monospace";
 
     ctx.fillText(
         `${t("replaySpeed")}: ${
-            Math.hypot(
-                frame.ballVx,
-                frame.ballVy
-            ).toFixed(1)
+            replaySpeedText(
+                frame
+            )
         }`,
         TABLE.left + 22,
-        TABLE.top + 30
-    );
-
-    ctx.textAlign =
-        "center";
-
-    ctx.font =
-        "bold 22px monospace";
-
-    ctx.fillText(
-        `${t("replay")} · ${
-            REPLAY.slowMotion
-                .toFixed(1)
-        }x`,
-        W / 2,
-        TABLE.top + 30
+        TABLE.top + 54
     );
 
     ctx.font =
-        "bold 14px monospace";
+        "bold 13px monospace";
 
     ctx.fillText(
         t("skipReplay"),
-        W / 2,
-        TABLE.top + 55
+        TABLE.left + 22,
+        TABLE.top + 77
     );
+
+    ctx.restore();
 }
 
 
