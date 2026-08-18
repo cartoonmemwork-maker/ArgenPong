@@ -71,7 +71,8 @@ const BALL = {
     ],
 
     defaultLevel: 5,
-    baseYRatio: 0.7,
+    baseYRatio: 0.42,
+    maxAIVerticalRatio: 0.8,
     progressiveFactor: 1.0503,
     maxSpeed: 34
 };
@@ -91,6 +92,7 @@ const SPIN = {
     backspinBounceHorizontalRetention: 0.84,
     decay: 0.992,
     wallRetention: 0.8,
+    aiProfessionalCurveLimit: 0.025,
     epsilon: 0.001
 };
 
@@ -184,6 +186,9 @@ const TEXT = {
         mouse: "MOUSE",
         sensitivity: "SENS.",
         player: "JUGADOR",
+        aiVsAi: "IA VS IA",
+        aiLeft: "IA IZQUIERDA",
+        aiRight: "IA DERECHA",
         winLeft: "LA IZQUIERDA GANA",
         winRight: "LA DERECHA GANA",
         youWon: "Ganaste",
@@ -263,6 +268,9 @@ const TEXT = {
         mouse: "MOUSE",
         sensitivity: "SENS.",
         player: "PLAYER",
+        aiVsAi: "AI VS AI",
+        aiLeft: "LEFT AI",
+        aiRight: "RIGHT AI",
         winLeft: "LEFT SIDE WINS",
         winRight: "RIGHT SIDE WINS",
         youWon: "You Won",
@@ -398,8 +406,8 @@ const AI_LEVELS = {
         shotStrength: 0.55,
         blockChance: 0.5,
         backspinChance: 0.14,
-        serveBounceDistance: 235,
-        serveVariation: 10,
+        serveBounceDistance: 440,
+        serveVariation: 25,
         returnBounceDistance: 650,
         returnVariation: 90
     },
@@ -419,8 +427,8 @@ const AI_LEVELS = {
         shotStrength: 0.76,
         blockChance: 0.38,
         backspinChance: 0.24,
-        serveBounceDistance: 320,
-        serveVariation: 35,
+        serveBounceDistance: 480,
+        serveVariation: 30,
         returnBounceDistance: 760,
         returnVariation: 55
     },
@@ -440,8 +448,8 @@ const AI_LEVELS = {
         shotStrength: 0.94,
         blockChance: 0.22,
         backspinChance: 0.3,
-        serveBounceDistance: 410,
-        serveVariation: 55,
+        serveBounceDistance: 520,
+        serveVariation: 35,
         returnBounceDistance: 880,
         returnVariation: 30
     }
@@ -496,6 +504,9 @@ let waitingForKey = null;
 
 let humanSide = "left";
 let aiDifficulty = "normal";
+let aiVsAiEnabled = false;
+let aiLeftDifficulty = "normal";
+let aiRightDifficulty = "normal";
 let aiReturns = 0;
 let aiState = "idle";
 let aiReactionRemaining = 0;
@@ -503,6 +514,21 @@ let aiCorrectionRemaining = 0;
 let aiAimY = H / 2;
 let aiAimError = 0;
 let aiShotIntent = "block";
+
+const createAutoplayAIBrain = () => ({
+    state: "idle",
+    reactionRemaining: 0,
+    correctionRemaining: 0,
+    aimY: H / 2,
+    aimError: 0,
+    shotIntent: "block",
+    returns: 0
+});
+
+const autoplayAIBrains = {
+    left: createAutoplayAIBrain(),
+    right: createAutoplayAIBrain()
+};
 
 let professionalLastHitter = null;
 let professionalBounceCount = 0;
@@ -588,6 +614,42 @@ const sidePaddle = side =>
     side === "left"
         ? leftPaddle
         : rightPaddle;
+
+const aiDifficultyForSide = side =>
+    aiVsAiEnabled
+
+        ? side === "left"
+            ? aiLeftDifficulty
+            : aiRightDifficulty
+
+        : aiDifficulty;
+
+const difficultyLabel = difficulty =>
+    t(difficulty);
+
+function nextAIDifficulty(
+    difficulty
+) {
+
+    const difficulties = [
+        "easy",
+        "normal",
+        "hard"
+    ];
+
+    const index =
+        difficulties.indexOf(
+            difficulty
+        );
+
+    return difficulties[
+        (
+            index + 1 +
+            difficulties.length
+        ) %
+        difficulties.length
+    ];
+}
 
 const currentBallSpeed = () =>
     BALL.speedLevels[
@@ -849,7 +911,32 @@ function resetAIControls() {
         AI_DEFAULTS
     );
 
+    aiVsAiEnabled =
+        false;
+
+    aiLeftDifficulty =
+        "normal";
+
+    aiRightDifficulty =
+        "normal";
+
+    resetAutoplayAIThinking();
+
     waitingForKey = null;
+}
+
+function resetAutoplayAIThinking() {
+
+    for (
+        const side of
+        ["left", "right"]
+    ) {
+
+        Object.assign(
+            autoplayAIBrains[side],
+            createAutoplayAIBrain()
+        );
+    }
 }
 
 function resetAIThinking() {
@@ -871,6 +958,8 @@ function resetAIThinking() {
 
     aiShotIntent =
         "block";
+
+    resetAutoplayAIThinking();
 }
 
 function resetPhysics() {
@@ -1008,17 +1097,18 @@ function configureAIProfessionalServe(
         gameMode !== "ai" ||
         playStyle !==
             "professional" ||
-        servingPlayer !==
-            otherSide(
-                humanSide
-            )
+        !isAISide(
+            servingPlayer
+        )
     ) {
         return;
     }
 
     const level =
         AI_LEVELS[
-            aiDifficulty
+            aiDifficultyForSide(
+                servingPlayer
+            )
         ];
 
     const horizontalDirection =
@@ -1044,6 +1134,10 @@ function configureAIProfessionalServe(
         horizontalDirection,
         verticalDirection,
         bounceDistance
+    );
+
+    limitAIOutgoingAngle(
+        servingPlayer
     );
 }
 
@@ -1080,7 +1174,7 @@ function resetBall() {
 
     const verticalSpeed =
         Math.max(
-            3,
+            2,
             speed *
             verticalRatio
         );
@@ -1870,10 +1964,13 @@ function isAISide(
 
     return (
         gameMode === "ai" &&
-        side ===
-            otherSide(
-                humanSide
-            )
+        (
+            aiVsAiEnabled ||
+            side ===
+                otherSide(
+                    humanSide
+                )
+        )
     );
 }
 
@@ -1891,7 +1988,9 @@ function prepareAIProfessionalReturn(
 
     const level =
         AI_LEVELS[
-            aiDifficulty
+            aiDifficultyForSide(
+                side
+            )
         ];
 
     const speed =
@@ -1906,16 +2005,40 @@ function prepareAIProfessionalReturn(
             ? 1
             : -1;
 
-    const verticalDirection =
-        Math.sign(
-            ball.vy
-        ) ||
-        (
-            Math.random() < 0.5
+    const radius =
+        BALL.size / 2;
 
+    const ballCenterY =
+        ball.y +
+        radius;
+
+    const distanceToTop =
+        ballCenterY -
+        (
+            TABLE.top +
+            radius
+        );
+
+    const distanceToBottom =
+        TABLE.bottom -
+        radius -
+        ballCenterY;
+
+    const verticalDirection =
+        Math.abs(
+            distanceToTop -
+            distanceToBottom
+        ) < 24
+
+            ? Math.random() < 0.5
                 ? -1
                 : 1
-        );
+
+            : distanceToTop <
+                distanceToBottom
+
+                ? -1
+                : 1;
 
     const bounceDistance =
         clamp(
@@ -1936,6 +2059,97 @@ function prepareAIProfessionalReturn(
     );
 }
 
+function limitAIOutgoingAngle(
+    side
+) {
+
+    if (!isAISide(side)) {
+        return;
+    }
+
+    if (
+        playStyle ===
+        "professional"
+    ) {
+
+        /*
+            La IA conserva el perfil de velocidad
+            de Topspin / Backspin, pero reduce
+            la curva aérea para garantizar que
+            el primer pique siga siendo legal.
+        */
+
+        ball.spin =
+            clamp(
+                ball.spin,
+                -SPIN.aiProfessionalCurveLimit,
+                SPIN.aiProfessionalCurveLimit
+            );
+    }
+
+    const horizontalSpeed =
+        Math.abs(
+            ball.vx
+        );
+
+    const verticalSpeed =
+        Math.abs(
+            ball.vy
+        );
+
+    if (
+        horizontalSpeed <= 0 ||
+        verticalSpeed <=
+            horizontalSpeed *
+            BALL.maxAIVerticalRatio
+    ) {
+        return;
+    }
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    const limitedHorizontal =
+        speed /
+        Math.hypot(
+            1,
+            BALL.maxAIVerticalRatio
+        );
+
+    ball.vx =
+        (
+            Math.sign(
+                ball.vx
+            ) || 1
+        ) *
+        limitedHorizontal;
+
+    ball.vy =
+        (
+            Math.sign(
+                ball.vy
+            ) || 1
+        ) *
+        limitedHorizontal *
+        BALL.maxAIVerticalRatio;
+}
+
+function aiShotIntentForSide(
+    side
+) {
+
+    return aiVsAiEnabled
+
+        ? autoplayAIBrains[
+            side
+        ].shotIntent
+
+        : aiShotIntent;
+}
+
 function spinPaddleSpeed(
     paddle,
     side
@@ -1945,8 +2159,13 @@ function spinPaddleSpeed(
         return paddle.vy;
     }
 
+    const shotIntent =
+        aiShotIntentForSide(
+            side
+        );
+
     if (
-        aiShotIntent ===
+        shotIntent ===
         "block"
     ) {
         return 0;
@@ -1971,7 +2190,9 @@ function spinPaddleSpeed(
 
     const level =
         AI_LEVELS[
-            aiDifficulty
+            aiDifficultyForSide(
+                side
+            )
         ];
 
     const strengthSpeed =
@@ -1988,7 +2209,7 @@ function spinPaddleSpeed(
         ) || 1;
 
     return (
-        aiShotIntent ===
+        shotIntent ===
         "topspin"
 
             ? incomingDirection
@@ -2566,6 +2787,15 @@ function registerAIReturn(side) {
         return;
     }
 
+    if (aiVsAiEnabled) {
+
+        autoplayAIBrains[
+            side
+        ].returns++;
+
+        return;
+    }
+
     if (
         side !==
         otherSide(
@@ -2973,11 +3203,12 @@ function spinPredictedBallYAtPaddle(
 }
 
 function aiFatigueRatio(
-    level
+    level,
+    returnCount = aiReturns
 ) {
 
     return clamp(
-        aiReturns /
+        returnCount /
         level.returns,
         0,
         1
@@ -2985,7 +3216,8 @@ function aiFatigueRatio(
 }
 
 function chooseAIShotIntent(
-    level
+    level,
+    returnCount = aiReturns
 ) {
 
     const speed =
@@ -2996,7 +3228,8 @@ function chooseAIShotIntent(
 
     const fatigue =
         aiFatigueRatio(
-            level
+            level,
+            returnCount
         );
 
 
@@ -3456,6 +3689,335 @@ function updateAI(
         );
 }
 
+function transitionAutoplayAIState(
+    brain,
+    nextState,
+    level,
+    paddle
+) {
+
+    if (
+        brain.state ===
+        nextState
+    ) {
+        return;
+    }
+
+    brain.state =
+        nextState;
+
+    brain.correctionRemaining =
+        0;
+
+    if (
+        nextState ===
+            "arcadeTracking" ||
+        nextState ===
+            "professionalReturn"
+    ) {
+
+        const fatigue =
+            aiFatigueRatio(
+                level,
+                brain.returns
+            );
+
+        brain.reactionRemaining =
+            level.reactionSteps;
+
+        brain.aimY =
+            paddle.y +
+            PADDLE.h / 2;
+
+        brain.aimError =
+            (
+                Math.random() *
+                2 -
+                1
+            ) *
+            level.aimError *
+            (
+                1 +
+                fatigue *
+                0.75
+            );
+
+        brain.shotIntent =
+            chooseAIShotIntent(
+                level,
+                brain.returns
+            );
+
+        return;
+    }
+
+    brain.reactionRemaining =
+        0;
+
+    brain.aimError =
+        0;
+
+    brain.shotIntent =
+        "block";
+}
+
+function updateAutoplayAITarget(
+    side,
+    brain,
+    level,
+    ballCenter,
+    stepScale
+) {
+
+    if (
+        brain.reactionRemaining >
+        0
+    ) {
+
+        brain.reactionRemaining =
+            Math.max(
+                0,
+                brain.reactionRemaining -
+                stepScale
+            );
+
+        return brain.aimY;
+    }
+
+    brain.correctionRemaining -=
+        stepScale;
+
+    if (
+        brain.correctionRemaining <=
+        0
+    ) {
+
+        const prediction =
+            predictedBallYAtPaddle(
+                side,
+                level.spinAwareness
+            );
+
+        brain.aimY =
+            clamp(
+                ballCenter +
+                (
+                    prediction -
+                    ballCenter
+                ) *
+                level.anticipation +
+                brain.aimError,
+
+                TABLE.top +
+                PADDLE.h / 2,
+
+                TABLE.bottom -
+                PADDLE.h / 2
+            );
+
+        brain.correctionRemaining =
+            level.correctionSteps;
+    }
+
+    return brain.aimY;
+}
+
+function updateAutoplayAI(
+    side,
+    stepScale = 1
+) {
+
+    const paddle =
+        sidePaddle(
+            side
+        );
+
+    const level =
+        AI_LEVELS[
+            aiDifficultyForSide(
+                side
+            )
+        ];
+
+    const brain =
+        autoplayAIBrains[
+            side
+        ];
+
+    const fatigue =
+        aiFatigueRatio(
+            level,
+            brain.returns
+        );
+
+    const sensitivity =
+        Math.max(
+            0.1,
+            level.baseSensitivity *
+            (
+                1 -
+                fatigue *
+                0.78
+            )
+        );
+
+    const endurance =
+        1 -
+        fatigue *
+        0.7;
+
+    const ballCenter =
+        ball.y +
+        BALL.size / 2;
+
+    const movingTowardAI =
+        side === "left"
+
+            ? ball.vx < 0
+            : ball.vx > 0;
+
+    const nextState =
+        desiredAIState(
+            side,
+            movingTowardAI
+        );
+
+    transitionAutoplayAIState(
+        brain,
+        nextState,
+        level,
+        paddle
+    );
+
+    const waitingForBounce =
+        brain.state ===
+        "waitingBounce";
+
+    let target =
+        H / 2;
+
+    if (waitingForBounce) {
+
+        const escapeDirection =
+            ballCenter <
+            H / 2
+
+                ? 1
+                : -1;
+
+        target =
+            clamp(
+                ballCenter +
+                escapeDirection *
+                (
+                    PADDLE.h / 2 +
+                    BALL.size +
+                    22
+                ),
+
+                TABLE.top +
+                PADDLE.h / 2,
+
+                TABLE.bottom -
+                PADDLE.h / 2
+            );
+
+    } else if (movingTowardAI) {
+
+        target =
+            updateAutoplayAITarget(
+                side,
+                brain,
+                level,
+                ballCenter,
+                stepScale
+            );
+    }
+
+    const center =
+        paddle.y +
+        PADDLE.h / 2;
+
+    const delta =
+        target -
+        center;
+
+    const ballDemand =
+        Math.max(
+            12,
+
+            Math.abs(
+                ball.vy
+            ) *
+            1.35 +
+
+            Math.abs(
+                ball.vx
+            ) *
+            0.38
+        );
+
+    const maxStep =
+        waitingForBounce
+
+            ? ballDemand *
+              Math.max(
+                  1,
+                  level.response
+              )
+
+            : ballDemand *
+              level.demandScale *
+              (
+                  0.28 +
+                  sensitivity *
+                  0.72
+              ) *
+              level.response *
+              endurance;
+
+    const tracking =
+        waitingForBounce
+
+            ? 0.46
+            : level.tracking *
+              (
+                  0.65 +
+                  sensitivity *
+                  0.35
+              ) *
+              (
+                  0.55 +
+                  endurance *
+                  0.45
+              );
+
+    const movement =
+        clamp(
+            delta *
+            tracking,
+
+            -maxStep,
+            maxStep
+        ) *
+        stepScale;
+
+    paddle.y +=
+        clamp(
+            movement,
+
+            Math.min(
+                0,
+                delta
+            ),
+
+            Math.max(
+                0,
+                delta
+            )
+        );
+}
+
 function updatePaddles(
     stepScale = 1
 ) {
@@ -3483,13 +4045,28 @@ function updatePaddles(
         "ai"
     ) {
 
-        humanMoveAI(
-            stepScale
-        );
+        if (aiVsAiEnabled) {
 
-        updateAI(
-            stepScale
-        );
+            updateAutoplayAI(
+                "left",
+                stepScale
+            );
+
+            updateAutoplayAI(
+                "right",
+                stepScale
+            );
+
+        } else {
+
+            humanMoveAI(
+                stepScale
+            );
+
+            updateAI(
+                stepScale
+            );
+        }
     }
 
     clampPaddles();
@@ -3652,6 +4229,10 @@ function bouncePaddle(
     increaseBallSpeed();
     applyBallSpin(
         paddle,
+        side
+    );
+
+    limitAIOutgoingAngle(
         side
     );
 
@@ -4165,7 +4746,10 @@ function mouseControlActive() {
     if (
         gameMode === "ai"
     ) {
-        return aiControls.mouse;
+        return (
+            !aiVsAiEnabled &&
+            aiControls.mouse
+        );
     }
 
     if (
@@ -4200,6 +4784,7 @@ function moveMousePaddles(
 
     if (
         gameMode === "ai" &&
+        !aiVsAiEnabled &&
         aiControls.mouse
     ) {
 
@@ -5539,6 +6124,67 @@ function aiControlItems(
     const x =
         570;
 
+    add(
+        "aiVsAi",
+
+        `${t("aiVsAi")}: ${
+            aiVsAiEnabled
+                ? "ON"
+                : "OFF"
+        }`,
+
+        {
+            x:
+                W / 2 - 210,
+
+            y:
+                aiVsAiEnabled
+                    ? 135
+                    : 430,
+
+            w: 420,
+            h: 48
+        }
+    );
+
+
+    if (aiVsAiEnabled) {
+
+        add(
+            "aiLeftDifficulty",
+
+            `${t("aiLeft")}: ${
+                difficultyLabel(
+                    aiLeftDifficulty
+                )
+            }`,
+
+            {
+                x: 155,
+                y: 280,
+                w: 430,
+                h: 58
+            }
+        );
+
+        add(
+            "aiRightDifficulty",
+
+            `${t("aiRight")}: ${
+                difficultyLabel(
+                    aiRightDifficulty
+                )
+            }`,
+
+            {
+                x: 695,
+                y: 280,
+                w: 430,
+                h: 58
+            }
+        );
+
+    } else {
 
     add(
         "up1",
@@ -5672,6 +6318,8 @@ function aiControlItems(
         }
     );
 
+    }
+
 
     add(
         "aiControlsReset",
@@ -5680,7 +6328,7 @@ function aiControlItems(
             x:
                 W / 2 - 185,
 
-            y: 510,
+            y: 520,
 
             w: 370,
             h: 50
@@ -5695,7 +6343,7 @@ function aiControlItems(
             x:
                 W / 2 - 110,
 
-            y: 580,
+            y: 590,
 
             w: 220,
             h: 50
@@ -6418,6 +7066,54 @@ function handleAction(id) {
         gameMode ===
         "ai"
     ) {
+
+        if (
+            id ===
+            "aiVsAi"
+        ) {
+
+            aiVsAiEnabled =
+                !aiVsAiEnabled;
+
+            waitingForKey =
+                null;
+
+            resetAIThinking();
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiLeftDifficulty"
+        ) {
+
+            aiLeftDifficulty =
+                nextAIDifficulty(
+                    aiLeftDifficulty
+                );
+
+            resetAutoplayAIThinking();
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiRightDifficulty"
+        ) {
+
+            aiRightDifficulty =
+                nextAIDifficulty(
+                    aiRightDifficulty
+                );
+
+            resetAutoplayAIThinking();
+
+            return;
+        }
 
         if (
             [
@@ -7185,17 +7881,52 @@ function drawWrappedText(
 // START
 // ============================================================
 
-function drawArgenPongLogo() {
+function drawArgenPongLogo(
+    scale = 0.84
+) {
 
     const centerX =
         W / 2;
 
+    const neonPulse =
+        0.22 +
+        0.78 *
+        (
+            Math.sin(
+                performance.now() /
+                300
+            ) +
+            1
+        ) /
+        2;
+
     ctx.save();
 
+    ctx.translate(
+        centerX,
+        0
+    );
+
+    ctx.scale(
+        scale,
+        scale
+    );
+
+    ctx.translate(
+        -centerX,
+        0
+    );
+
     ctx.shadowColor =
-        "rgba(108,172,228,.35)";
+        `rgba(108,172,228,${
+            0.24 +
+            neonPulse *
+            0.58
+        })`;
 
     ctx.shadowBlur =
+        14 +
+        neonPulse *
         24;
 
     ctx.fillStyle =
@@ -7346,9 +8077,15 @@ function drawArgenPongLogo() {
         BRAND.gold;
 
     ctx.shadowColor =
-        "rgba(255,184,28,.55)";
+        `rgba(255,184,28,${
+            0.35 +
+            neonPulse *
+            0.5
+        })`;
 
     ctx.shadowBlur =
+        10 +
+        neonPulse *
         18;
 
     ctx.beginPath();
@@ -7401,6 +8138,18 @@ function drawArgenPongLogo() {
     ctx.lineWidth =
         5;
 
+    ctx.shadowColor =
+        `rgba(108,172,228,${
+            0.28 +
+            neonPulse *
+            0.62
+        })`;
+
+    ctx.shadowBlur =
+        8 +
+        neonPulse *
+        16;
+
     ctx.beginPath();
 
     ctx.moveTo(
@@ -7419,6 +8168,9 @@ function drawArgenPongLogo() {
     );
 
     ctx.stroke();
+
+    ctx.shadowBlur =
+        0;
 
     ctx.strokeStyle =
         BRAND.gold;
@@ -7864,9 +8616,14 @@ function drawPause() {
 
     overlay(0.72);
 
+    drawArgenPongLogo(
+        0.64
+    );
+
     title(
         t("pause"),
-        110
+        214,
+        "bold 30px monospace"
     );
 
     interactiveItems()
@@ -8202,6 +8959,33 @@ function drawAIControls() {
         t("controls"),
         65
     );
+
+    if (aiVsAiEnabled) {
+
+        ctx.fillStyle =
+            "rgba(255,255,255,.78)";
+
+        ctx.font =
+            "18px monospace";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.fillText(
+            `${t("easy")} · ${
+                t("normal")
+            } · ${t("hard")}`,
+            W / 2,
+            235
+        );
+
+        interactiveItems()
+            .forEach(
+                drawButton
+            );
+
+        return;
+    }
 
 
     ctx.fillStyle =
@@ -8615,7 +9399,8 @@ function victoryTitle() {
 
     if (
         gameMode ===
-        "ai"
+        "ai" &&
+        !aiVsAiEnabled
     ) {
 
         return (
