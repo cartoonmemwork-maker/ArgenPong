@@ -1076,19 +1076,54 @@ function replaySpeedText(
         speedUnits *
         REPLAY.kmhPerSpeedUnit;
 
+    const maxSpeedKmh =
+        Math.round(
+            BALL.maxSpeed *
+            REPLAY.kmhPerSpeedUnit
+        );
+
+    const reachedMaxSpeed =
+        speedUnits >=
+        BALL.maxSpeed -
+        0.000001;
+
     if (
         currentLanguage() === "en"
     ) {
 
-        return `${Math.round(
-            speedKmh *
-            REPLAY.mphPerKmh
-        )} mph`;
+        const maxSpeedMph =
+            Math.round(
+                maxSpeedKmh *
+                REPLAY.mphPerKmh
+            );
+
+        const displayedMph =
+            reachedMaxSpeed
+
+                ? maxSpeedMph
+                : Math.min(
+                    Math.round(
+                        speedKmh *
+                        REPLAY.mphPerKmh
+                    ),
+                    maxSpeedMph - 1
+                );
+
+        return `${displayedMph} mph`;
     }
 
-    return `${Math.round(
-        speedKmh
-    )} km/h`;
+    const displayedKmh =
+        reachedMaxSpeed
+
+            ? maxSpeedKmh
+            : Math.min(
+                Math.round(
+                    speedKmh
+                ),
+                maxSpeedKmh - 1
+            );
+
+    return `${displayedKmh} km/h`;
 }
 
 function updateReplay(
