@@ -81,7 +81,9 @@ const REPLAY = {
     playbackFps: 60,
     startSpeed: 0.9,
     endSpeed: 0.25,
-    kmhPerSpeedUnit: 4,
+    kmhPerSpeedUnit:
+        116 /
+        BALL.maxSpeed,
     mphPerKmh: 0.621371,
     trailFrames: 90,
     maxFrames: 1200
