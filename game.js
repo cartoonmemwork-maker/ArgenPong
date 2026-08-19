@@ -99,20 +99,13 @@ const BALL = {
         TABLE_PIXELS_PER_METER *
         0.04,
 
-    sizes: {
-        pong: 20,
-        pingPong:
-            TABLE_PIXELS_PER_METER *
-            0.04
-    },
-
     colors: {
         white: "#FFFFFF",
         orange: BRAND.gold
     },
 
     defaultColor: "white",
-    defaultSizeMode: "pingPong",
+    defaultShape: "round",
 
     speedLevels:
         SPEED_SCALE.initialKmhLevels
@@ -250,9 +243,9 @@ const TEXT = {
         color: "COLOR",
         white: "BLANCA",
         orange: "NARANJA",
-        size: "TAMAÑO",
-        pong: "PONG",
-        pingPong: "PING PONG",
+        shape: "FORMA",
+        round: "REDONDA",
+        square: "CUADRADA",
         sound: "SONIDO",
         continue: "CONTINUAR",
         restart: "REINICIAR PARTIDA",
@@ -350,9 +343,9 @@ const TEXT = {
         color: "COLOR",
         white: "WHITE",
         orange: "ORANGE",
-        size: "SIZE",
-        pong: "PONG",
-        pingPong: "PING PONG",
+        shape: "SHAPE",
+        round: "ROUND",
+        square: "SQUARE",
         sound: "SOUND",
         continue: "CONTINUE",
         restart: "RESTART MATCH",
@@ -521,7 +514,7 @@ let progressiveSpeed = true;
 let spinEnabled = SPIN.defaultEnabled;
 let physicsFps = TIMING.defaultFps;
 let ballColor = BALL.defaultColor;
-let ballSizeMode = BALL.defaultSizeMode;
+let ballShape = BALL.defaultShape;
 let classicPongMode = false;
 let classicPongSavedSettings = null;
 
@@ -1163,42 +1156,21 @@ function initialBallSpeedText() {
     } km/h`;
 }
 
-function setBallSizeMode(
-    mode
+function setBallShape(
+    shape
 ) {
 
-    const nextSize =
-        BALL.sizes[mode];
-
     if (
-        !Number.isFinite(
-            nextSize
-        )
+        ![
+            "round",
+            "square"
+        ].includes(shape)
     ) {
         return;
     }
 
-    const centerX =
-        ball.x +
-        BALL.size / 2;
-
-    const centerY =
-        ball.y +
-        BALL.size / 2;
-
-    ballSizeMode =
-        mode;
-
-    BALL.size =
-        nextSize;
-
-    ball.x =
-        centerX -
-        BALL.size / 2;
-
-    ball.y =
-        centerY -
-        BALL.size / 2;
+    ballShape =
+        shape;
 
     resetReplayCapture();
 }
@@ -1208,8 +1180,8 @@ function resetBallAppearance() {
     ballColor =
         BALL.defaultColor;
 
-    setBallSizeMode(
-        BALL.defaultSizeMode
+    setBallShape(
+        BALL.defaultShape
     );
 }
 
@@ -1226,15 +1198,17 @@ function toggleClassicPongPreset() {
         classicPongSavedSettings = {
             courtColor,
             scorePosition,
-            ballSizeMode
+            ballColor,
+            ballShape
         };
 
         classicPongMode = true;
         courtColor = "black";
         scorePosition = "top";
+        ballColor = "white";
 
-        setBallSizeMode(
-            "pong"
+        setBallShape(
+            "square"
         );
 
     } else {
@@ -1253,9 +1227,13 @@ function toggleClassicPongPreset() {
             saved?.scorePosition ||
             SCORE.defaultPosition;
 
-        setBallSizeMode(
-            saved?.ballSizeMode ||
-            BALL.defaultSizeMode
+        ballColor =
+            saved?.ballColor ||
+            BALL.defaultColor;
+
+        setBallShape(
+            saved?.ballShape ||
+            BALL.defaultShape
         );
     }
 
@@ -1605,8 +1583,6 @@ function saveOfflineSettings() {
         progressiveSpeed,
         spinEnabled,
         physicsFps,
-        ballColor,
-        ballSizeMode,
         replayAutoEnabled,
         replayMode
     };
@@ -1622,15 +1598,10 @@ function applyOnlineDefaults() {
     progressiveSpeed = true;
     spinEnabled = true;
     physicsFps = 60;
-    ballColor = "white";
     replayAutoEnabled =
         REPLAY.defaultEnabled;
     replayMode =
         REPLAY.defaultMode;
-
-    setBallSizeMode(
-        "pingPong"
-    );
 }
 
 function restoreOfflineSettings() {
@@ -1650,16 +1621,10 @@ function restoreOfflineSettings() {
         saved.spinEnabled;
     physicsFps =
         saved.physicsFps;
-    ballColor =
-        saved.ballColor;
     replayAutoEnabled =
         saved.replayAutoEnabled;
     replayMode =
         saved.replayMode;
-
-    setBallSizeMode(
-        saved.ballSizeMode
-    );
 
     onlineSession.savedSettings =
         null;
@@ -2283,7 +2248,7 @@ function launchOnlinePracticeBall() {
         );
 
     const size =
-        BALL.sizes.pingPong;
+        BALL.size;
 
     const speed =
         BALL.speedLevels[
@@ -2547,21 +2512,19 @@ function drawOnlinePracticeBall() {
     }
 
     ctx.save();
-    applyCourtShadow();
+    applyElementShadow();
 
     ctx.fillStyle =
-        BALL.colors.white;
-    ctx.beginPath();
-    ctx.arc(
+        currentBallColor();
+
+    drawBallShape(
         practice.x +
             practice.size / 2,
         practice.y +
             practice.size / 2,
-        practice.size / 2,
-        0,
-        Math.PI * 2
+        practice.size
     );
-    ctx.fill();
+
     ctx.restore();
 }
 
@@ -2736,6 +2699,16 @@ function toggleOnlineRematch() {
 function handleOnlineEvent(event) {
 
     if (!event) {
+        return;
+    }
+
+    if (
+        event.type ===
+        "leave_online_menu"
+    ) {
+        goToOnlineMenu(
+            false
+        );
         return;
     }
 
@@ -2983,7 +2956,19 @@ function configureOnlineTransport() {
     });
 }
 
-function goToOnlineMenu() {
+function goToOnlineMenu(
+    notifyOpponent = true
+) {
+
+    if (
+        notifyOpponent &&
+        onlineSession.role
+    ) {
+        onlineTransport()?.sendEvent({
+            type:
+                "leave_online_menu"
+        });
+    }
 
     resetLetState();
     clearOnlineCountdown();
@@ -8035,9 +8020,9 @@ function interactiveItems() {
             ],
 
             [
-                "ballSize",
-                `${t("size")}: ${t(
-                    ballSizeMode
+                "ballShape",
+                `${t("shape")}: ${t(
+                    ballShape
                 )}`
             ],
 
@@ -9243,6 +9228,8 @@ function handleAction(id) {
         "ballColor"
     ) {
 
+        disableClassicPongPreset();
+
         ballColor =
             ballColor === "white"
 
@@ -9255,16 +9242,16 @@ function handleAction(id) {
 
     if (
         id ===
-        "ballSize"
+        "ballShape"
     ) {
 
         disableClassicPongPreset();
 
-        setBallSizeMode(
-            ballSizeMode === "pong"
+        setBallShape(
+            ballShape === "round"
 
-                ? "pingPong"
-                : "pong"
+                ? "square"
+                : "round"
         );
 
         return;
@@ -9930,7 +9917,7 @@ function updateHover(
 // RENDER BASE
 // ============================================================
 
-function applyCourtShadow(
+function applyElementShadow(
     blur = 8,
     offset = 3
 ) {
@@ -9948,6 +9935,19 @@ function applyCourtShadow(
         offset;
 }
 
+function courtSceneVisible() {
+
+    return (
+        !startMenuOpen ||
+        startSettingsActive() ||
+        (
+            onlineMenuOpen &&
+            onlineSession.screen !==
+                "menu"
+        )
+    );
+}
+
 function drawTable() {
 
     ctx.fillStyle =
@@ -9962,12 +9962,6 @@ function drawTable() {
         TABLE.left,
         TABLE.bottom -
         TABLE.top
-    );
-
-    ctx.save();
-    applyCourtShadow(
-        6,
-        2
     );
 
     ctx.strokeStyle =
@@ -10005,13 +9999,12 @@ function drawTable() {
     ctx.stroke();
 
     ctx.setLineDash([]);
-    ctx.restore();
 }
 
 function drawPaddles() {
 
     ctx.save();
-    applyCourtShadow();
+    applyElementShadow();
 
     ctx.fillStyle =
         "#FFFFFF";
@@ -10040,8 +10033,8 @@ function drawBallShape(
 ) {
 
     if (
-        ballSizeMode ===
-        "pong"
+        ballShape ===
+        "square"
     ) {
 
         ctx.fillRect(
@@ -10074,7 +10067,7 @@ function drawBallShape(
 function drawBall() {
 
     ctx.save();
-    applyCourtShadow();
+    applyElementShadow();
 
     ctx.fillStyle =
         currentBallColor();
@@ -10098,7 +10091,7 @@ function drawBall() {
 function drawScore() {
 
     ctx.save();
-    applyCourtShadow(
+    applyElementShadow(
         5,
         2
     );
@@ -10224,7 +10217,7 @@ function drawScore() {
         y el límite elegido de la mesa.
     */
 
-    const matchY =
+    const matchVisualCenterY =
         scoreVisualEdge +
         (
             tableEdge -
@@ -10263,8 +10256,40 @@ function drawScore() {
         "center";
 
     ctx.textBaseline =
-        "middle";
+        "alphabetic";
 
+    const matchMetrics =
+        ctx.measureText(
+            "MATCH"
+        );
+
+    const matchAscent =
+        Number.isFinite(
+            matchMetrics
+                .actualBoundingBoxAscent
+        )
+
+            ? matchMetrics
+                .actualBoundingBoxAscent
+            : 10;
+
+    const matchDescent =
+        Number.isFinite(
+            matchMetrics
+                .actualBoundingBoxDescent
+        )
+
+            ? matchMetrics
+                .actualBoundingBoxDescent
+            : 2;
+
+    const matchBaselineY =
+        matchVisualCenterY +
+        (
+            matchAscent -
+            matchDescent
+        ) /
+        2;
 
     ctx.fillText(
         "MATCH",
@@ -10273,7 +10298,7 @@ function drawScore() {
             ? W / 4
             : W * 3 / 4,
 
-        matchY
+        matchBaselineY
     );
 
 
@@ -10309,6 +10334,15 @@ function title(
     font = UI.title
 ) {
 
+    ctx.save();
+
+    if (courtSceneVisible()) {
+        applyElementShadow(
+            5,
+            2
+        );
+    }
+
     ctx.fillStyle =
         "#FFFFFF";
 
@@ -10326,9 +10360,20 @@ function title(
         W / 2,
         y
     );
+
+    ctx.restore();
 }
 
 function drawButton(item) {
+
+    ctx.save();
+
+    if (courtSceneVisible()) {
+        applyElementShadow(
+            5,
+            2
+        );
+    }
 
     const hover =
         hoveredButton ===
@@ -10405,9 +10450,20 @@ function drawButton(item) {
         rect.y +
         rect.h / 2
     );
+
+    ctx.restore();
 }
 
 function drawSlider(item) {
+
+    ctx.save();
+
+    if (courtSceneVisible()) {
+        applyElementShadow(
+            5,
+            2
+        );
+    }
 
     const hover =
         hoveredButton ===
@@ -10521,6 +10577,8 @@ function drawSlider(item) {
 
 
     ctx.fill();
+
+    ctx.restore();
 }
 
 // ============================================================
@@ -10870,7 +10928,7 @@ function drawStart() {
             "waiting"
         ) {
             ctx.save();
-            applyCourtShadow();
+            applyElementShadow();
             ctx.fillStyle = "#FFFFFF";
 
             const paddle =
@@ -11130,6 +11188,7 @@ function drawBallSettings() {
     );
 
     ctx.save();
+    applyElementShadow();
 
     ctx.fillStyle =
         currentBallColor();
@@ -11153,17 +11212,9 @@ function drawBallSettings() {
         "middle";
 
     ctx.fillText(
-        ballSizeMode ===
-        "pingPong"
-
-            ? `40 mm · ${BALL.size.toFixed(
-                1
-            )} px`
-            : `${BALL.size.toFixed(
-                0
-            )} × ${BALL.size.toFixed(
-                0
-            )} px`,
+        `40 mm · ${t(
+            ballShape
+        )}`,
 
         W / 2,
         185
@@ -11758,7 +11809,7 @@ function drawReplay() {
     );
 
     ctx.save();
-    applyCourtShadow();
+    applyElementShadow();
 
     ctx.fillStyle =
         "#FFFFFF";
@@ -11807,6 +11858,10 @@ function drawReplay() {
         );
 
     ctx.save();
+    applyElementShadow(
+        5,
+        2
+    );
 
     ctx.textBaseline =
         "alphabetic";
@@ -12079,7 +12134,7 @@ function drawOnlineLatency() {
             : "-- ms";
 
     ctx.save();
-    applyCourtShadow(
+    applyElementShadow(
         3,
         1
     );
@@ -12109,6 +12164,10 @@ function drawOnlinePointerHint() {
     }
 
     ctx.save();
+    applyElementShadow(
+        5,
+        2
+    );
     ctx.fillStyle =
         "rgba(0,0,0,.62)";
     ctx.fillRect(
