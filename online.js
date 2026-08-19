@@ -400,12 +400,23 @@
 
     const wireChannel = nextChannel => {
         channel = nextChannel;
-        channel.binaryType =
+
+        const wiredChannel =
+            nextChannel;
+
+        wiredChannel.binaryType =
             "arraybuffer";
 
-        channel.addEventListener(
+        wiredChannel.addEventListener(
             "open",
             () => {
+                if (
+                    channel !==
+                    wiredChannel
+                ) {
+                    return;
+                }
+
                 emit("ready", {
                     role,
                     side: localSide
@@ -415,12 +426,14 @@
             }
         );
 
-        channel.addEventListener(
+        wiredChannel.addEventListener(
             "message",
             event => {
                 if (
+                    channel !==
+                        wiredChannel ||
                     typeof event.data !==
-                    "string"
+                        "string"
                 ) {
                     return;
                 }
@@ -446,9 +459,17 @@
             }
         );
 
-        channel.addEventListener(
+        wiredChannel.addEventListener(
             "close",
             () => {
+                if (
+                    channel !==
+                    wiredChannel
+                ) {
+                    return;
+                }
+
+                channel = null;
                 stopLatencyProbe();
 
                 if (!manualClose) {
@@ -702,8 +723,12 @@
         close(false);
         manualClose = false;
 
+        let nextSocket;
+
         try {
-            socket = new WebSocket(url);
+            nextSocket =
+                new WebSocket(url);
+            socket = nextSocket;
         } catch {
             emit("error", {
                 code: "connection"
@@ -711,32 +736,64 @@
             return false;
         }
 
-        socket.addEventListener(
+        nextSocket.addEventListener(
             "open",
             () => {
+                if (
+                    socket !==
+                    nextSocket
+                ) {
+                    return;
+                }
+
                 sendSocket(
                     queueMessage
                 );
             }
         );
 
-        socket.addEventListener(
+        nextSocket.addEventListener(
             "message",
-            handleSocketMessage
+            event => {
+                if (
+                    socket ===
+                    nextSocket
+                ) {
+                    handleSocketMessage(
+                        event
+                    );
+                }
+            }
         );
 
-        socket.addEventListener(
+        nextSocket.addEventListener(
             "error",
             () => {
+                if (
+                    socket !==
+                    nextSocket
+                ) {
+                    return;
+                }
+
                 emit("error", {
                     code: "connection"
                 });
             }
         );
 
-        socket.addEventListener(
+        nextSocket.addEventListener(
             "close",
             event => {
+                if (
+                    socket !==
+                    nextSocket
+                ) {
+                    return;
+                }
+
+                socket = null;
+
                 if (
                     !manualClose &&
                     event.code !== 1000
