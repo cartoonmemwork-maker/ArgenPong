@@ -210,6 +210,8 @@ const TEXT = {
         practiceKeys: "CLICK, ENTER O ESPACIO PARA PRACTICAR",
         practiceTouch: "DOBLE TOQUE PARA PRACTICAR",
         waitingRematch: "ESPERANDO AL RIVAL",
+        you: "VOS",
+        opponent: "RIVAL",
         youLost: "Perdiste",
         searchingOpponent: "BUSCANDO OPONENTE",
         waitingOpponent: "ESPERANDO OPONENTE",
@@ -304,6 +306,8 @@ const TEXT = {
         practiceKeys: "CLICK, ENTER OR SPACE TO PRACTICE",
         practiceTouch: "DOUBLE TAP TO PRACTICE",
         waitingRematch: "WAITING FOR OPPONENT",
+        you: "YOU",
+        opponent: "OPPONENT",
         youLost: "You lost",
         searchingOpponent: "SEARCHING FOR OPPONENT",
         waitingOpponent: "WAITING FOR OPPONENT",
@@ -540,6 +544,11 @@ const onlineSession = {
     practiceTapTime: -Infinity,
     localRematchReady: false,
     remoteRematchReady: false,
+    localReplaySkipReady: false,
+    remoteReplaySkipReady: false,
+    queueMode: null,
+    queueTimer: null,
+    returningToQueue: false,
     pointerHint: false,
     countdownTimers: []
 };
@@ -589,7 +598,11 @@ let activeSlider = null;
 let pointerUnlockPauseTime = -Infinity;
 let escapeResumeTime = -Infinity;
 let pendingMouseDelta = 0;
-let activeTouchPointerId = null;
+const activeTouchPointers =
+    new Map();
+
+let lastTouchInteractionTime =
+    -Infinity;
 
 let replayAutoEnabled = REPLAY.defaultEnabled;
 let replayMode = REPLAY.defaultMode;
@@ -927,14 +940,60 @@ function sound(
     );
 }
 
-const wallSound = () =>
+function sendOnlineSound(kind) {
+
+    if (
+        gameMode === "online" &&
+        onlineSession.role === "host" &&
+        onlineSession.screen === "playing"
+    ) {
+        onlineTransport()?.sendEvent({
+            type: "sound",
+            kind
+        });
+    }
+}
+
+const wallSound = (
+    syncOnline = true
+) => {
     sound(500, 0.06, 0.08);
 
-const paddleSound = () =>
+    if (syncOnline) {
+        sendOnlineSound("wall");
+    }
+};
+
+const paddleSound = (
+    syncOnline = true
+) => {
     sound(800, 0.07, 0.1);
 
-const pointSound = () =>
+    if (syncOnline) {
+        sendOnlineSound("paddle");
+    }
+};
+
+const pointSound = (
+    syncOnline = true
+) => {
     sound(180, 0.2, 0.12);
+
+    if (syncOnline) {
+        sendOnlineSound("point");
+    }
+};
+
+function playOnlineSound(kind) {
+
+    if (kind === "wall") {
+        wallSound(false);
+    } else if (kind === "paddle") {
+        paddleSound(false);
+    } else if (kind === "point") {
+        pointSound(false);
+    }
+}
 
 
 // ============================================================
@@ -1249,6 +1308,8 @@ function startGame(
     difficulty = "normal"
 ) {
 
+    requestTouchLandscape();
+
     gameMode =
         mode;
 
@@ -1288,6 +1349,21 @@ function clearOnlineCountdown() {
 
     onlineSession.countdownTimers = [];
     onlineSession.countdown = null;
+}
+
+function clearOnlineQueueTimer() {
+
+    if (
+        onlineSession.queueTimer !==
+        null
+    ) {
+        clearTimeout(
+            onlineSession.queueTimer
+        );
+
+        onlineSession.queueTimer =
+            null;
+    }
 }
 
 function saveOfflineSettings() {
@@ -1364,6 +1440,7 @@ function restoreOfflineSettings() {
 function resetOnlineSession() {
 
     clearOnlineCountdown();
+    clearOnlineQueueTimer();
 
     onlineSession.screen = "closed";
     onlineSession.role = null;
@@ -1381,8 +1458,15 @@ function resetOnlineSession() {
         false;
     onlineSession.remoteRematchReady =
         false;
+    onlineSession.localReplaySkipReady =
+        false;
+    onlineSession.remoteReplaySkipReady =
+        false;
+    onlineSession.queueMode = null;
+    onlineSession.returningToQueue =
+        false;
     onlineSession.pointerHint = false;
-    activeTouchPointerId = null;
+    activeTouchPointers.clear();
 }
 
 function onlineStateSnapshot() {
@@ -2200,6 +2284,52 @@ function resetOnlineRematchChoices() {
         false;
 }
 
+function resetOnlineReplaySkipChoices() {
+
+    onlineSession.localReplaySkipReady =
+        false;
+
+    onlineSession.remoteReplaySkipReady =
+        false;
+}
+
+function maybeSkipOnlineReplay() {
+
+    if (
+        onlineSession.role === "host" &&
+        replayPlaying &&
+        onlineSession.localReplaySkipReady &&
+        onlineSession.remoteReplaySkipReady
+    ) {
+        onlineTransport()?.sendEvent({
+            type: "replay_skip"
+        });
+
+        finishReplay();
+    }
+}
+
+function requestOnlineReplaySkip() {
+
+    if (
+        gameMode !== "online" ||
+        !replayPlaying ||
+        onlineSession.localReplaySkipReady
+    ) {
+        return;
+    }
+
+    onlineSession.localReplaySkipReady =
+        true;
+
+    onlineTransport()?.sendEvent({
+        type: "replay_skip_ready",
+        ready: true
+    });
+
+    maybeSkipOnlineReplay();
+}
+
 function finishOnlineRematchCountdown() {
 
     clearOnlineCountdown();
@@ -2320,6 +2450,16 @@ function handleOnlineEvent(event) {
     }
 
     if (
+        event.type === "sound" &&
+        onlineSession.role === "guest"
+    ) {
+        playOnlineSound(
+            event.kind
+        );
+        return;
+    }
+
+    if (
         event.type === "countdown" &&
         onlineSession.role === "guest"
     ) {
@@ -2338,6 +2478,28 @@ function handleOnlineEvent(event) {
         onlineSession.role === "guest"
     ) {
         beginOnlineGame();
+        return;
+    }
+
+    if (
+        event.type ===
+        "replay_skip_ready" &&
+        replayPlaying
+    ) {
+        onlineSession.remoteReplaySkipReady =
+            Boolean(event.ready);
+
+        maybeSkipOnlineReplay();
+        return;
+    }
+
+    if (
+        event.type ===
+        "replay_skip" &&
+        onlineSession.role === "guest" &&
+        replayPlaying
+    ) {
+        finishReplay();
         return;
     }
 
@@ -2415,6 +2577,7 @@ function handleOnlineEvent(event) {
             replayClip = [];
             return;
         }
+        resetOnlineReplaySkipChoices();
         replayPlaying = true;
         replayPosition = 0;
         replayLastTime = null;
@@ -2434,6 +2597,13 @@ function configureOnlineTransport() {
     transport.setHandlers({
         matched({ role, side }) {
             onlineSession.role = role;
+            onlineSession.queueMode =
+                onlineSession.queueMode ||
+                (
+                    role === "host"
+                        ? "host"
+                        : "join"
+                );
             onlineSession.side = side;
             humanSide = side;
             onlineSession.screen =
@@ -2504,17 +2674,154 @@ function configureOnlineTransport() {
         },
 
         opponentLeft() {
+            if (
+                onlineSession.returningToQueue
+            ) {
+                return;
+            }
+
+            if (
+                gameMode === "online" &&
+                (
+                    gameOver ||
+                    replayPlaying ||
+                    checkWinner()
+                )
+            ) {
+                returnOnlineToQueue();
+                return;
+            }
+
             failOnline(
                 "opponentLeft"
             );
         },
 
         connectionLost() {
+            if (
+                gameMode === "online" &&
+                (
+                    gameOver ||
+                    replayPlaying ||
+                    checkWinner()
+                )
+            ) {
+                returnOnlineToQueue();
+                return;
+            }
+
             failOnline(
                 "onlineConnectionError"
             );
         }
     });
+}
+
+function returnOnlineToQueue() {
+
+    if (
+        gameMode !== "online" ||
+        onlineSession.returningToQueue
+    ) {
+        return;
+    }
+
+    const queueMode =
+        onlineSession.queueMode ||
+        (
+            onlineSession.role === "host"
+                ? "host"
+                : "join"
+        );
+
+    const side =
+        onlineSession.side;
+
+    onlineSession.returningToQueue =
+        true;
+
+    clearOnlineCountdown();
+    clearOnlineQueueTimer();
+
+    onlineTransport()?.close();
+    restoreOfflineSettings();
+    releaseMouseCapture();
+
+    startMenuOpen = true;
+    aiMenuOpen = false;
+    onlineMenuOpen = true;
+
+    gameMode = null;
+    gamePaused = false;
+    gameOver = false;
+    winner = null;
+
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+    ballOpen = false;
+    replayOpen = false;
+    languageOpen = false;
+    confirmOpen = null;
+    waitingForKey = null;
+    hoveredButton = null;
+
+    replayPlaying = false;
+    replayClip = [];
+    resetReplayCapture();
+    resetOnlineRematchChoices();
+    resetOnlineReplaySkipChoices();
+    resetOnlinePractice();
+    resetPaddles();
+
+    onlineSession.queueMode =
+        queueMode;
+    onlineSession.role = null;
+    onlineSession.side = side;
+    onlineSession.errorKey = null;
+    onlineSession.latencyMs = null;
+    onlineSession.guestBall = null;
+    onlineSession.remoteTargetY =
+        (H - PADDLE.h) / 2;
+    onlineSession.snapshotAccumulator =
+        0;
+    onlineSession.pointerHint = false;
+    onlineSession.screen =
+        queueMode === "host"
+            ? "waiting"
+            : "searching";
+
+    humanSide = side;
+    activeTouchPointers.clear();
+
+    onlineSession.queueTimer =
+        setTimeout(
+            () => {
+                onlineSession.queueTimer =
+                    null;
+                onlineSession.returningToQueue =
+                    false;
+
+                if (
+                    !startMenuOpen ||
+                    !onlineMenuOpen ||
+                    onlineSession.queueMode !==
+                        queueMode
+                ) {
+                    return;
+                }
+
+                if (queueMode === "host") {
+                    onlineTransport()?.host(
+                        onlineSession.side
+                    );
+                } else {
+                    onlineTransport()?.join();
+                }
+            },
+            120
+        );
 }
 
 function goToStartMenu() {
@@ -2780,6 +3087,10 @@ function startPointReplay(
         return false;
     }
 
+    if (gameMode === "online") {
+        resetOnlineReplaySkipChoices();
+    }
+
     replayPlaying = true;
     replayPosition = 0;
     replayLastTime = null;
@@ -2965,6 +3276,11 @@ function finishReplay() {
     }
 
     replayPlaying = false;
+
+    if (gameMode === "online") {
+        resetOnlineReplaySkipChoices();
+    }
+
     replayClip = [];
     replayPosition = 0;
     replayLastTime = null;
@@ -5520,14 +5836,19 @@ window.addEventListener(
         if (replayPlaying) {
 
             if (
-                gameMode !== "online" &&
                 replaySkipKey(
                     event
                 )
             ) {
-
                 event.preventDefault();
-                finishReplay();
+
+                if (
+                    gameMode === "online"
+                ) {
+                    requestOnlineReplaySkip();
+                } else {
+                    finishReplay();
+                }
             }
 
             return;
@@ -5971,27 +6292,66 @@ function onlinePointerActive() {
     );
 }
 
-function onlineTouchControlActive() {
+function touchPaddleControlActive() {
 
-    return (
-        touchControlsPreferred() &&
-        onlinePointerActive() &&
-        !gamePaused &&
-        !gameOver &&
-        !replayPlaying &&
-        [
+    if (
+        !touchControlsPreferred() ||
+        gamePaused ||
+        gameOver ||
+        replayPlaying
+    ) {
+        return false;
+    }
+
+    if (onlinePointerActive()) {
+        return [
             "waiting",
             "connecting",
             "countdown",
             "playing"
         ].includes(
             onlineSession.screen
-        )
-    );
+        );
+    }
+
+    if (startMenuOpen) {
+        return false;
+    }
+
+    if (gameMode === "ai") {
+        return !aiVsAiEnabled;
+    }
+
+    return gameMode === "local";
 }
 
-function moveOnlineTouchPaddle(
-    event
+function touchSideForPoint(point) {
+
+    if (onlinePointerActive()) {
+        return onlineSession.side;
+    }
+
+    if (
+        gameMode === "ai" &&
+        !aiVsAiEnabled
+    ) {
+        return humanSide;
+    }
+
+    if (gameMode === "local") {
+        return (
+            point.x < W / 2
+                ? "left"
+                : "right"
+        );
+    }
+
+    return null;
+}
+
+function moveTouchPaddle(
+    event,
+    side
 ) {
 
     const {
@@ -6000,9 +6360,7 @@ function moveOnlineTouchPaddle(
         mousePos(event);
 
     const paddle =
-        sidePaddle(
-            onlineSession.side
-        );
+        sidePaddle(side);
 
     paddle.y =
         clamp(
@@ -6014,8 +6372,10 @@ function moveOnlineTouchPaddle(
         );
 
     if (
+        gameMode === "online" &&
         onlineSession.role ===
-        "guest"
+            "guest" &&
+        side === onlineSession.side
     ) {
         onlineTransport()?.sendInput({
             targetY: paddle.y
@@ -6308,9 +6668,7 @@ canvas.addEventListener(
         if (
             event.pointerType !==
                 "touch" ||
-            !onlineTouchControlActive() ||
-            activeTouchPointerId !==
-                null
+            !touchPaddleControlActive()
         ) {
             return;
         }
@@ -6334,12 +6692,16 @@ canvas.addEventListener(
             return;
         }
 
+        lastTouchInteractionTime =
+            performance.now();
+
         if (
+            onlinePointerActive() &&
             onlineSession.screen ===
-            "waiting"
+                "waiting"
         ) {
             const now =
-                performance.now();
+                lastTouchInteractionTime;
 
             if (
                 now -
@@ -6356,8 +6718,25 @@ canvas.addEventListener(
             }
         }
 
-        activeTouchPointerId =
-            event.pointerId;
+        const side =
+            touchSideForPoint(
+                point
+            );
+
+        if (
+            !side ||
+            [
+                ...activeTouchPointers
+                    .values()
+            ].includes(side)
+        ) {
+            return;
+        }
+
+        activeTouchPointers.set(
+            event.pointerId,
+            side
+        );
 
         try {
             canvas.setPointerCapture(
@@ -6367,8 +6746,9 @@ canvas.addEventListener(
 
         event.preventDefault();
 
-        moveOnlineTouchPaddle(
-            event
+        moveTouchPaddle(
+            event,
+            side
         );
     },
     {
@@ -6382,17 +6762,25 @@ canvas.addEventListener(
 
         if (
             event.pointerType !==
-                "touch" ||
-            event.pointerId !==
-                activeTouchPointerId
+                "touch"
         ) {
+            return;
+        }
+
+        const side =
+            activeTouchPointers.get(
+                event.pointerId
+            );
+
+        if (!side) {
             return;
         }
 
         event.preventDefault();
 
-        moveOnlineTouchPaddle(
-            event
+        moveTouchPaddle(
+            event,
+            side
         );
     },
     {
@@ -6400,23 +6788,27 @@ canvas.addEventListener(
     }
 );
 
-const releaseOnlineTouch =
+const releaseTouchPaddle =
     event => {
 
         if (
-            event.pointerId !==
-            activeTouchPointerId
+            !activeTouchPointers.has(
+                event.pointerId
+            )
         ) {
             return;
         }
 
         event.preventDefault();
-        activeTouchPointerId = null;
+
+        activeTouchPointers.delete(
+            event.pointerId
+        );
     };
 
 canvas.addEventListener(
     "pointerup",
-    releaseOnlineTouch,
+    releaseTouchPaddle,
     {
         passive: false
     }
@@ -6424,7 +6816,7 @@ canvas.addEventListener(
 
 canvas.addEventListener(
     "pointercancel",
-    releaseOnlineTouch,
+    releaseTouchPaddle,
     {
         passive: false
     }
@@ -6433,8 +6825,7 @@ canvas.addEventListener(
 window.addEventListener(
     "blur",
     () => {
-        activeTouchPointerId =
-            null;
+        activeTouchPointers.clear();
     }
 );
 
@@ -6571,8 +6962,10 @@ canvas.addEventListener(
     if (replayPlaying) {
 
             if (
-                gameMode !== "online"
+                gameMode === "online"
             ) {
+                requestOnlineReplaySkip();
+            } else {
                 finishReplay();
             }
 
@@ -6610,7 +7003,14 @@ canvas.addEventListener(
 
         } else {
 
-            launchOnlinePracticeBall();
+            if (
+                performance.now() -
+                    lastTouchInteractionTime >
+                500
+            ) {
+                launchOnlinePracticeBall();
+            }
+
             requestMouseCapture();
         }
     }
@@ -6867,10 +7267,7 @@ function interactiveItems() {
 
         add(
             "fullscreen",
-            currentFullscreenElement()
-
-                ? t("exitFullscreen")
-                : t("fullscreen"),
+            t("fullscreen"),
             buttonRect(
                 3,
                 4,
@@ -7044,8 +7441,16 @@ function interactiveItems() {
         }
 
         add(
-            "victoryMenu",
-            t("mainMenu"),
+            gameMode === "online"
+
+                ? "onlineReturn"
+                : "victoryMenu",
+
+            gameMode === "online"
+
+                ? t("back")
+                : t("mainMenu"),
+
             {
                 x:
                     W / 2 - 130,
@@ -8079,6 +8484,7 @@ function handleAction(id) {
 
         onlineMenuOpen = true;
         onlineSession.screen = "menu";
+        onlineSession.queueMode = null;
         onlineSession.errorKey = null;
         resetPaddles();
         return;
@@ -8088,6 +8494,8 @@ function handleAction(id) {
     if (
         id === "onlineJoin"
     ) {
+        onlineSession.queueMode =
+            "join";
         onlineSession.screen =
             "searching";
         onlineSession.errorKey = null;
@@ -8100,6 +8508,8 @@ function handleAction(id) {
     if (
         id === "onlineHost"
     ) {
+        onlineSession.queueMode =
+            "host";
         onlineSession.side = "left";
         humanSide = "left";
         onlineSession.screen =
@@ -8944,6 +9354,15 @@ function handleAction(id) {
         "onlineRematch"
     ) {
         toggleOnlineRematch();
+        return;
+    }
+
+
+    if (
+        id ===
+        "onlineReturn"
+    ) {
+        returnOnlineToQueue();
         return;
     }
 
@@ -10883,14 +11302,32 @@ function drawReplay() {
         TABLE.top + 58
     );
 
-    if (gameMode !== "online") {
-        ctx.font =
-            "16px monospace";
+    ctx.font =
+        "16px monospace";
 
+    ctx.fillText(
+        t("skipReplay"),
+        TABLE.left + 22,
+        TABLE.top + 84
+    );
+
+    if (gameMode === "online") {
         ctx.fillText(
-            t("skipReplay"),
+            `${t("you")}: ${
+                onlineSession
+                    .localReplaySkipReady
+
+                    ? "✓"
+                    : "□"
+            }   ·   ${t("opponent")}: ${
+                onlineSession
+                    .remoteReplaySkipReady
+
+                    ? "✓"
+                    : "□"
+            }`,
             TABLE.left + 22,
-            TABLE.top + 84
+            TABLE.top + 110
         );
     }
 
@@ -10955,12 +11392,22 @@ function drawVictory() {
     );
 
     if (
-        gameMode === "online" &&
-        onlineSession.localRematchReady &&
-        !onlineSession.remoteRematchReady
+        gameMode === "online"
     ) {
         title(
-            t("waitingRematch"),
+            `${t("you")}: ${
+                onlineSession
+                    .localRematchReady
+
+                    ? "✓"
+                    : "□"
+            }   ·   ${t("opponent")}: ${
+                onlineSession
+                    .remoteRematchReady
+
+                    ? "✓"
+                    : "□"
+            }`,
             H / 2 + 20,
             "16px monospace"
         );
