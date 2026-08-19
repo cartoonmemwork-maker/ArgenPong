@@ -5,4 +5,5 @@
     funcionando normalmente.
 */
 
-window.ARGENPONG_ONLINE_URL = "";
+window.ARGENPONG_ONLINE_URL =
+    "wss://argenpong.cartoon-memwork.workers.dev/";
