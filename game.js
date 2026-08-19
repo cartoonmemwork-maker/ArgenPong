@@ -164,6 +164,13 @@ const TIMING = {
     maxSteps: 5
 };
 
+const ONLINE_SYNC = {
+    snapshotEverySteps: 1,
+    smoothingMs: 18,
+    maxPredictionMs: 50,
+    snapDistance: W * 0.22
+};
+
 const REPLAY = {
     defaultEnabled: true,
     defaultMode: "matchSpeed",
@@ -516,6 +523,7 @@ const onlineSession = {
     savedSettings: null,
     snapshotAccumulator: 0,
     latencyMs: null,
+    guestBall: null,
     pointerHint: false,
     countdownTimers: []
 };
@@ -565,6 +573,7 @@ let activeSlider = null;
 let pointerUnlockPauseTime = -Infinity;
 let escapeResumeTime = -Infinity;
 let pendingMouseDelta = 0;
+let activeTouchPointerId = null;
 
 let replayAutoEnabled = REPLAY.defaultEnabled;
 let replayMode = REPLAY.defaultMode;
@@ -1205,6 +1214,13 @@ function resetMatch() {
     gamePaused = false;
     confirmOpen = null;
 
+    if (
+        gameMode === "online" &&
+        onlineSession.role === "guest"
+    ) {
+        onlineSession.guestBall = null;
+    }
+
     resetPaddles();
     resetBall();
 
@@ -1341,7 +1357,9 @@ function resetOnlineSession() {
         (H - PADDLE.h) / 2;
     onlineSession.snapshotAccumulator = 0;
     onlineSession.latencyMs = null;
+    onlineSession.guestBall = null;
     onlineSession.pointerHint = false;
+    activeTouchPointerId = null;
 }
 
 function onlineStateSnapshot() {
@@ -1367,6 +1385,138 @@ function onlineStateSnapshot() {
     };
 }
 
+function reflectOnlineBallY(value) {
+
+    const min =
+        TABLE.top;
+
+    const max =
+        TABLE.bottom -
+        BALL.size;
+
+    const span =
+        max - min;
+
+    if (
+        !Number.isFinite(value) ||
+        span <= 0
+    ) {
+        return min;
+    }
+
+    const period =
+        span * 2;
+
+    let offset =
+        (value - min) %
+        period;
+
+    if (offset < 0) {
+        offset += period;
+    }
+
+    return (
+        offset <= span
+
+            ? min + offset
+            : max -
+              (offset - span)
+    );
+}
+
+function updateOnlineGuestBall(
+    timestamp
+) {
+
+    const visual =
+        onlineSession.guestBall;
+
+    if (
+        gameMode !== "online" ||
+        onlineSession.role !== "guest" ||
+        onlineSession.screen !==
+            "playing" ||
+        replayPlaying ||
+        !visual
+    ) {
+        return;
+    }
+
+    const frameMs =
+        clamp(
+            timestamp -
+            visual.lastFrameAt,
+            0,
+            50
+        );
+
+    visual.lastFrameAt =
+        timestamp;
+
+    const predictionMs =
+        clamp(
+            timestamp -
+            visual.receivedAt,
+            0,
+            ONLINE_SYNC.maxPredictionMs
+        );
+
+    const predictionSteps =
+        predictionMs /
+        (
+            1000 /
+            TIMING.referenceFps
+        );
+
+    const predictedX =
+        visual.snapshotX +
+        visual.vx *
+        predictionSteps;
+
+    const predictedY =
+        reflectOnlineBallY(
+            visual.snapshotY +
+            visual.vy *
+            predictionSteps
+        );
+
+    const error =
+        Math.hypot(
+            predictedX - ball.x,
+            predictedY - ball.y
+        );
+
+    if (
+        error >
+        ONLINE_SYNC.snapDistance
+    ) {
+        ball.x = predictedX;
+        ball.y = predictedY;
+        return;
+    }
+
+    const smoothing =
+        1 -
+        Math.exp(
+            -frameMs /
+            ONLINE_SYNC.smoothingMs
+        );
+
+    ball.x +=
+        (
+            predictedX -
+            ball.x
+        ) *
+        smoothing;
+
+    ball.y +=
+        (
+            predictedY -
+            ball.y
+        ) *
+        smoothing;
+}
+
 function applyOnlineSnapshot(
     snapshot
 ) {
@@ -1379,11 +1529,97 @@ function applyOnlineSnapshot(
         return;
     }
 
+    const nextBallX =
+        Number.isFinite(
+            snapshot.ball.x
+        )
+
+            ? snapshot.ball.x
+            : ball.x;
+
+    const nextBallY =
+        Number.isFinite(
+            snapshot.ball.y
+        )
+
+            ? snapshot.ball.y
+            : ball.y;
+
+    const nextBallVx =
+        Number.isFinite(
+            snapshot.ball.vx
+        )
+
+            ? snapshot.ball.vx
+            : ball.vx;
+
+    const nextBallVy =
+        Number.isFinite(
+            snapshot.ball.vy
+        )
+
+            ? snapshot.ball.vy
+            : ball.vy;
+
+    const nextLeftScore =
+        clamp(
+            Math.trunc(
+                Number.isFinite(
+                    snapshot.leftScore
+                )
+
+                    ? snapshot.leftScore
+                    : 0
+            ),
+            0,
+            99
+        );
+
+    const nextRightScore =
+        clamp(
+            Math.trunc(
+                Number.isFinite(
+                    snapshot.rightScore
+                )
+
+                    ? snapshot.rightScore
+                    : 0
+            ),
+            0,
+            99
+        );
+
+    const previousVisual =
+        onlineSession.guestBall;
+
+    const scoreChanged =
+        nextLeftScore !== leftScore ||
+        nextRightScore !== rightScore;
+
+    const paddleBounce =
+        previousVisual &&
+        previousVisual.vx *
+        nextBallVx < 0;
+
+    const visualError =
+        Math.hypot(
+            nextBallX - ball.x,
+            nextBallY - ball.y
+        );
+
+    const snapPosition =
+        !previousVisual ||
+        scoreChanged ||
+        paddleBounce ||
+        Boolean(
+            snapshot.gameOver
+        ) ||
+        visualError >
+            ONLINE_SYNC.snapDistance;
+
     for (
         const key of
         [
-            "x",
-            "y",
             "vx",
             "vy",
             "spin",
@@ -1408,6 +1644,30 @@ function applyOnlineSnapshot(
             snapshot.ball.shotType;
     }
 
+    const now =
+        performance.now();
+
+    onlineSession.guestBall = {
+        snapshotX: nextBallX,
+        snapshotY: nextBallY,
+        vx: nextBallVx,
+        vy: nextBallVy,
+        receivedAt: now,
+        lastFrameAt:
+            previousVisual
+
+                ? previousVisual.lastFrameAt
+                : now
+    };
+
+    if (snapPosition) {
+        ball.x = nextBallX;
+        ball.y = nextBallY;
+
+        onlineSession.guestBall
+            .lastFrameAt = now;
+    }
+
     if (
         onlineSession.side !== "left" &&
         Number.isFinite(
@@ -1428,31 +1688,11 @@ function applyOnlineSnapshot(
             snapshot.rightPaddleY;
     }
 
-    leftScore = clamp(
-        Math.trunc(
-            Number.isFinite(
-                snapshot.leftScore
-            )
+    leftScore =
+        nextLeftScore;
 
-                ? snapshot.leftScore
-                : 0
-        ),
-        0,
-        99
-    );
-
-    rightScore = clamp(
-        Math.trunc(
-            Number.isFinite(
-                snapshot.rightScore
-            )
-
-                ? snapshot.rightScore
-                : 0
-        ),
-        0,
-        99
-    );
+    rightScore =
+        nextRightScore;
 
     servingPlayer =
         snapshot.servingPlayer ===
@@ -1493,7 +1733,7 @@ function sendOnlineSnapshot(
 
         if (
             onlineSession.snapshotAccumulator <
-            2
+            ONLINE_SYNC.snapshotEverySteps
         ) {
             return;
         }
@@ -1551,8 +1791,9 @@ function beginOnlineGame() {
 
     onlineSession.screen = "playing";
     onlineSession.pointerHint =
+        !touchControlsPreferred() &&
         document.pointerLockElement !==
-        canvas;
+            canvas;
 
     sendOnlineSnapshot(true);
 }
@@ -5042,6 +5283,65 @@ function handleEscape() {
 
 
 // ============================================================
+// MOUSE Y TÁCTIL
+// ============================================================
+
+function touchControlsPreferred() {
+
+    const coarsePointer =
+        typeof window.matchMedia ===
+            "function" &&
+        window.matchMedia(
+            "(pointer: coarse)"
+        ).matches;
+
+    const noHover =
+        typeof window.matchMedia ===
+            "function" &&
+        window.matchMedia(
+            "(hover: none)"
+        ).matches;
+
+    return (
+        navigator.maxTouchPoints > 0 &&
+        (
+            coarsePointer ||
+            noHover
+        )
+    );
+}
+
+function requestTouchLandscape() {
+
+    if (
+        !touchControlsPreferred() ||
+        !screen.orientation ||
+        typeof screen.orientation.lock !==
+            "function"
+    ) {
+        return;
+    }
+
+    try {
+        const request =
+            screen.orientation.lock(
+                "landscape"
+            );
+
+        if (
+            request &&
+            typeof request.catch ===
+                "function"
+        ) {
+            request.catch(
+                () => {}
+            );
+        }
+    } catch {}
+}
+
+
+// ============================================================
 // MOUSE
 // ============================================================
 
@@ -5061,6 +5361,58 @@ function onlinePointerActive() {
             )
         )
     );
+}
+
+function onlineTouchControlActive() {
+
+    return (
+        touchControlsPreferred() &&
+        onlinePointerActive() &&
+        !gamePaused &&
+        !gameOver &&
+        !replayPlaying &&
+        [
+            "waiting",
+            "connecting",
+            "countdown",
+            "playing"
+        ].includes(
+            onlineSession.screen
+        )
+    );
+}
+
+function moveOnlineTouchPaddle(
+    event
+) {
+
+    const {
+        y
+    } =
+        mousePos(event);
+
+    const paddle =
+        sidePaddle(
+            onlineSession.side
+        );
+
+    paddle.y =
+        clamp(
+            y -
+            PADDLE.h / 2,
+            TABLE.top,
+            TABLE.bottom -
+            PADDLE.h
+        );
+
+    if (
+        onlineSession.role ===
+        "guest"
+    ) {
+        onlineTransport()?.sendInput({
+            targetY: paddle.y
+        });
+    }
 }
 
 function mouseControlActive() {
@@ -5211,6 +5563,7 @@ function requestMouseCapture() {
         gamePaused ||
         gameOver ||
         replayPlaying ||
+        touchControlsPreferred() ||
         !mouseControlActive() ||
         document.pointerLockElement ===
             canvas ||
@@ -5320,7 +5673,8 @@ document.addEventListener(
             performance.now() -
                 escapeResumeTime >
                 250 &&
-            mouseControlActive()
+            mouseControlActive() &&
+            !touchControlsPreferred()
         ) {
 
             if (
@@ -5336,6 +5690,121 @@ document.addEventListener(
                     performance.now();
             }
         }
+    }
+);
+
+canvas.addEventListener(
+    "pointerdown",
+    event => {
+
+        if (
+            event.pointerType !==
+                "touch" ||
+            !onlineTouchControlActive() ||
+            activeTouchPointerId !==
+                null
+        ) {
+            return;
+        }
+
+        const point =
+            mousePos(event);
+
+        const touchingButton =
+            interactiveItems()
+                .some(
+                    item =>
+                        inside(
+                            point.x,
+                            point.y,
+                            item.hitRect ||
+                            item.rect
+                        )
+                );
+
+        if (touchingButton) {
+            return;
+        }
+
+        activeTouchPointerId =
+            event.pointerId;
+
+        try {
+            canvas.setPointerCapture(
+                event.pointerId
+            );
+        } catch {}
+
+        event.preventDefault();
+
+        moveOnlineTouchPaddle(
+            event
+        );
+    },
+    {
+        passive: false
+    }
+);
+
+canvas.addEventListener(
+    "pointermove",
+    event => {
+
+        if (
+            event.pointerType !==
+                "touch" ||
+            event.pointerId !==
+                activeTouchPointerId
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+
+        moveOnlineTouchPaddle(
+            event
+        );
+    },
+    {
+        passive: false
+    }
+);
+
+const releaseOnlineTouch =
+    event => {
+
+        if (
+            event.pointerId !==
+            activeTouchPointerId
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        activeTouchPointerId = null;
+    };
+
+canvas.addEventListener(
+    "pointerup",
+    releaseOnlineTouch,
+    {
+        passive: false
+    }
+);
+
+canvas.addEventListener(
+    "pointercancel",
+    releaseOnlineTouch,
+    {
+        passive: false
+    }
+);
+
+window.addEventListener(
+    "blur",
+    () => {
+        activeTouchPointerId =
+            null;
     }
 );
 
@@ -6927,6 +7396,8 @@ function handleAction(id) {
         id ===
         "online"
     ) {
+        requestTouchLandscape();
+
         onlineMenuOpen = true;
         onlineSession.screen = "menu";
         onlineSession.errorKey = null;
@@ -10111,6 +10582,10 @@ function loop(
         }
     }
 
+
+    updateOnlineGuestBall(
+        timestamp
+    );
 
     drawGame();
 
