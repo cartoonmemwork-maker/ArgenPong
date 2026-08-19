@@ -539,15 +539,24 @@
     const createPeer = () => {
         closePeer();
 
-        peer =
+        const nextPeer =
             new RTCPeerConnection({
                 iceServers:
                     ICE_SERVERS
             });
 
-        peer.addEventListener(
+        peer =
+            nextPeer;
+
+        nextPeer.addEventListener(
             "icecandidate",
             event => {
+                if (
+                    peer !== nextPeer
+                ) {
+                    return;
+                }
+
                 if (event.candidate) {
                     sendSocket({
                         type: "signal",
@@ -558,11 +567,17 @@
             }
         );
 
-        peer.addEventListener(
+        nextPeer.addEventListener(
             "connectionstatechange",
             () => {
                 if (
-                    peer.connectionState ===
+                    peer !== nextPeer
+                ) {
+                    return;
+                }
+
+                if (
+                    nextPeer.connectionState ===
                         "failed" &&
                     !manualClose
                 ) {
@@ -575,7 +590,7 @@
 
         if (role === "host") {
             wireChannel(
-                peer.createDataChannel(
+                nextPeer.createDataChannel(
                     "argenpong",
                     {
                         ordered: true
@@ -583,9 +598,15 @@
                 )
             );
         } else {
-            peer.addEventListener(
+            nextPeer.addEventListener(
                 "datachannel",
                 event => {
+                    if (
+                        peer !== nextPeer
+                    ) {
+                        return;
+                    }
+
                     wireChannel(
                         event.channel
                     );
