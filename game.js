@@ -209,7 +209,7 @@ const TEXT = {
         fullscreen: "PANTALLA COMPLETA",
         exitFullscreen: "SALIR DE PANTALLA COMPLETA",
         practiceKeys: "CLICK, ENTER O ESPACIO PARA PRACTICAR",
-        practiceTouch: "DOBLE TOQUE PARA PRACTICAR",
+        practiceTouch: "UN TOQUE PARA PRACTICAR",
         waitingRematch: "ESPERANDO AL RIVAL",
         you: "VOS",
         opponent: "RIVAL",
@@ -257,6 +257,8 @@ const TEXT = {
         continue: "CONTINUAR",
         restart: "REINICIAR PARTIDA",
         settings: "AJUSTES",
+        classicPong: "PONG CLÁSICO",
+        argenPong: "ARGENPONG",
         press: "PRESIONÁ...",
         pause: "PAUSA",
         chooseSide: "ELEGÍ TU LADO",
@@ -307,7 +309,7 @@ const TEXT = {
         fullscreen: "FULLSCREEN",
         exitFullscreen: "EXIT FULLSCREEN",
         practiceKeys: "CLICK, ENTER OR SPACE TO PRACTICE",
-        practiceTouch: "DOUBLE TAP TO PRACTICE",
+        practiceTouch: "ONE TAP TO PRACTICE",
         waitingRematch: "WAITING FOR OPPONENT",
         you: "YOU",
         opponent: "OPPONENT",
@@ -355,6 +357,8 @@ const TEXT = {
         continue: "CONTINUE",
         restart: "RESTART MATCH",
         settings: "SETTINGS",
+        classicPong: "CLASSIC PONG",
+        argenPong: "ARGENPONG",
         press: "PRESS...",
         pause: "PAUSE",
         chooseSide: "CHOOSE YOUR SIDE",
@@ -518,6 +522,8 @@ let spinEnabled = SPIN.defaultEnabled;
 let physicsFps = TIMING.defaultFps;
 let ballColor = BALL.defaultColor;
 let ballSizeMode = BALL.defaultSizeMode;
+let classicPongMode = false;
+let classicPongSavedSettings = null;
 
 let previousFrameTime = null;
 let frameAccumulator = 0;
@@ -578,6 +584,7 @@ let physicsOpen = false;
 let ballOpen = false;
 let replayOpen = false;
 let languageOpen = false;
+let settingsFromStart = false;
 
 let confirmOpen = null;
 let hoveredButton = null;
@@ -620,6 +627,15 @@ const activeTouchPointers =
     new Map();
 
 let lastTouchInteractionTime =
+    -Infinity;
+
+let lastFullscreenTouchTime =
+    -Infinity;
+
+let lastFullscreenTouchPoint =
+    null;
+
+let suppressCanvasClickUntil =
     -Infinity;
 
 let replayAutoEnabled = REPLAY.defaultEnabled;
@@ -1197,6 +1213,91 @@ function resetBallAppearance() {
     );
 }
 
+function disableClassicPongPreset() {
+
+    classicPongMode = false;
+    classicPongSavedSettings = null;
+}
+
+function toggleClassicPongPreset() {
+
+    if (!classicPongMode) {
+
+        classicPongSavedSettings = {
+            courtColor,
+            scorePosition,
+            ballSizeMode
+        };
+
+        classicPongMode = true;
+        courtColor = "black";
+        scorePosition = "top";
+
+        setBallSizeMode(
+            "pong"
+        );
+
+    } else {
+
+        const saved =
+            classicPongSavedSettings;
+
+        classicPongMode = false;
+        classicPongSavedSettings = null;
+
+        courtColor =
+            saved?.courtColor ||
+            "black";
+
+        scorePosition =
+            saved?.scorePosition ||
+            SCORE.defaultPosition;
+
+        setBallSizeMode(
+            saved?.ballSizeMode ||
+            BALL.defaultSizeMode
+        );
+    }
+
+    if (
+        gameMode &&
+        !gameOver
+    ) {
+        resetBall();
+    }
+}
+
+function startSettingsActive() {
+
+    return (
+        startMenuOpen &&
+        settingsFromStart &&
+        (
+            settingsOpen ||
+            controlsOpen ||
+            backgroundOpen ||
+            physicsOpen ||
+            ballOpen ||
+            replayOpen ||
+            languageOpen
+        )
+    );
+}
+
+function closeStartSettings() {
+
+    settingsFromStart = false;
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+    ballOpen = false;
+    replayOpen = false;
+    languageOpen = false;
+    waitingForKey = null;
+    hoveredButton = null;
+}
+
 function resetPaddles() {
 
     const centerY =
@@ -1361,6 +1462,7 @@ function startGame(
     startMenuOpen = false;
     aiMenuOpen = false;
     onlineMenuOpen = false;
+    settingsFromStart = false;
 
     settingsOpen = false;
     controlsOpen = false;
@@ -2050,6 +2152,13 @@ function failOnline(errorKey) {
     gameOver = false;
     winner = null;
 
+    replayPlaying = false;
+    replayClip = [];
+    resetReplayCapture();
+    resetOnlineRematchChoices();
+    resetOnlineReplaySkipChoices();
+    resetOnlinePractice();
+
     onlineSession.screen = "error";
     onlineSession.errorKey =
         errorKey;
@@ -2438,6 +2547,8 @@ function drawOnlinePracticeBall() {
     }
 
     ctx.save();
+    applyCourtShadow();
+
     ctx.fillStyle =
         BALL.colors.white;
     ctx.beginPath();
@@ -2859,41 +2970,61 @@ function configureOnlineTransport() {
                 return;
             }
 
-            if (
-                gameMode === "online" &&
-                (
-                    gameOver ||
-                    replayPlaying ||
-                    checkWinner()
-                )
-            ) {
-                returnOnlineToQueue();
-                return;
-            }
-
             failOnline(
                 "opponentLeft"
             );
         },
 
         connectionLost() {
-            if (
-                gameMode === "online" &&
-                (
-                    gameOver ||
-                    replayPlaying ||
-                    checkWinner()
-                )
-            ) {
-                returnOnlineToQueue();
-                return;
-            }
-
             failOnline(
                 "onlineConnectionError"
             );
         }
     });
+}
+
+function goToOnlineMenu() {
+
+    resetLetState();
+    clearOnlineCountdown();
+    clearOnlineQueueTimer();
+    clearOnlineStatsPolling();
+
+    onlineTransport()?.close();
+    restoreOfflineSettings();
+    releaseMouseCapture();
+
+    startMenuOpen = true;
+    aiMenuOpen = false;
+    onlineMenuOpen = true;
+    settingsFromStart = false;
+
+    gameMode = null;
+    gamePaused = false;
+    gameOver = false;
+    winner = null;
+
+    settingsOpen = false;
+    controlsOpen = false;
+    backgroundOpen = false;
+    physicsOpen = false;
+    ballOpen = false;
+    replayOpen = false;
+    languageOpen = false;
+    confirmOpen = null;
+    waitingForKey = null;
+    hoveredButton = null;
+
+    replayPlaying = false;
+    replayClip = [];
+    resetReplayCapture();
+    resetPaddles();
+    resetOnlineSession();
+
+    onlineSession.screen = "menu";
+    onlineSession.errorKey = null;
+
+    startOnlineStatsPolling();
 }
 
 function returnOnlineToQueue() {
@@ -3024,6 +3155,7 @@ function goToStartMenu() {
     startMenuOpen = true;
     aiMenuOpen = false;
     onlineMenuOpen = false;
+    settingsFromStart = false;
 
     gamePaused = false;
     gameOver = false;
@@ -6299,6 +6431,12 @@ function handleEscape() {
 
     if (startMenuOpen) {
 
+        if (startSettingsActive()) {
+
+            closeStartSettings();
+            return;
+        }
+
         if (onlineMenuOpen) {
 
             goToStartMenu();
@@ -6913,14 +7051,65 @@ canvas.addEventListener(
 
         if (
             event.pointerType !==
-                "touch" ||
-            !touchPaddleControlActive()
+                "touch"
         ) {
             return;
         }
 
         const point =
             mousePos(event);
+
+        const now =
+            performance.now();
+
+        if (
+            event.isPrimary !== false &&
+            lastFullscreenTouchPoint &&
+            now -
+                lastFullscreenTouchTime <=
+                340 &&
+            Math.hypot(
+                point.x -
+                    lastFullscreenTouchPoint.x,
+                point.y -
+                    lastFullscreenTouchPoint.y
+            ) <= 80 &&
+            fullscreenSupported()
+        ) {
+            lastFullscreenTouchTime =
+                -Infinity;
+
+            lastFullscreenTouchPoint =
+                null;
+
+            suppressCanvasClickUntil =
+                now + 600;
+
+            lastTouchInteractionTime =
+                now;
+
+            event.preventDefault();
+            toggleFullscreen();
+            return;
+        }
+
+        if (
+            event.isPrimary !== false
+        ) {
+            lastFullscreenTouchTime =
+                now;
+
+            lastFullscreenTouchPoint = {
+                x: point.x,
+                y: point.y
+            };
+        }
+
+        if (
+            !touchPaddleControlActive()
+        ) {
+            return;
+        }
 
         const touchingButton =
             interactiveItems()
@@ -6939,29 +7128,14 @@ canvas.addEventListener(
         }
 
         lastTouchInteractionTime =
-            performance.now();
+            now;
 
         if (
             onlinePointerActive() &&
             onlineSession.screen ===
                 "waiting"
         ) {
-            const now =
-                lastTouchInteractionTime;
-
-            if (
-                now -
-                onlineSession.practiceTapTime <=
-                340
-            ) {
-                launchOnlinePracticeBall();
-
-                onlineSession.practiceTapTime =
-                    -Infinity;
-            } else {
-                onlineSession.practiceTapTime =
-                    now;
-            }
+            launchOnlinePracticeBall();
         }
 
         const side =
@@ -7205,7 +7379,26 @@ canvas.addEventListener(
     "click",
     event => {
 
-    if (replayPlaying) {
+        const now =
+            performance.now();
+
+        if (
+            now <
+            suppressCanvasClickUntil
+        ) {
+            event.preventDefault();
+            return;
+        }
+
+        if (
+            event.detail >= 2 &&
+            fullscreenSupported()
+        ) {
+            toggleFullscreen();
+            return;
+        }
+
+        if (replayPlaying) {
 
             if (
                 gameMode === "online"
@@ -7469,7 +7662,8 @@ function interactiveItems() {
 
     if (
         startMenuOpen &&
-        !aiMenuOpen
+        !aiMenuOpen &&
+        !startSettingsActive()
     ) {
 
         add(
@@ -7512,8 +7706,8 @@ function interactiveItems() {
         );
 
         add(
-            "fullscreen",
-            t("fullscreen"),
+            "startSettings",
+            t("settings"),
             buttonRect(
                 3,
                 4,
@@ -7521,8 +7715,7 @@ function interactiveItems() {
                 50,
                 12,
                 420
-            ),
-            !fullscreenSupported()
+            )
         );
 
         return items;
@@ -8168,6 +8361,15 @@ function interactiveItems() {
             ],
 
             [
+                "classicPong",
+                t(
+                    classicPongMode
+                        ? "argenPong"
+                        : "classicPong"
+                )
+            ],
+
+            [
                 "settingsBack",
                 t("back")
             ]
@@ -8187,7 +8389,7 @@ function interactiveItems() {
 
                     buttonRect(
                         index,
-                        9,
+                        10,
                         430,
                         39,
                         5,
@@ -8728,6 +8930,18 @@ function handleAction(id) {
 
     if (
         id ===
+        "startSettings"
+    ) {
+        settingsFromStart = true;
+        settingsOpen = true;
+        aiMenuOpen = false;
+        onlineMenuOpen = false;
+        return;
+    }
+
+
+    if (
+        id ===
         "online"
     ) {
         requestTouchLandscape();
@@ -8803,7 +9017,14 @@ function handleAction(id) {
     if (
         id === "onlineBack"
     ) {
-        goToStartMenu();
+        if (
+            onlineSession.screen ===
+            "menu"
+        ) {
+            goToStartMenu();
+        } else {
+            goToOnlineMenu();
+        }
         return;
     }
 
@@ -9037,6 +9258,8 @@ function handleAction(id) {
         "ballSize"
     ) {
 
+        disableClassicPongPreset();
+
         setBallSizeMode(
             ballSizeMode === "pong"
 
@@ -9053,6 +9276,7 @@ function handleAction(id) {
         "ballDefaults"
     ) {
 
+        disableClassicPongPreset();
         resetBallAppearance();
 
         return;
@@ -9128,8 +9352,12 @@ function handleAction(id) {
         "settingsBack"
     ) {
 
-        settingsOpen =
-            false;
+        if (settingsFromStart) {
+            closeStartSettings();
+        } else {
+            settingsOpen =
+                false;
+        }
 
         return;
     }
@@ -9154,6 +9382,8 @@ function handleAction(id) {
         id ===
         "scorePosition"
     ) {
+
+        disableClassicPongPreset();
 
         scorePosition =
             scorePosition === "bottom"
@@ -9287,9 +9517,21 @@ function handleAction(id) {
         ].includes(id)
     ) {
 
+        disableClassicPongPreset();
+
         courtColor =
             id;
 
+        return;
+    }
+
+
+    if (
+        id ===
+        "classicPong"
+    ) {
+
+        toggleClassicPongPreset();
         return;
     }
 
@@ -9617,7 +9859,7 @@ function handleAction(id) {
         id ===
         "onlineReturn"
     ) {
-        returnOnlineToQueue();
+        goToOnlineMenu();
         return;
     }
 
@@ -9688,6 +9930,24 @@ function updateHover(
 // RENDER BASE
 // ============================================================
 
+function applyCourtShadow(
+    blur = 8,
+    offset = 3
+) {
+
+    ctx.shadowColor =
+        "rgba(0,0,0,.78)";
+
+    ctx.shadowBlur =
+        blur;
+
+    ctx.shadowOffsetX =
+        offset;
+
+    ctx.shadowOffsetY =
+        offset;
+}
+
 function drawTable() {
 
     ctx.fillStyle =
@@ -9702,6 +9962,12 @@ function drawTable() {
         TABLE.left,
         TABLE.bottom -
         TABLE.top
+    );
+
+    ctx.save();
+    applyCourtShadow(
+        6,
+        2
     );
 
     ctx.strokeStyle =
@@ -9739,9 +10005,13 @@ function drawTable() {
     ctx.stroke();
 
     ctx.setLineDash([]);
+    ctx.restore();
 }
 
 function drawPaddles() {
+
+    ctx.save();
+    applyCourtShadow();
 
     ctx.fillStyle =
         "#FFFFFF";
@@ -9759,6 +10029,8 @@ function drawPaddles() {
         PADDLE.w,
         PADDLE.h
     );
+
+    ctx.restore();
 }
 
 function drawBallShape(
@@ -9801,6 +10073,9 @@ function drawBallShape(
 
 function drawBall() {
 
+    ctx.save();
+    applyCourtShadow();
+
     ctx.fillStyle =
         currentBallColor();
 
@@ -9811,6 +10086,8 @@ function drawBall() {
         ball.y +
         BALL.size / 2
     );
+
+    ctx.restore();
 }
 
 
@@ -9819,6 +10096,12 @@ function drawBall() {
 // ============================================================
 
 function drawScore() {
+
+    ctx.save();
+    applyCourtShadow(
+        5,
+        2
+    );
 
     /*
         Usamos baseline alfabética
@@ -9883,6 +10166,7 @@ function drawScore() {
         !side ||
         gameOver
     ) {
+        ctx.restore();
         return;
     }
 
@@ -9993,6 +10277,7 @@ function drawScore() {
     );
 
 
+    ctx.restore();
     ctx.restore();
 }
 
@@ -10584,6 +10869,8 @@ function drawStart() {
             onlineSession.screen ===
             "waiting"
         ) {
+            ctx.save();
+            applyCourtShadow();
             ctx.fillStyle = "#FFFFFF";
 
             const paddle =
@@ -10597,6 +10884,7 @@ function drawStart() {
                 PADDLE.w,
                 PADDLE.h
             );
+            ctx.restore();
 
             drawOnlinePracticeBall();
         }
@@ -11469,6 +11757,9 @@ function drawReplay() {
         frame
     );
 
+    ctx.save();
+    applyCourtShadow();
+
     ctx.fillStyle =
         "#FFFFFF";
 
@@ -11496,6 +11787,8 @@ function drawReplay() {
         frame.ballY +
         BALL.size / 2
     );
+
+    ctx.restore();
 
     drawScore();
 
@@ -11786,6 +12079,10 @@ function drawOnlineLatency() {
             : "-- ms";
 
     ctx.save();
+    applyCourtShadow(
+        3,
+        1
+    );
     ctx.fillStyle =
         "rgba(255,255,255,.68)";
     ctx.font =
@@ -11857,7 +12154,10 @@ function drawGame() {
     );
 
 
-    if (startMenuOpen) {
+    if (
+        startMenuOpen &&
+        !startSettingsActive()
+    ) {
 
         drawStart();
 
