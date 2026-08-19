@@ -204,7 +204,13 @@ const TEXT = {
         vsAi: "VS IA",
         onlinePvp: "PVP ONLINE",
         onlineJoin: "UNIRME",
-        onlineSelectSide: "SELECCIONAR LADO",
+        onlineSelectSide: "CREAR PARTIDA",
+        fullscreen: "PANTALLA COMPLETA",
+        exitFullscreen: "SALIR DE PANTALLA COMPLETA",
+        practiceKeys: "CLICK, ENTER O ESPACIO PARA PRACTICAR",
+        practiceTouch: "DOBLE TOQUE PARA PRACTICAR",
+        waitingRematch: "ESPERANDO AL RIVAL",
+        youLost: "Perdiste",
         searchingOpponent: "BUSCANDO OPONENTE",
         waitingOpponent: "ESPERANDO OPONENTE",
         opponentFound: "OPONENTE ENCONTRADO",
@@ -221,7 +227,7 @@ const TEXT = {
         hard: "DIFÍCIL",
         difficulty: "DIFICULTAD",
         back: "VOLVER",
-        rematch: "¿REVANCHA?",
+        rematch: "REVANCHA",
         mainMenu: "MENÚ INICIAL",
         yes: "SÍ",
         no: "NO",
@@ -292,7 +298,13 @@ const TEXT = {
         vsAi: "VS AI",
         onlinePvp: "ONLINE PVP",
         onlineJoin: "JOIN",
-        onlineSelectSide: "SELECT SIDE",
+        onlineSelectSide: "CREATE MATCH",
+        fullscreen: "FULLSCREEN",
+        exitFullscreen: "EXIT FULLSCREEN",
+        practiceKeys: "CLICK, ENTER OR SPACE TO PRACTICE",
+        practiceTouch: "DOUBLE TAP TO PRACTICE",
+        waitingRematch: "WAITING FOR OPPONENT",
+        youLost: "You lost",
         searchingOpponent: "SEARCHING FOR OPPONENT",
         waitingOpponent: "WAITING FOR OPPONENT",
         opponentFound: "OPPONENT FOUND",
@@ -309,7 +321,7 @@ const TEXT = {
         hard: "HARD",
         difficulty: "DIFFICULTY",
         back: "BACK",
-        rematch: "REMATCH?",
+        rematch: "REMATCH",
         mainMenu: "MAIN MENU",
         yes: "YES",
         no: "NO",
@@ -524,6 +536,10 @@ const onlineSession = {
     snapshotAccumulator: 0,
     latencyMs: null,
     guestBall: null,
+    practiceBall: null,
+    practiceTapTime: -Infinity,
+    localRematchReady: false,
+    remoteRematchReady: false,
     pointerHint: false,
     countdownTimers: []
 };
@@ -1358,6 +1374,13 @@ function resetOnlineSession() {
     onlineSession.snapshotAccumulator = 0;
     onlineSession.latencyMs = null;
     onlineSession.guestBall = null;
+    onlineSession.practiceBall = null;
+    onlineSession.practiceTapTime =
+        -Infinity;
+    onlineSession.localRematchReady =
+        false;
+    onlineSession.remoteRematchReady =
+        false;
     onlineSession.pointerHint = false;
     activeTouchPointerId = null;
 }
@@ -1784,6 +1807,12 @@ function beginOnlineGame() {
     clearOnlineCountdown();
     applyOnlineDefaults();
 
+    onlineSession.practiceBall = null;
+    onlineSession.localRematchReady =
+        false;
+    onlineSession.remoteRematchReady =
+        false;
+
     startGame(
         "online",
         onlineSession.side
@@ -1857,6 +1886,433 @@ function startHostCountdown() {
     );
 }
 
+function resetOnlinePractice() {
+
+    onlineSession.practiceBall = null;
+    onlineSession.practiceTapTime =
+        -Infinity;
+}
+
+function launchOnlinePracticeBall() {
+
+    if (
+        !startMenuOpen ||
+        !onlineMenuOpen ||
+        onlineSession.screen !==
+            "waiting" ||
+        onlineSession.practiceBall
+    ) {
+        return false;
+    }
+
+    const paddle =
+        sidePaddle(
+            onlineSession.side
+        );
+
+    const size =
+        BALL.sizes.pingPong;
+
+    const speed =
+        BALL.speedLevels[
+            BALL.defaultLevel - 1
+        ];
+
+    const verticalSpeed =
+        speed *
+        (
+            Math.random() < 0.5
+                ? -0.32
+                : 0.32
+        );
+
+    const horizontalSpeed =
+        Math.sqrt(
+            Math.max(
+                0,
+                speed * speed -
+                verticalSpeed *
+                verticalSpeed
+            )
+        );
+
+    const direction =
+        onlineSession.side === "left"
+            ? 1
+            : -1;
+
+    onlineSession.practiceBall = {
+        x:
+            onlineSession.side === "left"
+
+                ? paddle.x +
+                  PADDLE.w +
+                  8
+                : paddle.x -
+                  size -
+                  8,
+
+        y:
+            paddle.y +
+            PADDLE.h / 2 -
+            size / 2,
+
+        vx:
+            horizontalSpeed *
+            direction,
+
+        vy: verticalSpeed,
+        size
+    };
+
+    return true;
+}
+
+function updateOnlinePracticeBall(
+    stepScale = 1
+) {
+
+    const practice =
+        onlineSession.practiceBall;
+
+    if (
+        !practice ||
+        !startMenuOpen ||
+        !onlineMenuOpen ||
+        onlineSession.screen !==
+            "waiting"
+    ) {
+        return;
+    }
+
+    practice.x +=
+        practice.vx *
+        stepScale;
+
+    practice.y +=
+        practice.vy *
+        stepScale;
+
+    if (
+        practice.y <=
+        TABLE.top
+    ) {
+        practice.y =
+            TABLE.top;
+        practice.vy =
+            Math.abs(
+                practice.vy
+            );
+        wallSound();
+
+    } else if (
+        practice.y +
+        practice.size >=
+        TABLE.bottom
+    ) {
+        practice.y =
+            TABLE.bottom -
+            practice.size;
+        practice.vy =
+            -Math.abs(
+                practice.vy
+            );
+        wallSound();
+    }
+
+    if (
+        onlineSession.side ===
+            "left" &&
+        practice.x +
+            practice.size >=
+            TABLE.right
+    ) {
+        practice.x =
+            TABLE.right -
+            practice.size;
+        practice.vx =
+            -Math.abs(
+                practice.vx
+            );
+        wallSound();
+
+    } else if (
+        onlineSession.side ===
+            "right" &&
+        practice.x <=
+            TABLE.left
+    ) {
+        practice.x =
+            TABLE.left;
+        practice.vx =
+            Math.abs(
+                practice.vx
+            );
+        wallSound();
+    }
+
+    const paddle =
+        sidePaddle(
+            onlineSession.side
+        );
+
+    const movingTowardPaddle =
+        onlineSession.side === "left"
+
+            ? practice.vx < 0
+            : practice.vx > 0;
+
+    const overlapsPaddle =
+        practice.x <
+            paddle.x +
+            PADDLE.w &&
+        practice.x +
+            practice.size >
+            paddle.x &&
+        practice.y <
+            paddle.y +
+            PADDLE.h &&
+        practice.y +
+            practice.size >
+            paddle.y;
+
+    if (
+        movingTowardPaddle &&
+        overlapsPaddle
+    ) {
+        const speed =
+            Math.hypot(
+                practice.vx,
+                practice.vy
+            );
+
+        const hitOffset =
+            clamp(
+                (
+                    practice.y +
+                    practice.size / 2 -
+                    (
+                        paddle.y +
+                        PADDLE.h / 2
+                    )
+                ) /
+                (
+                    PADDLE.h / 2
+                ),
+                -1,
+                1
+            );
+
+        practice.vy =
+            clamp(
+                hitOffset *
+                speed *
+                0.78 +
+                paddle.vy *
+                0.28,
+                -speed * 0.9,
+                speed * 0.9
+            );
+
+        const horizontal =
+            Math.sqrt(
+                Math.max(
+                    1,
+                    speed * speed -
+                    practice.vy *
+                    practice.vy
+                )
+            );
+
+        if (
+            onlineSession.side ===
+            "left"
+        ) {
+            practice.x =
+                paddle.x +
+                PADDLE.w;
+            practice.vx =
+                Math.abs(horizontal);
+
+        } else {
+            practice.x =
+                paddle.x -
+                practice.size;
+            practice.vx =
+                -Math.abs(horizontal);
+        }
+
+        paddleSound();
+    }
+
+    const missed =
+        onlineSession.side === "left"
+
+            ? practice.x +
+              practice.size <
+              TABLE.left
+
+            : practice.x >
+              TABLE.right;
+
+    if (missed) {
+        onlineSession.practiceBall =
+            null;
+    }
+}
+
+function drawOnlinePracticeBall() {
+
+    const practice =
+        onlineSession.practiceBall;
+
+    if (
+        onlineSession.screen !==
+            "waiting" ||
+        !practice
+    ) {
+        return;
+    }
+
+    ctx.save();
+    ctx.fillStyle =
+        BALL.colors.white;
+    ctx.beginPath();
+    ctx.arc(
+        practice.x +
+            practice.size / 2,
+        practice.y +
+            practice.size / 2,
+        practice.size / 2,
+        0,
+        Math.PI * 2
+    );
+    ctx.fill();
+    ctx.restore();
+}
+
+function resetOnlineRematchChoices() {
+
+    onlineSession.localRematchReady =
+        false;
+
+    onlineSession.remoteRematchReady =
+        false;
+}
+
+function finishOnlineRematchCountdown() {
+
+    clearOnlineCountdown();
+
+    onlineSession.screen =
+        "playing";
+
+    onlineSession.pointerHint =
+        !touchControlsPreferred() &&
+        document.pointerLockElement !==
+            canvas;
+
+    if (
+        onlineSession.role ===
+        "host"
+    ) {
+        onlineTransport()?.sendEvent({
+            type: "rematch_start"
+        });
+
+        sendOnlineSnapshot(true);
+    }
+}
+
+function startHostRematchCountdown() {
+
+    if (
+        onlineSession.role !==
+            "host"
+    ) {
+        return;
+    }
+
+    clearOnlineCountdown();
+    resetOnlineRematchChoices();
+    resetMatch();
+    setOnlineCountdown(3);
+
+    onlineTransport()?.sendEvent({
+        type: "rematch_countdown",
+        value: 3
+    });
+
+    [
+        [1000, 2],
+        [2000, 1]
+    ].forEach(
+        ([delay, value]) => {
+            onlineSession.countdownTimers
+                .push(
+                    setTimeout(
+                        () => {
+                            setOnlineCountdown(
+                                value
+                            );
+
+                            onlineTransport()
+                                ?.sendEvent({
+                                    type:
+                                        "rematch_countdown",
+                                    value
+                                });
+                        },
+                        delay
+                    )
+                );
+        }
+    );
+
+    onlineSession.countdownTimers.push(
+        setTimeout(
+            finishOnlineRematchCountdown,
+            3000
+        )
+    );
+}
+
+function maybeStartOnlineRematch() {
+
+    if (
+        onlineSession.role ===
+            "host" &&
+        gameOver &&
+        onlineSession.localRematchReady &&
+        onlineSession.remoteRematchReady
+    ) {
+        startHostRematchCountdown();
+    }
+}
+
+function toggleOnlineRematch() {
+
+    if (
+        gameMode !== "online" ||
+        !gameOver
+    ) {
+        return;
+    }
+
+    onlineSession.localRematchReady =
+        !onlineSession
+            .localRematchReady;
+
+    onlineTransport()?.sendEvent({
+        type: "rematch_ready",
+        ready:
+            onlineSession
+                .localRematchReady
+    });
+
+    maybeStartOnlineRematch();
+}
+
 function handleOnlineEvent(event) {
 
     if (!event) {
@@ -1882,6 +2338,47 @@ function handleOnlineEvent(event) {
         onlineSession.role === "guest"
     ) {
         beginOnlineGame();
+        return;
+    }
+
+    if (
+        event.type ===
+        "rematch_ready"
+    ) {
+        onlineSession.remoteRematchReady =
+            Boolean(event.ready);
+
+        maybeStartOnlineRematch();
+        return;
+    }
+
+    if (
+        event.type ===
+            "rematch_countdown" &&
+        onlineSession.role === "guest"
+    ) {
+        const value =
+            clamp(
+                Math.trunc(event.value),
+                1,
+                3
+            );
+
+        if (value === 3) {
+            resetOnlineRematchChoices();
+            resetMatch();
+        }
+
+        setOnlineCountdown(value);
+        return;
+    }
+
+    if (
+        event.type ===
+            "rematch_start" &&
+        onlineSession.role === "guest"
+    ) {
+        finishOnlineRematchCountdown();
         return;
     }
 
@@ -1941,6 +2438,7 @@ function configureOnlineTransport() {
             humanSide = side;
             onlineSession.screen =
                 "connecting";
+            resetOnlinePractice();
             resetPaddles();
         },
 
@@ -4851,7 +5349,12 @@ function updateBall(
 
     if (
         gameMode === "online" &&
-        onlineSession.role === "guest"
+        (
+            onlineSession.role ===
+                "guest" ||
+            onlineSession.screen !==
+                "playing"
+        )
     ) {
         return;
     }
@@ -5097,6 +5600,23 @@ window.addEventListener(
 
 
         if (
+            startMenuOpen &&
+            onlineMenuOpen &&
+            onlineSession.screen ===
+                "waiting" &&
+            (
+                event.key === "Enter" ||
+                event.code === "Space" ||
+                event.key === " "
+            )
+        ) {
+            event.preventDefault();
+            launchOnlinePracticeBall();
+            return;
+        }
+
+
+        if (
             (
                 startMenuOpen &&
                 !onlinePointerActive()
@@ -5309,6 +5829,94 @@ function touchControlsPreferred() {
             noHover
         )
     );
+}
+
+function currentFullscreenElement() {
+
+    return (
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        null
+    );
+}
+
+function fullscreenSupported() {
+
+    const root =
+        document.documentElement;
+
+    return Boolean(
+        root.requestFullscreen ||
+        root.webkitRequestFullscreen
+    );
+}
+
+function toggleFullscreen() {
+
+    if (
+        currentFullscreenElement()
+    ) {
+        const exit =
+            document.exitFullscreen ||
+            document.webkitExitFullscreen;
+
+        if (
+            typeof exit === "function"
+        ) {
+            try {
+                const request =
+                    exit.call(document);
+
+                if (
+                    request &&
+                    typeof request.catch ===
+                        "function"
+                ) {
+                    request.catch(
+                        () => {}
+                    );
+                }
+            } catch {}
+        }
+
+        return;
+    }
+
+    const root =
+        document.documentElement;
+
+    const enter =
+        root.requestFullscreen ||
+        root.webkitRequestFullscreen;
+
+    if (
+        typeof enter !== "function"
+    ) {
+        return;
+    }
+
+    try {
+        const request =
+            enter.call(root, {
+                navigationUI: "hide"
+            });
+
+        if (
+            request &&
+            typeof request.then ===
+                "function"
+        ) {
+            request
+                .then(
+                    requestTouchLandscape
+                )
+                .catch(
+                    () => {}
+                );
+        } else {
+            requestTouchLandscape();
+        }
+    } catch {}
 }
 
 function requestTouchLandscape() {
@@ -5726,6 +6334,28 @@ canvas.addEventListener(
             return;
         }
 
+        if (
+            onlineSession.screen ===
+            "waiting"
+        ) {
+            const now =
+                performance.now();
+
+            if (
+                now -
+                onlineSession.practiceTapTime <=
+                340
+            ) {
+                launchOnlinePracticeBall();
+
+                onlineSession.practiceTapTime =
+                    -Infinity;
+            } else {
+                onlineSession.practiceTapTime =
+                    now;
+            }
+        }
+
         activeTouchPointerId =
             event.pointerId;
 
@@ -5980,6 +6610,7 @@ canvas.addEventListener(
 
         } else {
 
+            launchOnlinePracticeBall();
             requestMouseCapture();
         }
     }
@@ -6200,11 +6831,11 @@ function interactiveItems() {
             t("vsAi"),
             buttonRect(
                 0,
-                3,
+                4,
                 340,
                 50,
                 12,
-                410
+                420
             )
         );
 
@@ -6213,11 +6844,11 @@ function interactiveItems() {
             t("localPvp"),
             buttonRect(
                 1,
-                3,
+                4,
                 340,
                 50,
                 12,
-                410
+                420
             )
         );
 
@@ -6226,12 +6857,29 @@ function interactiveItems() {
             t("onlinePvp"),
             buttonRect(
                 2,
-                3,
+                4,
                 340,
                 50,
                 12,
-                410
+                420
             )
+        );
+
+        add(
+            "fullscreen",
+            currentFullscreenElement()
+
+                ? t("exitFullscreen")
+                : t("fullscreen"),
+            buttonRect(
+                3,
+                4,
+                340,
+                50,
+                12,
+                420
+            ),
+            !fullscreenSupported()
         );
 
         return items;
@@ -6352,7 +7000,27 @@ function interactiveItems() {
             );
         }
 
-        if (gameMode !== "online") {
+        if (gameMode === "online") {
+            add(
+                "onlineRematch",
+                `${t("rematch")} ${
+                    onlineSession
+                        .localRematchReady
+
+                        ? "✓"
+                        : "□"
+                }`,
+                {
+                    x:
+                        W / 2 - 150,
+                    y:
+                        H / 2 + 55,
+                    w: 300,
+                    h: 60
+                }
+            );
+
+        } else {
             add(
                 "revenge",
                 t("rematch"),
@@ -6385,10 +7053,13 @@ function interactiveItems() {
                 y:
                     H / 2 +
                     (
-                        difficultySelectable
+                        gameMode === "online"
 
-                            ? 175
-                            : 135
+                            ? 135
+                            : difficultySelectable
+
+                                ? 175
+                                : 135
                     ),
 
                 w: 260,
@@ -7393,6 +8064,14 @@ function handleAction(id) {
 
 
     if (
+        id === "fullscreen"
+    ) {
+        toggleFullscreen();
+        return;
+    }
+
+
+    if (
         id ===
         "online"
     ) {
@@ -7426,6 +8105,7 @@ function handleAction(id) {
         onlineSession.screen =
             "waiting";
         onlineSession.errorKey = null;
+        resetOnlinePractice();
         resetPaddles();
 
         onlineTransport()?.host(
@@ -7445,6 +8125,7 @@ function handleAction(id) {
             );
         humanSide =
             onlineSession.side;
+        resetOnlinePractice();
         resetPaddles();
 
         onlineTransport()?.updateSide(
@@ -8254,6 +8935,15 @@ function handleAction(id) {
 
         resetAIThinking();
 
+        return;
+    }
+
+
+    if (
+        id ===
+        "onlineRematch"
+    ) {
+        toggleOnlineRematch();
         return;
     }
 
@@ -9233,6 +9923,8 @@ function drawStart() {
                 PADDLE.w,
                 PADDLE.h
             );
+
+            drawOnlinePracticeBall();
         }
 
         if (
@@ -9288,6 +9980,22 @@ function drawStart() {
             "bold 30px monospace"
         );
         ctx.restore();
+
+        if (
+            onlineSession.screen ===
+            "waiting"
+        ) {
+            title(
+                t(
+                    touchControlsPreferred()
+
+                        ? "practiceTouch"
+                        : "practiceKeys"
+                ),
+                160,
+                "14px monospace"
+            );
+        }
 
         if (
             onlineSession.screen ===
@@ -10198,6 +10906,19 @@ function victoryTitle() {
 
     if (
         gameMode ===
+        "online"
+    ) {
+        return (
+            winner ===
+            onlineSession.side
+
+                ? t("youWon")
+                : t("youLost")
+        );
+    }
+
+    if (
+        gameMode ===
         "ai" &&
         !aiVsAiEnabled
     ) {
@@ -10233,11 +10954,44 @@ function drawVictory() {
         UI.winner
     );
 
+    if (
+        gameMode === "online" &&
+        onlineSession.localRematchReady &&
+        !onlineSession.remoteRematchReady
+    ) {
+        title(
+            t("waitingRematch"),
+            H / 2 + 20,
+            "16px monospace"
+        );
+    }
+
 
     interactiveItems()
         .forEach(
             drawButton
         );
+}
+
+function drawOnlineGameCountdown() {
+
+    if (
+        gameMode !== "online" ||
+        startMenuOpen ||
+        onlineSession.screen !==
+            "countdown"
+    ) {
+        return;
+    }
+
+    title(
+        String(
+            onlineSession.countdown ||
+            3
+        ),
+        H / 2,
+        "bold 108px monospace"
+    );
 }
 
 function drawOnlineLatency() {
@@ -10352,6 +11106,7 @@ function drawGame() {
     drawScore();
     drawOnlineLatency();
     drawOnlinePointerHint();
+    drawOnlineGameCountdown();
 
 
     if (gameOver) {
@@ -10536,6 +11291,10 @@ function loop(
         );
 
         updatePaddleMotion(
+            stepScale
+        );
+
+        updateOnlinePracticeBall(
             stepScale
         );
 
