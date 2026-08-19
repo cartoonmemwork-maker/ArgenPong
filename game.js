@@ -95,7 +95,9 @@ SPEED_SCALE.timeScale =
     SPEED_SCALE.kmhPerSpeedUnit;
 
 const BALL = {
-    size: 20,
+    size:
+        TABLE_PIXELS_PER_METER *
+        0.04,
 
     sizes: {
         pong: 20,
@@ -110,7 +112,7 @@ const BALL = {
     },
 
     defaultColor: "white",
-    defaultSizeMode: "pong",
+    defaultSizeMode: "pingPong",
 
     speedLevels:
         SPEED_SCALE.initialKmhLevels
@@ -200,6 +202,7 @@ const TEXT = {
         easy: "FÁCIL",
         normal: "NORMAL",
         hard: "DIFÍCIL",
+        difficulty: "DIFICULTAD",
         back: "VOLVER",
         rematch: "¿REVANCHA?",
         mainMenu: "MENÚ INICIAL",
@@ -212,7 +215,7 @@ const TEXT = {
         progressive: "VELOCIDAD PROGRESIVA",
         resetDefaults: "RESTABLECER POR DEFECTO",
         controls: "CONTROLES",
-        background: "FONDO",
+        background: "MESA",
         physics: "FÍSICAS",
         ball: "PELOTA",
         color: "COLOR",
@@ -274,6 +277,7 @@ const TEXT = {
         easy: "EASY",
         normal: "NORMAL",
         hard: "HARD",
+        difficulty: "DIFFICULTY",
         back: "BACK",
         rematch: "REMATCH?",
         mainMenu: "MAIN MENU",
@@ -286,7 +290,7 @@ const TEXT = {
         progressive: "PROGRESSIVE SPEED",
         resetDefaults: "RESTORE DEFAULTS",
         controls: "CONTROLS",
-        background: "BACKGROUND",
+        background: "TABLE",
         physics: "PHYSICS",
         ball: "BALL",
         color: "COLOR",
@@ -4899,6 +4903,32 @@ function interactiveItems() {
 
     if (gameOver) {
 
+        const difficultySelectable =
+            gameMode === "ai" &&
+            !aiVsAiEnabled;
+
+        if (difficultySelectable) {
+
+            add(
+                "victoryDifficulty",
+
+                `${t("difficulty")}: ${difficultyLabel(
+                    aiDifficulty
+                )}`,
+
+                {
+                    x:
+                        W / 2 - 180,
+
+                    y:
+                        H / 2 + 30,
+
+                    w: 360,
+                    h: 52
+                }
+            );
+        }
+
         add(
             "revenge",
             t("rematch"),
@@ -4907,7 +4937,13 @@ function interactiveItems() {
                     W / 2 - 130,
 
                 y:
-                    H / 2 + 55,
+                    H / 2 +
+                    (
+                        difficultySelectable
+
+                            ? 95
+                            : 55
+                    ),
 
                 w: 260,
                 h: 60
@@ -4922,7 +4958,13 @@ function interactiveItems() {
                     W / 2 - 130,
 
                 y:
-                    H / 2 + 135,
+                    H / 2 +
+                    (
+                        difficultySelectable
+
+                            ? 175
+                            : 135
+                    ),
 
                 w: 260,
                 h: 52
@@ -5334,13 +5376,13 @@ function interactiveItems() {
             ],
 
             [
-                "physics",
-                t("physics")
+                "ballSettings",
+                t("ball")
             ],
 
             [
-                "ballSettings",
-                t("ball")
+                "physics",
+                t("physics")
             ],
 
             [
@@ -6685,6 +6727,22 @@ function handleAction(id) {
 
     if (
         id ===
+        "victoryDifficulty"
+    ) {
+
+        aiDifficulty =
+            nextAIDifficulty(
+                aiDifficulty
+            );
+
+        resetAIThinking();
+
+        return;
+    }
+
+
+    if (
+        id ===
         "revenge"
     ) {
 
@@ -6826,27 +6884,56 @@ function drawPaddles() {
     );
 }
 
-function drawBall() {
+function drawBallShape(
+    centerX,
+    centerY,
+    size = BALL.size
+) {
 
-    ctx.fillStyle =
-        currentBallColor();
+    if (
+        ballSizeMode ===
+        "pong"
+    ) {
+
+        ctx.fillRect(
+            centerX -
+            size / 2,
+
+            centerY -
+            size / 2,
+
+            size,
+            size
+        );
+
+        return;
+    }
 
     ctx.beginPath();
 
     ctx.arc(
-        ball.x +
-        BALL.size / 2,
-
-        ball.y +
-        BALL.size / 2,
-
-        BALL.size / 2,
-
+        centerX,
+        centerY,
+        size / 2,
         0,
         Math.PI * 2
     );
 
     ctx.fill();
+}
+
+function drawBall() {
+
+    ctx.fillStyle =
+        currentBallColor();
+
+    drawBallShape(
+        ball.x +
+        BALL.size / 2,
+
+        ball.y +
+        BALL.size / 2
+    );
 }
 
 
@@ -7764,17 +7851,11 @@ function drawBallSettings() {
     ctx.fillStyle =
         currentBallColor();
 
-    ctx.beginPath();
-
-    ctx.arc(
+    drawBallShape(
         W / 2,
         145,
-        BALL.size / 2,
-        0,
-        Math.PI * 2
+        BALL.size
     );
-
-    ctx.fill();
 
     ctx.fillStyle =
         "rgba(255,255,255,.82)";
@@ -7796,6 +7877,8 @@ function drawBallSettings() {
                 1
             )} px`
             : `${BALL.size.toFixed(
+                0
+            )} × ${BALL.size.toFixed(
                 0
             )} px`,
 
@@ -8411,19 +8494,13 @@ function drawReplay() {
     ctx.fillStyle =
         currentBallColor();
 
-    ctx.beginPath();
-
-    ctx.arc(
+    drawBallShape(
         frame.ballX +
         BALL.size / 2,
-        frame.ballY +
-        BALL.size / 2,
-        BALL.size / 2,
-        0,
-        Math.PI * 2
-    );
 
-    ctx.fill();
+        frame.ballY +
+        BALL.size / 2
+    );
 
     drawScore();
 
