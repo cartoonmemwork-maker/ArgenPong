@@ -1183,12 +1183,6 @@ function resetBallAppearance() {
     );
 }
 
-function disableClassicPongPreset() {
-
-    classicPongMode = false;
-    classicPongSavedSettings = null;
-}
-
 function toggleClassicPongPreset() {
 
     if (!classicPongMode) {
@@ -9220,7 +9214,6 @@ function handleAction(id) {
         "ballColor"
     ) {
 
-        disableClassicPongPreset();
 
         ballColor =
             ballColor === "white"
@@ -9237,7 +9230,6 @@ function handleAction(id) {
         "ballShape"
     ) {
 
-        disableClassicPongPreset();
 
         setBallShape(
             ballShape === "round"
@@ -9255,7 +9247,6 @@ function handleAction(id) {
         "ballDefaults"
     ) {
 
-        disableClassicPongPreset();
         resetBallAppearance();
 
         return;
@@ -9362,7 +9353,6 @@ function handleAction(id) {
         "scorePosition"
     ) {
 
-        disableClassicPongPreset();
 
         scorePosition =
             scorePosition === "bottom"
@@ -9496,7 +9486,6 @@ function handleAction(id) {
         ].includes(id)
     ) {
 
-        disableClassicPongPreset();
 
         courtColor =
             id;
