@@ -4,6 +4,8 @@ Este Worker sólo mantiene la cola pública y retransmite la negociación WebRTC
 
 ## Despliegue gratuito
 
+El proyecto conectado mediante Workers Builds debe llamarse `argenpong`, usar la rama `agent/pvp-online-p2p` y establecer `/online-worker` como directorio raíz.
+
 1. Creá una cuenta gratuita en Cloudflare.
 2. Desde esta carpeta ejecutá `npm install`.
 3. Ejecutá `npx wrangler login` y autorizá Cloudflare en el navegador.
