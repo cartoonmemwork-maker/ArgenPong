@@ -23,6 +23,10 @@ const TABLE_REGULATION = {
 const TABLE_HEIGHT =
     H - 20;
 
+const TABLE_PIXELS_PER_METER =
+    TABLE_HEIGHT /
+    TABLE_REGULATION.widthMeters;
+
 const TABLE_WIDTH =
     TABLE_HEIGHT *
     TABLE_REGULATION.lengthMeters /
@@ -54,27 +58,82 @@ const PADDLE = {
     margin: 40
 };
 
+const SPEED_SCALE = {
+    initialKmhLevels: [
+        20,
+        27.5,
+        35,
+        42.5,
+        50,
+        58,
+        66,
+        74,
+        82,
+        90
+    ],
+    maxKmh: 116,
+    kmhPerSpeedUnit: 4,
+    referenceFps: 60,
+    progressiveReturnsToMax: 20
+};
+
+/*
+    A escala real, una unidad interna equivale
+    a unos 0.47 km/h. La cámara del juego usa
+    una escala temporal cercana a 0.118x para
+    representar velocidades reales sin perder
+    legibilidad ni atravesar paletas entre cuadros.
+*/
+
+SPEED_SCALE.physicalKmhPerSpeedUnit =
+    SPEED_SCALE.referenceFps *
+    3.6 /
+    TABLE_PIXELS_PER_METER;
+
+SPEED_SCALE.timeScale =
+    SPEED_SCALE.physicalKmhPerSpeedUnit /
+    SPEED_SCALE.kmhPerSpeedUnit;
+
 const BALL = {
     size: 20,
 
-    speedLevels: [
-        5.2,
-        6.4,
-        7.8,
-        9.4,
-        11,
-        13.5,
-        16.5,
-        20,
-        24.5,
-        29
-    ],
+    sizes: {
+        pong: 20,
+        pingPong:
+            TABLE_PIXELS_PER_METER *
+            0.04
+    },
+
+    colors: {
+        white: "#FFFFFF",
+        orange: BRAND.gold
+    },
+
+    defaultColor: "white",
+    defaultSizeMode: "pong",
+
+    speedLevels:
+        SPEED_SCALE.initialKmhLevels
+            .map(
+                speedKmh =>
+                    speedKmh /
+                    SPEED_SCALE.kmhPerSpeedUnit
+            ),
 
     defaultLevel: 5,
     baseYRatio: 0.42,
     maxAIVerticalRatio: 0.8,
-    progressiveFactor: 1.0503,
-    maxSpeed: 34
+    progressiveFactor:
+        Math.pow(
+            SPEED_SCALE.maxKmh /
+            SPEED_SCALE.initialKmhLevels[4],
+
+            1 /
+            SPEED_SCALE.progressiveReturnsToMax
+        ),
+    maxSpeed:
+        SPEED_SCALE.maxKmh /
+        SPEED_SCALE.kmhPerSpeedUnit
 };
 
 const SPIN = {
@@ -98,7 +157,8 @@ const SPIN = {
 const TIMING = {
     defaultFps: 60,
     options: [60, 120],
-    referenceFps: 60,
+    referenceFps:
+        SPEED_SCALE.referenceFps,
     maxSteps: 5
 };
 
@@ -116,7 +176,8 @@ const REPLAY = {
     playbackFps: 60,
     startSpeed: 0.9,
     endSpeed: 0.25,
-    kmhPerSpeedUnit: 4,
+    kmhPerSpeedUnit:
+        SPEED_SCALE.kmhPerSpeedUnit,
     mphPerKmh: 0.621371,
     trailFrames: 90,
     maxFrames: 1200
@@ -147,12 +208,19 @@ const TEXT = {
         green: "VERDE",
         blue: "AZUL",
         black: "NEGRO",
-        velocity: "VELOCIDAD",
+        velocity: "VELOCIDAD INICIAL",
         progressive: "VELOCIDAD PROGRESIVA",
         resetDefaults: "RESTABLECER POR DEFECTO",
         controls: "CONTROLES",
         background: "FONDO",
         physics: "FÍSICAS",
+        ball: "PELOTA",
+        color: "COLOR",
+        white: "BLANCA",
+        orange: "NARANJA",
+        size: "TAMAÑO",
+        pong: "PONG",
+        pingPong: "PING PONG",
         sound: "SONIDO",
         continue: "CONTINUAR",
         restart: "REINICIAR PARTIDA",
@@ -214,12 +282,19 @@ const TEXT = {
         green: "GREEN",
         blue: "BLUE",
         black: "BLACK",
-        velocity: "SPEED",
+        velocity: "INITIAL SPEED",
         progressive: "PROGRESSIVE SPEED",
         resetDefaults: "RESTORE DEFAULTS",
         controls: "CONTROLS",
         background: "BACKGROUND",
         physics: "PHYSICS",
+        ball: "BALL",
+        color: "COLOR",
+        white: "WHITE",
+        orange: "ORANGE",
+        size: "SIZE",
+        pong: "PONG",
+        pingPong: "PING PONG",
         sound: "SOUND",
         continue: "CONTINUE",
         restart: "RESTART MATCH",
@@ -374,6 +449,8 @@ let ballSpeedLevel = BALL.defaultLevel;
 let progressiveSpeed = true;
 let spinEnabled = SPIN.defaultEnabled;
 let physicsFps = TIMING.defaultFps;
+let ballColor = BALL.defaultColor;
+let ballSizeMode = BALL.defaultSizeMode;
 
 let previousFrameTime = null;
 let frameAccumulator = 0;
@@ -396,6 +473,7 @@ let settingsOpen = false;
 let controlsOpen = false;
 let backgroundOpen = false;
 let physicsOpen = false;
+let ballOpen = false;
 let replayOpen = false;
 let languageOpen = false;
 
@@ -879,6 +957,93 @@ function resetPhysics() {
     }
 }
 
+function currentBallColor() {
+
+    return (
+        BALL.colors[
+            ballColor
+        ] ||
+        BALL.colors.white
+    );
+}
+
+function initialBallSpeedText() {
+
+    const speedKmh =
+        SPEED_SCALE.initialKmhLevels[
+            ballSpeedLevel - 1
+        ];
+
+    if (
+        currentLanguage() === "en"
+    ) {
+
+        return `${ballSpeedLevel} · ${Math.round(
+            speedKmh *
+            REPLAY.mphPerKmh
+        )} mph`;
+    }
+
+    return `${ballSpeedLevel} · ${
+        Number.isInteger(
+            speedKmh
+        )
+
+            ? speedKmh
+            : speedKmh.toFixed(1)
+    } km/h`;
+}
+
+function setBallSizeMode(
+    mode
+) {
+
+    const nextSize =
+        BALL.sizes[mode];
+
+    if (
+        !Number.isFinite(
+            nextSize
+        )
+    ) {
+        return;
+    }
+
+    const centerX =
+        ball.x +
+        BALL.size / 2;
+
+    const centerY =
+        ball.y +
+        BALL.size / 2;
+
+    ballSizeMode =
+        mode;
+
+    BALL.size =
+        nextSize;
+
+    ball.x =
+        centerX -
+        BALL.size / 2;
+
+    ball.y =
+        centerY -
+        BALL.size / 2;
+
+    resetReplayCapture();
+}
+
+function resetBallAppearance() {
+
+    ballColor =
+        BALL.defaultColor;
+
+    setBallSizeMode(
+        BALL.defaultSizeMode
+    );
+}
+
 function resetPaddles() {
 
     const centerY =
@@ -1017,6 +1182,7 @@ function startGame(
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    ballOpen = false;
     replayOpen = false;
     languageOpen = false;
 
@@ -1043,6 +1209,7 @@ function goToStartMenu() {
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    ballOpen = false;
     replayOpen = false;
     languageOpen = false;
 
@@ -4006,6 +4173,7 @@ function closeMenusToGame(
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    ballOpen = false;
     replayOpen = false;
     languageOpen = false;
 
@@ -4038,6 +4206,7 @@ function handleEscape() {
         controlsOpen ||
         backgroundOpen ||
         physicsOpen ||
+        ballOpen ||
         replayOpen ||
         languageOpen ||
         Boolean(
@@ -4539,13 +4708,15 @@ function addSlider(
     value,
     min,
     max,
-    rect
+    rect,
+    displayValue = null
 ) {
 
     items.push({
         id,
         label,
         value,
+        displayValue,
         min,
         max,
         rect,
@@ -4859,6 +5030,63 @@ function interactiveItems() {
         return items;
     }
 
+    // PELOTA
+
+    if (ballOpen) {
+
+        [
+            [
+                "ballColor",
+                `${t("color")}: ${t(
+                    ballColor
+                )}`
+            ],
+
+            [
+                "ballSize",
+                `${t("size")}: ${t(
+                    ballSizeMode
+                )}`
+            ],
+
+            [
+                "ballDefaults",
+                t("defaults")
+            ],
+
+            [
+                "ballBack",
+                t("back")
+            ]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    text
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+                    text,
+
+                    buttonRect(
+                        index,
+                        4,
+                        430,
+                        58,
+                        15,
+                        390
+                    )
+                );
+            }
+        );
+
+        return items;
+    }
+
     // FISICAS
 
     if (physicsOpen) {
@@ -4878,7 +5106,8 @@ function interactiveItems() {
 
                 w: 360,
                 h: 20
-            }
+            },
+            initialBallSpeedText()
         );
 
         add(
@@ -5110,6 +5339,11 @@ function interactiveItems() {
             ],
 
             [
+                "ballSettings",
+                t("ball")
+            ],
+
+            [
                 "fps",
                 `FPS: ${physicsFps}`
             ],
@@ -5154,7 +5388,7 @@ function interactiveItems() {
 
                     buttonRect(
                         index,
-                        8,
+                        9,
                         430,
                         39,
                         5,
@@ -5892,6 +6126,72 @@ function handleAction(id) {
 
     if (
         id ===
+        "ballSettings"
+    ) {
+
+        ballOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballColor"
+    ) {
+
+        ballColor =
+            ballColor === "white"
+
+                ? "orange"
+                : "white";
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballSize"
+    ) {
+
+        setBallSizeMode(
+            ballSizeMode === "pong"
+
+                ? "pingPong"
+                : "pong"
+        );
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballDefaults"
+    ) {
+
+        resetBallAppearance();
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballBack"
+    ) {
+
+        ballOpen =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id ===
         "fps"
     ) {
 
@@ -6529,7 +6829,7 @@ function drawPaddles() {
 function drawBall() {
 
     ctx.fillStyle =
-        "#FFFFFF";
+        currentBallColor();
 
     ctx.beginPath();
 
@@ -6896,6 +7196,7 @@ function drawSlider(item) {
 
 
     ctx.fillText(
+        item.displayValue ||
         String(
             item.value
         ),
@@ -7442,6 +7743,67 @@ function drawBackground() {
         t("background"),
         75
     );
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
+function drawBallSettings() {
+
+    overlay(0.82);
+
+    title(
+        t("ball"),
+        75
+    );
+
+    ctx.save();
+
+    ctx.fillStyle =
+        currentBallColor();
+
+    ctx.beginPath();
+
+    ctx.arc(
+        W / 2,
+        145,
+        BALL.size / 2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.82)";
+
+    ctx.font =
+        "16px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.fillText(
+        ballSizeMode ===
+        "pingPong"
+
+            ? `40 mm · ${BALL.size.toFixed(
+                1
+            )} px`
+            : `${BALL.size.toFixed(
+                0
+            )} px`,
+
+        W / 2,
+        185
+    );
+
+    ctx.restore();
 
     interactiveItems()
         .forEach(
@@ -8046,6 +8408,9 @@ function drawReplay() {
         PADDLE.h
     );
 
+    ctx.fillStyle =
+        currentBallColor();
+
     ctx.beginPath();
 
     ctx.arc(
@@ -8262,6 +8627,14 @@ function drawGame() {
     if (backgroundOpen) {
 
         drawBackground();
+
+        return;
+    }
+
+
+    if (ballOpen) {
+
+        drawBallSettings();
 
         return;
     }
