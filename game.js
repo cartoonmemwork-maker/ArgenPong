@@ -9,11 +9,41 @@ const ctx = canvas.getContext("2d");
 // CONFIG
 // ============================================================
 
+const BRAND = {
+    blue: "#6CACE4",
+    gold: "#FFB81C",
+    ink: "#050B18"
+};
+
+const TABLE_REGULATION = {
+    lengthMeters: 2.74,
+    widthMeters: 1.525
+};
+
+const TABLE_HEIGHT =
+    H - 20;
+
+const TABLE_PIXELS_PER_METER =
+    TABLE_HEIGHT /
+    TABLE_REGULATION.widthMeters;
+
+const TABLE_WIDTH =
+    TABLE_HEIGHT *
+    TABLE_REGULATION.lengthMeters /
+    TABLE_REGULATION.widthMeters;
+
 const TABLE = {
-    left: 10,
-    right: W - 10,
-    top: 10,
-    bottom: H - 10,
+    left:
+        (W - TABLE_WIDTH) / 2,
+
+    right:
+        (W + TABLE_WIDTH) / 2,
+
+    top:
+        (H - TABLE_HEIGHT) / 2,
+
+    bottom:
+        (H + TABLE_HEIGHT) / 2,
 
     colors: {
         green: "#1f5f3a",
@@ -28,25 +58,294 @@ const PADDLE = {
     margin: 40
 };
 
-const BALL = {
-    size: 20,
-
-    speedLevels: [
-        4,
-        5,
-        6,
-        7.2,
-        8.6,
-        10.5,
-        12.8,
-        15.5,
-        19,
-        24
+const SPEED_SCALE = {
+    initialKmhLevels: [
+        20,
+        27.5,
+        35,
+        42.5,
+        50,
+        58,
+        66,
+        74,
+        82,
+        90
     ],
+    maxKmh: 116,
+    kmhPerSpeedUnit: 4,
+    referenceFps: 60,
+    progressiveReturnsToMax: 20
+};
+
+/*
+    A escala real, una unidad interna equivale
+    a unos 0.47 km/h. La cámara del juego usa
+    una escala temporal cercana a 0.118x para
+    representar velocidades reales sin perder
+    legibilidad ni atravesar paletas entre cuadros.
+*/
+
+SPEED_SCALE.physicalKmhPerSpeedUnit =
+    SPEED_SCALE.referenceFps *
+    3.6 /
+    TABLE_PIXELS_PER_METER;
+
+SPEED_SCALE.timeScale =
+    SPEED_SCALE.physicalKmhPerSpeedUnit /
+    SPEED_SCALE.kmhPerSpeedUnit;
+
+const BALL = {
+    size:
+        TABLE_PIXELS_PER_METER *
+        0.04,
+
+    sizes: {
+        pong: 20,
+        pingPong:
+            TABLE_PIXELS_PER_METER *
+            0.04
+    },
+
+    colors: {
+        white: "#FFFFFF",
+        orange: BRAND.gold
+    },
+
+    defaultColor: "white",
+    defaultSizeMode: "pingPong",
+
+    speedLevels:
+        SPEED_SCALE.initialKmhLevels
+            .map(
+                speedKmh =>
+                    speedKmh /
+                    SPEED_SCALE.kmhPerSpeedUnit
+            ),
 
     defaultLevel: 5,
-    baseYRatio: 0.7,
-    progressiveFactor: 1.04
+    baseYRatio: 0.42,
+    maxAIVerticalRatio: 0.8,
+    progressiveFactor:
+        Math.pow(
+            SPEED_SCALE.maxKmh /
+            SPEED_SCALE.initialKmhLevels[4],
+
+            1 /
+            SPEED_SCALE.progressiveReturnsToMax
+        ),
+    maxSpeed:
+        SPEED_SCALE.maxKmh /
+        SPEED_SCALE.kmhPerSpeedUnit
+};
+
+const SPIN = {
+    defaultEnabled: true,
+    deadZone: 0.6,
+    blockMaxPaddleSpeed: 1.1,
+    fullStrengthPaddleSpeed: 14,
+    curvePerStep: 0.0095,
+    speedInfluence: 0.16,
+    backspinSpeedInfluence: 0.14,
+    blockSpeedRetention: 0.82,
+    topspinCurveMultiplier: 1.08,
+    backspinCurveMultiplier: 1.18,
+    topspinBounceVerticalBoost: 1.08,
+    backspinBounceHorizontalRetention: 0.84,
+    decay: 0.992,
+    wallRetention: 0.8,
+    epsilon: 0.001
+};
+
+const TIMING = {
+    defaultFps: 60,
+    options: [60, 120],
+    referenceFps:
+        SPEED_SCALE.referenceFps,
+    maxSteps: 5
+};
+
+const REPLAY = {
+    defaultEnabled: true,
+    defaultMode: "matchSpeed",
+    modeOptions: [
+        "matchSpeed",
+        "match",
+        "speed",
+        "all"
+    ],
+    speedThresholdKmh: 100,
+    captureFps: 60,
+    playbackFps: 60,
+    startSpeed: 0.9,
+    endSpeed: 0.25,
+    kmhPerSpeedUnit:
+        SPEED_SCALE.kmhPerSpeedUnit,
+    mphPerKmh: 0.621371,
+    trailFrames: 90,
+    maxFrames: 1200
+};
+
+const LANGUAGE = {
+    defaultMode: "auto",
+    options: ["auto", "es", "en"]
+};
+
+const TEXT = {
+    es: {
+        space: "ESPACIO",
+        localPvp: "PVP LOCAL",
+        vsAi: "VS IA",
+        onlinePvp: "PVP ONLINE",
+        side: "LADO",
+        left: "IZQUIERDA",
+        right: "DERECHA",
+        easy: "FÁCIL",
+        normal: "NORMAL",
+        hard: "DIFÍCIL",
+        difficulty: "DIFICULTAD",
+        back: "VOLVER",
+        rematch: "¿REVANCHA?",
+        mainMenu: "MENÚ INICIAL",
+        yes: "SÍ",
+        no: "NO",
+        green: "VERDE",
+        blue: "AZUL",
+        black: "NEGRO",
+        velocity: "VELOCIDAD INICIAL",
+        progressive: "VELOCIDAD PROGRESIVA",
+        resetDefaults: "RESTABLECER POR DEFECTO",
+        controls: "CONTROLES",
+        background: "MESA",
+        physics: "FÍSICAS",
+        ball: "PELOTA",
+        score: "MARCADOR",
+        top: "ARRIBA",
+        bottom: "ABAJO",
+        color: "COLOR",
+        white: "BLANCA",
+        orange: "NARANJA",
+        size: "TAMAÑO",
+        pong: "PONG",
+        pingPong: "PING PONG",
+        sound: "SONIDO",
+        continue: "CONTINUAR",
+        restart: "REINICIAR PARTIDA",
+        settings: "AJUSTES",
+        press: "PRESIONÁ...",
+        pause: "PAUSA",
+        chooseSide: "ELEGÍ TU LADO",
+        chooseDifficulty: "Después seleccioná la dificultad",
+        comingSoon: "PRÓXIMAMENTE",
+        confirmRestart: "¿REINICIAR PARTIDA?",
+        confirmMenu: "¿VOLVER AL MENÚ?",
+        loseCurrent: "Se perderá la partida actual.",
+        up: "ARRIBA",
+        down: "ABAJO",
+        mouse: "MOUSE",
+        sensitivity: "SENS.",
+        player: "JUGADOR",
+        aiVsAi: "IA VS IA",
+        aiLeft: "IA IZQUIERDA",
+        aiRight: "IA DERECHA",
+        winLeft: "LA IZQUIERDA GANA",
+        winRight: "LA DERECHA GANA",
+        youWon: "Ganaste",
+        solWins: "GPT-5.6 Sol Gana",
+        replay: "REPETICIONES INSTANTÁNEAS",
+        replayAuto: "REPRODUCCIÓN AUTOMÁTICA",
+        frequency: "FRECUENCIA",
+        replayMatch: "MATCH",
+        replayMatchSpeed: "MATCH + MÁS DE 100 KM/H",
+        replayFast: "MÁS DE 100 KM/H",
+        replayAll: "TODOS LOS TANTOS",
+        defaults: "POR DEFECTO",
+        replaySpeed: "VELOCIDAD",
+        instantReplay: "REPETICIÓN INSTANTÁNEA",
+        skipReplay: "ESC, ESPACIO, ENTER O CLICK PARA OMITIR",
+        language: "IDIOMA",
+        automatic: "AUTOMÁTICO",
+        spanish: "ESPAÑOL",
+        english: "ENGLISH",
+        active: "ACTIVO"
+    },
+
+    en: {
+        space: "SPACE",
+        localPvp: "LOCAL PVP",
+        vsAi: "VS AI",
+        onlinePvp: "ONLINE PVP",
+        side: "SIDE",
+        left: "LEFT",
+        right: "RIGHT",
+        easy: "EASY",
+        normal: "NORMAL",
+        hard: "HARD",
+        difficulty: "DIFFICULTY",
+        back: "BACK",
+        rematch: "REMATCH?",
+        mainMenu: "MAIN MENU",
+        yes: "YES",
+        no: "NO",
+        green: "GREEN",
+        blue: "BLUE",
+        black: "BLACK",
+        velocity: "INITIAL SPEED",
+        progressive: "PROGRESSIVE SPEED",
+        resetDefaults: "RESTORE DEFAULTS",
+        controls: "CONTROLS",
+        background: "TABLE",
+        physics: "PHYSICS",
+        ball: "BALL",
+        score: "SCORE",
+        top: "TOP",
+        bottom: "BOTTOM",
+        color: "COLOR",
+        white: "WHITE",
+        orange: "ORANGE",
+        size: "SIZE",
+        pong: "PONG",
+        pingPong: "PING PONG",
+        sound: "SOUND",
+        continue: "CONTINUE",
+        restart: "RESTART MATCH",
+        settings: "SETTINGS",
+        press: "PRESS...",
+        pause: "PAUSE",
+        chooseSide: "CHOOSE YOUR SIDE",
+        chooseDifficulty: "Then select the difficulty",
+        comingSoon: "COMING SOON",
+        confirmRestart: "RESTART MATCH?",
+        confirmMenu: "RETURN TO MENU?",
+        loseCurrent: "The current match will be lost.",
+        up: "UP",
+        down: "DOWN",
+        mouse: "MOUSE",
+        sensitivity: "SENS.",
+        player: "PLAYER",
+        aiVsAi: "AI VS AI",
+        aiLeft: "LEFT AI",
+        aiRight: "RIGHT AI",
+        winLeft: "LEFT SIDE WINS",
+        winRight: "RIGHT SIDE WINS",
+        youWon: "You Won",
+        solWins: "GPT-5.6 Sol Wins",
+        replay: "INSTANT REPLAYS",
+        replayAuto: "AUTOMATIC REPLAY",
+        frequency: "FREQUENCY",
+        replayMatch: "MATCH",
+        replayMatchSpeed: "MATCH + OVER 62 MPH",
+        replayFast: "OVER 62 MPH",
+        replayAll: "EVERY POINT",
+        defaults: "DEFAULTS",
+        replaySpeed: "SPEED",
+        instantReplay: "INSTANT REPLAY",
+        skipReplay: "ESC, SPACE, ENTER OR CLICK TO SKIP",
+        language: "LANGUAGE",
+        automatic: "AUTOMATIC",
+        spanish: "ESPAÑOL",
+        english: "ENGLISH",
+        active: "ACTIVE"
+    }
 };
 
 const MATCH = {
@@ -54,11 +353,15 @@ const MATCH = {
     margin: 2
 };
 
+const SCORE = {
+    defaultPosition: "bottom"
+};
+
 const SENS = {
     min: 0.1,
     max: 1,
     step: 0.1,
-    default: 0.5
+    default: 0.6
 };
 
 const UI = {
@@ -72,7 +375,7 @@ const LOCAL_DEFAULTS = {
     left: {
         up: "w",
         down: "s",
-        mouse: false,
+        mouse: true,
         sensitivity: SENS.default
     },
 
@@ -96,17 +399,53 @@ const AI_DEFAULTS = {
 const AI_LEVELS = {
     easy: {
         label: "FÁCIL",
-        returns: 5
+        returns: 5,
+        anticipation: 0.44,
+        response: 0.7,
+        baseSensitivity: 0.66,
+        demandScale: 0.72,
+        tracking: 0.31,
+        reactionSteps: 10,
+        correctionSteps: 20,
+        aimError: 42,
+        spinAwareness: 0.12,
+        shotStrength: 0.55,
+        blockChance: 0.5,
+        backspinChance: 0.14
     },
 
     normal: {
         label: "NORMAL",
-        returns: 15
+        returns: 10,
+        anticipation: 0.62,
+        response: 0.84,
+        baseSensitivity: 0.78,
+        demandScale: 0.82,
+        tracking: 0.35,
+        reactionSteps: 7,
+        correctionSteps: 14,
+        aimError: 24,
+        spinAwareness: 0.64,
+        shotStrength: 0.76,
+        blockChance: 0.38,
+        backspinChance: 0.24
     },
 
     hard: {
         label: "DIFÍCIL",
-        returns: 30
+        returns: 20,
+        anticipation: 0.9,
+        response: 1,
+        baseSensitivity: 0.94,
+        demandScale: 1,
+        tracking: 0.44,
+        reactionSteps: 3,
+        correctionSteps: 6,
+        aimError: 8,
+        spinAwareness: 1,
+        shotStrength: 0.94,
+        blockChance: 0.22,
+        backspinChance: 0.3
     }
 };
 
@@ -116,12 +455,20 @@ const AI_LEVELS = {
 // ============================================================
 
 let courtColor = "black";
+let scorePosition = SCORE.defaultPosition;
 
 let audioContext = null;
 let audioMuted = false;
 
 let ballSpeedLevel = BALL.defaultLevel;
 let progressiveSpeed = true;
+let spinEnabled = SPIN.defaultEnabled;
+let physicsFps = TIMING.defaultFps;
+let ballColor = BALL.defaultColor;
+let ballSizeMode = BALL.defaultSizeMode;
+
+let previousFrameTime = null;
+let frameAccumulator = 0;
 
 let leftScore = 0;
 let rightScore = 0;
@@ -141,6 +488,9 @@ let settingsOpen = false;
 let controlsOpen = false;
 let backgroundOpen = false;
 let physicsOpen = false;
+let ballOpen = false;
+let replayOpen = false;
+let languageOpen = false;
 
 let confirmOpen = null;
 let hoveredButton = null;
@@ -148,10 +498,52 @@ let waitingForKey = null;
 
 let humanSide = "left";
 let aiDifficulty = "normal";
+let aiVsAiEnabled = false;
+let aiLeftDifficulty = "normal";
+let aiRightDifficulty = "normal";
 let aiReturns = 0;
+let aiState = "idle";
+let aiReactionRemaining = 0;
+let aiCorrectionRemaining = 0;
+let aiAimY = H / 2;
+let aiAimError = 0;
+let aiShotIntent = "block";
+
+const createAutoplayAIBrain = () => ({
+    state: "idle",
+    reactionRemaining: 0,
+    correctionRemaining: 0,
+    aimY: H / 2,
+    aimError: 0,
+    shotIntent: "block",
+    returns: 0
+});
+
+const autoplayAIBrains = {
+    left: createAutoplayAIBrain(),
+    right: createAutoplayAIBrain()
+};
 
 let previousMouseY = null;
 let activeSlider = null;
+let pointerUnlockPauseTime = -Infinity;
+let escapeResumeTime = -Infinity;
+let pendingMouseDelta = 0;
+
+let replayAutoEnabled = REPLAY.defaultEnabled;
+let replayMode = REPLAY.defaultMode;
+let languageMode = LANGUAGE.defaultMode;
+
+let replayPlaying = false;
+let replayFrames = [];
+let replayReturnIndices = [];
+let replayCaptureAccumulator = 0;
+let replayClip = [];
+let replayPosition = 0;
+let replayLastTime = null;
+let replayPlaybackAccumulator = 0;
+let replayFinishTime = -Infinity;
+let replayReachedSpeedThreshold = false;
 
 const localControls = {
     left: { ...LOCAL_DEFAULTS.left },
@@ -171,19 +563,26 @@ const keys = {};
 
 const leftPaddle = {
     x: PADDLE.margin,
-    y: (H - PADDLE.h) / 2
+    y: (H - PADDLE.h) / 2,
+    previousY: (H - PADDLE.h) / 2,
+    vy: 0
 };
 
 const rightPaddle = {
     x: W - PADDLE.margin - PADDLE.w,
-    y: (H - PADDLE.h) / 2
+    y: (H - PADDLE.h) / 2,
+    previousY: (H - PADDLE.h) / 2,
+    vy: 0
 };
 
 const ball = {
     x: (W - BALL.size) / 2,
     y: (H - BALL.size) / 2,
     vx: 0,
-    vy: 0
+    vy: 0,
+    spin: 0,
+    spinSpeedOffset: 0,
+    shotType: "none"
 };
 
 
@@ -207,10 +606,150 @@ const sidePaddle = side =>
         ? leftPaddle
         : rightPaddle;
 
+const aiDifficultyForSide = side =>
+    aiVsAiEnabled
+
+        ? side === "left"
+            ? aiLeftDifficulty
+            : aiRightDifficulty
+
+        : aiDifficulty;
+
+const difficultyLabel = difficulty =>
+    t(difficulty);
+
+function nextAIDifficulty(
+    difficulty
+) {
+
+    const difficulties = [
+        "easy",
+        "normal",
+        "hard"
+    ];
+
+    const index =
+        difficulties.indexOf(
+            difficulty
+        );
+
+    return difficulties[
+        (
+            index + 1 +
+            difficulties.length
+        ) %
+        difficulties.length
+    ];
+}
+
 const currentBallSpeed = () =>
     BALL.speedLevels[
         ballSpeedLevel - 1
     ];
+
+const currentStepMs = () =>
+    1000 /
+    physicsFps;
+
+const currentStepScale = () =>
+    TIMING.referenceFps /
+    physicsFps;
+
+function currentLanguage() {
+
+    if (
+        languageMode !== "auto"
+    ) {
+        return languageMode;
+    }
+
+    const browserLanguage =
+        typeof navigator !== "undefined"
+
+            ? navigator.language || "es"
+            : "es";
+
+    return browserLanguage
+        .toLowerCase()
+        .startsWith("es")
+
+            ? "es"
+            : "en";
+}
+
+function t(key) {
+
+    const language =
+        currentLanguage();
+
+    return (
+        TEXT[language][key] ||
+        TEXT.es[key] ||
+        key
+    );
+}
+
+function languageModeLabel() {
+
+    if (
+        languageMode === "es"
+    ) {
+        return t("spanish");
+    }
+
+    if (
+        languageMode === "en"
+    ) {
+        return t("english");
+    }
+
+    return t("automatic");
+}
+
+function replayModeLabel(
+    mode = replayMode
+) {
+
+    const labels = {
+        matchSpeed:
+            t("replayMatchSpeed"),
+
+        match:
+            t("replayMatch"),
+
+        speed:
+            t("replayFast"),
+
+        all:
+            t("replayAll")
+    };
+
+    return (
+        labels[mode] ||
+        labels[REPLAY.defaultMode]
+    );
+}
+
+function setPhysicsFps(
+    fps
+) {
+
+    if (
+        !TIMING.options
+            .includes(fps)
+    ) {
+        return;
+    }
+
+    physicsFps =
+        fps;
+
+    previousFrameTime =
+        null;
+
+    frameAccumulator =
+        0;
+}
 
 function inside(x, y, rect) {
     return (
@@ -246,7 +785,7 @@ function formatKey(key) {
         ArrowDown: "↓",
         ArrowLeft: "←",
         ArrowRight: "→",
-        " ": "SPACE"
+        " ": t("space")
     };
 
     return (
@@ -363,7 +902,55 @@ function resetAIControls() {
         AI_DEFAULTS
     );
 
+    aiVsAiEnabled =
+        false;
+
+    aiLeftDifficulty =
+        "normal";
+
+    aiRightDifficulty =
+        "normal";
+
+    resetAutoplayAIThinking();
+
     waitingForKey = null;
+}
+
+function resetAutoplayAIThinking() {
+
+    for (
+        const side of
+        ["left", "right"]
+    ) {
+
+        Object.assign(
+            autoplayAIBrains[side],
+            createAutoplayAIBrain()
+        );
+    }
+}
+
+function resetAIThinking() {
+
+    aiState =
+        "idle";
+
+    aiReactionRemaining =
+        0;
+
+    aiCorrectionRemaining =
+        0;
+
+    aiAimY =
+        H / 2;
+
+    aiAimError =
+        0;
+
+    aiShotIntent =
+        "block";
+
+    resetAutoplayAIThinking();
 }
 
 function resetPhysics() {
@@ -374,12 +961,102 @@ function resetPhysics() {
     progressiveSpeed =
         true;
 
+    spinEnabled =
+        SPIN.defaultEnabled;
+
     if (
         gameMode &&
         !gameOver
     ) {
         resetBall();
     }
+}
+
+function currentBallColor() {
+
+    return (
+        BALL.colors[
+            ballColor
+        ] ||
+        BALL.colors.white
+    );
+}
+
+function initialBallSpeedText() {
+
+    const speedKmh =
+        SPEED_SCALE.initialKmhLevels[
+            ballSpeedLevel - 1
+        ];
+
+    if (
+        currentLanguage() === "en"
+    ) {
+
+        return `${ballSpeedLevel} · ${Math.round(
+            speedKmh *
+            REPLAY.mphPerKmh
+        )} mph`;
+    }
+
+    return `${ballSpeedLevel} · ${
+        Number.isInteger(
+            speedKmh
+        )
+
+            ? speedKmh
+            : speedKmh.toFixed(1)
+    } km/h`;
+}
+
+function setBallSizeMode(
+    mode
+) {
+
+    const nextSize =
+        BALL.sizes[mode];
+
+    if (
+        !Number.isFinite(
+            nextSize
+        )
+    ) {
+        return;
+    }
+
+    const centerX =
+        ball.x +
+        BALL.size / 2;
+
+    const centerY =
+        ball.y +
+        BALL.size / 2;
+
+    ballSizeMode =
+        mode;
+
+    BALL.size =
+        nextSize;
+
+    ball.x =
+        centerX -
+        BALL.size / 2;
+
+    ball.y =
+        centerY -
+        BALL.size / 2;
+
+    resetReplayCapture();
+}
+
+function resetBallAppearance() {
+
+    ballColor =
+        BALL.defaultColor;
+
+    setBallSizeMode(
+        BALL.defaultSizeMode
+    );
 }
 
 function resetPaddles() {
@@ -390,8 +1067,20 @@ function resetPaddles() {
     leftPaddle.y =
         centerY;
 
+    leftPaddle.previousY =
+        centerY;
+
+    leftPaddle.vy =
+        0;
+
     rightPaddle.y =
         centerY;
+
+    rightPaddle.previousY =
+        centerY;
+
+    rightPaddle.vy =
+        0;
 }
 
 function resetBall() {
@@ -402,8 +1091,41 @@ function resetBall() {
     ball.y =
         (H - BALL.size) / 2;
 
+    ball.spin =
+        0;
+
+    ball.spinSpeedOffset =
+        0;
+
+    ball.shotType =
+        "none";
+
     const speed =
         currentBallSpeed();
+
+    const verticalRatio =
+        BALL.baseYRatio /
+        Math.hypot(
+            1,
+            BALL.baseYRatio
+        );
+
+    const verticalSpeed =
+        Math.max(
+            2,
+            speed *
+            verticalRatio
+        );
+
+    const horizontalSpeed =
+        Math.sqrt(
+            Math.max(
+                0,
+                speed * speed -
+                verticalSpeed *
+                verticalSpeed
+            )
+        );
 
     ball.vx =
         (
@@ -411,7 +1133,7 @@ function resetBall() {
                 ? 1
                 : -1
         ) *
-        speed;
+        horizontalSpeed;
 
     ball.vy =
         (
@@ -419,18 +1141,21 @@ function resetBall() {
                 ? -1
                 : 1
         ) *
-        Math.max(
-            3,
-            speed *
-            BALL.baseYRatio
-        );
+        verticalSpeed;
 
     // Cada punto reinicia
     // el desgaste de la IA.
     aiReturns = 0;
+
+    resetAIThinking();
+
+    resetReplayCapture();
 }
 
 function resetMatch() {
+
+    replayPlaying = false;
+    replayClip = [];
 
     leftScore = 0;
     rightScore = 0;
@@ -446,6 +1171,8 @@ function resetMatch() {
 
     resetPaddles();
     resetBall();
+
+    requestMouseCapture();
 }
 
 function startGame(
@@ -470,11 +1197,16 @@ function startGame(
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    ballOpen = false;
+    replayOpen = false;
+    languageOpen = false;
 
     resetMatch();
 }
 
 function goToStartMenu() {
+
+    releaseMouseCapture();
 
     startMenuOpen = true;
     aiMenuOpen = false;
@@ -492,8 +1224,424 @@ function goToStartMenu() {
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    ballOpen = false;
+    replayOpen = false;
+    languageOpen = false;
+
+    replayPlaying = false;
+    replayClip = [];
+    resetReplayCapture();
 
     gameMode = null;
+}
+
+
+// ============================================================
+// REPETICIÓN
+// ============================================================
+
+function resetReplayCapture() {
+
+    replayFrames = [];
+    replayReturnIndices = [];
+    replayCaptureAccumulator = 0;
+    replayReachedSpeedThreshold = false;
+}
+
+function registerReplaySpeedThreshold() {
+
+    if (
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        ) *
+        REPLAY.kmhPerSpeedUnit >
+        REPLAY.speedThresholdKmh
+    ) {
+
+        replayReachedSpeedThreshold =
+            true;
+    }
+}
+
+function replaySnapshot() {
+
+    return {
+        ballX: ball.x,
+        ballY: ball.y,
+        ballVx: ball.vx,
+        ballVy: ball.vy,
+        ballSpeed:
+            Math.hypot(
+                ball.vx,
+                ball.vy
+            ),
+        leftPaddleY: leftPaddle.y,
+        rightPaddleY: rightPaddle.y
+    };
+}
+
+function pushReplaySnapshot() {
+
+    replayFrames.push(
+        replaySnapshot()
+    );
+
+    if (
+        replayFrames.length >
+        REPLAY.maxFrames
+    ) {
+
+        const removeCount =
+            replayFrames.length -
+            REPLAY.maxFrames;
+
+        replayFrames.splice(
+            0,
+            removeCount
+        );
+
+        replayReturnIndices =
+            replayReturnIndices
+                .map(
+                    index =>
+                        index -
+                        removeCount
+                )
+                .filter(
+                    index =>
+                        index >= 0
+                );
+    }
+}
+
+function captureReplayFrame(
+    stepScale
+) {
+
+    if (
+        replayPlaying ||
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        !gameMode
+    ) {
+        return;
+    }
+
+    registerReplaySpeedThreshold();
+
+    replayCaptureAccumulator +=
+        stepScale *
+        REPLAY.captureFps /
+        TIMING.referenceFps;
+
+    while (
+        replayCaptureAccumulator >= 1
+    ) {
+
+        pushReplaySnapshot();
+
+        replayCaptureAccumulator -=
+            1;
+    }
+}
+
+function markReplayReturn() {
+
+    replayReturnIndices.push(
+        replayFrames.length
+    );
+
+    if (
+        replayReturnIndices.length > 2
+    ) {
+
+        const keepFrom =
+            replayReturnIndices[
+                replayReturnIndices.length - 2
+            ];
+
+        replayFrames =
+            replayFrames.slice(
+                keepFrom
+            );
+
+        replayReturnIndices =
+            replayReturnIndices
+                .slice(-2)
+                .map(
+                    index =>
+                        index -
+                        keepFrom
+                );
+    }
+}
+
+function shouldReplayPoint(
+    previousMatchSide
+) {
+
+    if (!replayAutoEnabled) {
+        return false;
+    }
+
+    const enteredMatch =
+        !previousMatchSide &&
+        Boolean(
+            matchPointSide()
+        );
+
+    const matchReplay =
+        enteredMatch ||
+        checkWinner();
+
+    if (
+        replayMode === "all"
+    ) {
+        return true;
+    }
+
+    if (
+        replayMode === "speed"
+    ) {
+        return (
+            replayReachedSpeedThreshold ||
+            checkWinner()
+        );
+    }
+
+    if (
+        replayMode === "matchSpeed"
+    ) {
+        return (
+            matchReplay ||
+            replayReachedSpeedThreshold
+        );
+    }
+
+    return matchReplay;
+}
+
+function startPointReplay(
+    previousMatchSide
+) {
+
+    if (
+        !shouldReplayPoint(
+            previousMatchSide
+        )
+    ) {
+        return false;
+    }
+
+    pushReplaySnapshot();
+
+    const startIndex =
+        replayReturnIndices.length >= 2
+
+            ? replayReturnIndices[
+                replayReturnIndices.length - 2
+            ]
+            : 0;
+
+    replayClip =
+        replayFrames.slice(
+            startIndex
+        );
+
+    if (
+        replayClip.length < 2
+    ) {
+        return false;
+    }
+
+    replayPlaying = true;
+    replayPosition = 0;
+    replayLastTime = null;
+    replayPlaybackAccumulator = 0;
+
+    return true;
+}
+
+function replayPlaybackSpeed() {
+
+    const progress =
+        replayClip.length > 1
+
+            ? clamp(
+                replayPosition /
+                (
+                    replayClip.length - 1
+                ),
+                0,
+                1
+            )
+            : 0;
+
+    const easedProgress =
+        progress *
+        progress *
+        (
+            3 -
+            2 *
+            progress
+        );
+
+    return (
+        REPLAY.startSpeed +
+        (
+            REPLAY.endSpeed -
+            REPLAY.startSpeed
+        ) *
+        easedProgress
+    );
+}
+
+function replaySpeedText(
+    frame
+) {
+
+    const speedUnits =
+        Number.isFinite(
+            frame.ballSpeed
+        )
+
+            ? frame.ballSpeed
+            : Math.hypot(
+                frame.ballVx,
+                frame.ballVy
+            );
+
+    const speedKmh =
+        speedUnits *
+        REPLAY.kmhPerSpeedUnit;
+
+    const maxSpeedKmh =
+        Math.round(
+            BALL.maxSpeed *
+            REPLAY.kmhPerSpeedUnit
+        );
+
+    const reachedMaxSpeed =
+        speedUnits >=
+        BALL.maxSpeed -
+        0.000001;
+
+    if (
+        currentLanguage() === "en"
+    ) {
+
+        const maxSpeedMph =
+            Math.round(
+                maxSpeedKmh *
+                REPLAY.mphPerKmh
+            );
+
+        const displayedMph =
+            reachedMaxSpeed
+
+                ? maxSpeedMph
+                : Math.min(
+                    Math.round(
+                        speedKmh *
+                        REPLAY.mphPerKmh
+                    ),
+                    maxSpeedMph - 1
+                );
+
+        return `${displayedMph} mph`;
+    }
+
+    const displayedKmh =
+        reachedMaxSpeed
+
+            ? maxSpeedKmh
+            : Math.min(
+                Math.round(
+                    speedKmh
+                ),
+                maxSpeedKmh - 1
+            );
+
+    return `${displayedKmh} km/h`;
+}
+
+function updateReplay(
+    timestamp
+) {
+
+    if (!replayPlaying) {
+        return;
+    }
+
+    if (
+        replayLastTime === null
+    ) {
+
+        replayLastTime =
+            timestamp;
+
+        return;
+    }
+
+    const elapsed =
+        Math.min(
+            timestamp -
+            replayLastTime,
+            100
+        );
+
+    replayLastTime =
+        timestamp;
+
+    replayPlaybackAccumulator +=
+        elapsed;
+
+    const playbackStepMs =
+        1000 /
+        REPLAY.playbackFps;
+
+    while (
+        replayPlaybackAccumulator >=
+        playbackStepMs
+    ) {
+
+        replayPosition +=
+            replayPlaybackSpeed();
+
+        replayPlaybackAccumulator -=
+            playbackStepMs;
+    }
+
+    if (
+        replayPosition >=
+        replayClip.length - 1
+    ) {
+        finishReplay();
+    }
+}
+
+function finishReplay() {
+
+    if (!replayPlaying) {
+        return;
+    }
+
+    replayPlaying = false;
+    replayClip = [];
+    replayPosition = 0;
+    replayLastTime = null;
+    replayPlaybackAccumulator = 0;
+    replayFinishTime =
+        performance.now();
+
+    finalizePoint();
+    resetReplayCapture();
+
+    if (!gameOver) {
+        requestMouseCapture();
+    }
 }
 
 
@@ -549,7 +1697,7 @@ function updateServe() {
             : "right";
 }
 
-function handlePoint() {
+function finalizePoint() {
 
     if (checkWinner()) {
 
@@ -563,11 +1711,50 @@ function handlePoint() {
                 ? "left"
                 : "right";
 
+        releaseMouseCapture();
+        resetReplayCapture();
+
         return;
     }
 
     updateServe();
     resetBall();
+}
+
+function handlePoint(
+    previousMatchSide
+) {
+
+    if (
+        startPointReplay(
+            previousMatchSide
+        )
+    ) {
+        return;
+    }
+
+    finalizePoint();
+}
+
+function awardPoint(side) {
+
+    const previousMatchSide =
+        matchPointSide();
+
+    if (side === "left") {
+
+        leftScore++;
+
+    } else {
+
+        rightScore++;
+    }
+
+    pointSound();
+
+    handlePoint(
+        previousMatchSide
+    );
 }
 
 
@@ -636,16 +1823,44 @@ function matchPointSide() {
 // FÍSICA
 // ============================================================
 
-function increaseBallSpeed() {
+function scaleBallVelocity(
+    scale
+) {
 
-    if (!progressiveSpeed) {
+    if (
+        !Number.isFinite(scale) ||
+        scale <= 0
+    ) {
         return;
     }
 
-    const maxSpeed =
-        BALL.speedLevels[
-            BALL.speedLevels.length - 1
-        ];
+    ball.vx *= scale;
+    ball.vy *= scale;
+
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+
+    if (
+        speed > BALL.maxSpeed
+    ) {
+
+        const capScale =
+            BALL.maxSpeed /
+            speed;
+
+        ball.vx *= capScale;
+        ball.vy *= capScale;
+    }
+}
+
+function setBallSpeed(
+    targetSpeed
+) {
 
     const currentSpeed =
         Math.hypot(
@@ -655,7 +1870,538 @@ function increaseBallSpeed() {
 
     if (
         currentSpeed <= 0 ||
-        currentSpeed >= maxSpeed
+        !Number.isFinite(
+            targetSpeed
+        ) ||
+        targetSpeed <= 0
+    ) {
+        return;
+    }
+
+    scaleBallVelocity(
+        targetSpeed /
+        currentSpeed
+    );
+}
+
+function clearBallSpin() {
+
+    const speedFactor =
+        1 +
+        ball.spinSpeedOffset;
+
+
+    if (
+        speedFactor > 0 &&
+        ball.spinSpeedOffset !==
+            0
+    ) {
+
+        scaleBallVelocity(
+            1 /
+            speedFactor
+        );
+    }
+
+
+    ball.spin =
+        0;
+
+    ball.spinSpeedOffset =
+        0;
+
+    ball.shotType =
+        "none";
+}
+
+function isAISide(
+    side
+) {
+
+    return (
+        gameMode === "ai" &&
+        (
+            aiVsAiEnabled ||
+            side ===
+                otherSide(
+                    humanSide
+                )
+        )
+    );
+}
+
+function limitAIOutgoingAngle(
+    side
+) {
+
+    if (!isAISide(side)) {
+        return;
+    }
+
+    const horizontalSpeed =
+        Math.abs(
+            ball.vx
+        );
+
+    const verticalSpeed =
+        Math.abs(
+            ball.vy
+        );
+
+    if (
+        horizontalSpeed <= 0 ||
+        verticalSpeed <=
+            horizontalSpeed *
+            BALL.maxAIVerticalRatio
+    ) {
+        return;
+    }
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    const limitedHorizontal =
+        speed /
+        Math.hypot(
+            1,
+            BALL.maxAIVerticalRatio
+        );
+
+    ball.vx =
+        (
+            Math.sign(
+                ball.vx
+            ) || 1
+        ) *
+        limitedHorizontal;
+
+    ball.vy =
+        (
+            Math.sign(
+                ball.vy
+            ) || 1
+        ) *
+        limitedHorizontal *
+        BALL.maxAIVerticalRatio;
+}
+
+function aiShotIntentForSide(
+    side
+) {
+
+    return aiVsAiEnabled
+
+        ? autoplayAIBrains[
+            side
+        ].shotIntent
+
+        : aiShotIntent;
+}
+
+function spinPaddleSpeed(
+    paddle,
+    side
+) {
+
+    if (!isAISide(side)) {
+        return paddle.vy;
+    }
+
+    const shotIntent =
+        aiShotIntentForSide(
+            side
+        );
+
+    if (
+        shotIntent ===
+        "block"
+    ) {
+        return 0;
+    }
+
+    const contactDistance =
+        Math.abs(
+            ball.y +
+            BALL.size / 2 -
+            (
+                paddle.y +
+                PADDLE.h / 2
+            )
+        );
+
+    if (
+        contactDistance >
+        PADDLE.h * 0.38
+    ) {
+        return 0;
+    }
+
+    const level =
+        AI_LEVELS[
+            aiDifficultyForSide(
+                side
+            )
+        ];
+
+    const strengthSpeed =
+        SPIN.deadZone +
+        (
+            SPIN.fullStrengthPaddleSpeed -
+            SPIN.deadZone
+        ) *
+        level.shotStrength;
+
+    const incomingDirection =
+        Math.sign(
+            ball.vy
+        ) || 1;
+
+    return (
+        shotIntent ===
+        "topspin"
+
+            ? incomingDirection
+            : -incomingDirection
+    ) *
+    strengthSpeed;
+}
+
+function storeSpinSpeedFactor(
+    speedBefore
+) {
+
+    const speedAfter =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    ball.spinSpeedOffset =
+        speedBefore > 0
+
+            ? speedAfter /
+              speedBefore -
+              1
+
+            : 0;
+}
+
+function applyBallSpin(
+    paddle,
+    side
+) {
+
+    if (!spinEnabled) {
+        return;
+    }
+
+
+    const paddleSpeed =
+        spinPaddleSpeed(
+            paddle,
+            side
+        );
+
+    const speedBefore =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+
+    /*
+        Una paleta prácticamente quieta
+        absorbe parte de la velocidad.
+
+        El bloqueo no agrega curva
+        y el cambio dura hasta la devolución.
+    */
+
+    if (
+        Math.abs(
+            paddleSpeed
+        ) <=
+        SPIN.blockMaxPaddleSpeed
+    ) {
+
+        ball.shotType =
+            "block";
+
+        if (progressiveSpeed) {
+
+            scaleBallVelocity(
+                SPIN.blockSpeedRetention
+            );
+
+            storeSpinSpeedFactor(
+                speedBefore
+            );
+        }
+
+        return;
+    }
+
+    const strength =
+        clamp(
+            (
+                Math.abs(
+                    paddleSpeed
+                ) -
+                SPIN.deadZone
+            ) /
+            (
+                SPIN.fullStrengthPaddleSpeed -
+                SPIN.deadZone
+            ),
+
+            0,
+            1
+        );
+
+
+    /*
+        La dirección absoluta de la paleta
+        curva la pelota hacia arriba o abajo.
+
+        Multiplicar por la dirección horizontal
+        mantiene el mismo resultado visual
+        para ambos lados de la mesa.
+    */
+
+    ball.spin =
+        Math.sign(
+            paddleSpeed
+        ) *
+        Math.sign(
+            ball.vx
+        ) *
+        strength;
+
+
+    /*
+        Acompañar el movimiento vertical
+        de la pelota genera un golpe ofensivo.
+
+        Contradecirlo genera un golpe flotado.
+        El modificador dura hasta el próximo golpe
+        y nunca se acumula entre paletas.
+    */
+
+    const driveDirection =
+        paddleSpeed *
+        ball.vy >= 0
+
+            ? 1
+            : -1;
+
+
+    ball.shotType =
+        driveDirection > 0
+
+            ? "topspin"
+            : "backspin";
+
+
+    const speedFactor =
+        driveDirection > 0
+
+            ? 1 +
+              strength *
+              SPIN.speedInfluence
+
+            : 1 -
+              strength *
+              SPIN.backspinSpeedInfluence;
+
+
+    if (progressiveSpeed) {
+
+        scaleBallVelocity(
+            speedFactor
+        );
+
+        storeSpinSpeedFactor(
+            speedBefore
+        );
+    }
+}
+
+function updateBallSpin(
+    stepScale = 1
+) {
+
+    if (!spinEnabled) {
+        return;
+    }
+
+
+    if (
+        Math.abs(
+            ball.spin
+        ) >=
+        SPIN.epsilon
+    ) {
+
+        const curveMultiplier =
+            ball.shotType ===
+                "topspin"
+
+                ? SPIN.topspinCurveMultiplier
+                : ball.shotType ===
+                    "backspin"
+
+                    ? SPIN.backspinCurveMultiplier
+                    : 1;
+
+        const angle =
+            ball.spin *
+            SPIN.curvePerStep *
+            curveMultiplier *
+            stepScale;
+
+        const cos =
+            Math.cos(angle);
+
+        const sin =
+            Math.sin(angle);
+
+        const vx =
+            ball.vx;
+
+        const vy =
+            ball.vy;
+
+
+        ball.vx =
+            vx * cos -
+            vy * sin;
+
+        ball.vy =
+            vx * sin +
+            vy * cos;
+    }
+
+
+    ball.spin *=
+        Math.pow(
+            SPIN.decay,
+            stepScale
+        );
+
+
+    if (
+        Math.abs(
+            ball.spin
+        ) <
+        SPIN.epsilon
+    ) {
+        ball.spin = 0;
+    }
+}
+
+function applySpinBounceResponse() {
+
+    if (!spinEnabled) {
+        return;
+    }
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    if (speed <= 0) {
+        return;
+    }
+
+    const horizontalDirection =
+        Math.sign(
+            ball.vx
+        ) || 1;
+
+    const verticalDirection =
+        Math.sign(
+            ball.vy
+        ) || 1;
+
+
+    if (
+        ball.shotType ===
+        "topspin"
+    ) {
+
+        const verticalSpeed =
+            Math.min(
+                speed * 0.94,
+
+                Math.abs(
+                    ball.vy
+                ) *
+                SPIN.topspinBounceVerticalBoost
+            );
+
+        ball.vy =
+            verticalDirection *
+            verticalSpeed;
+
+        ball.vx =
+            horizontalDirection *
+            Math.sqrt(
+                Math.max(
+                    0,
+                    speed * speed -
+                    verticalSpeed *
+                    verticalSpeed
+                )
+            );
+
+    } else if (
+        ball.shotType ===
+        "backspin"
+    ) {
+
+        const horizontalSpeed =
+            Math.abs(
+                ball.vx
+            ) *
+            SPIN.backspinBounceHorizontalRetention;
+
+        ball.vx =
+            horizontalDirection *
+            horizontalSpeed;
+
+        ball.vy =
+            verticalDirection *
+            Math.sqrt(
+                Math.max(
+                    0,
+                    speed * speed -
+                    horizontalSpeed *
+                    horizontalSpeed
+                )
+            );
+    }
+}
+
+function increaseBallSpeed() {
+
+    if (!progressiveSpeed) {
+        return;
+    }
+
+    const currentSpeed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    if (
+        currentSpeed <= 0 ||
+        currentSpeed >= BALL.maxSpeed
     ) {
         return;
     }
@@ -665,7 +2411,7 @@ function increaseBallSpeed() {
             currentSpeed *
             BALL.progressiveFactor,
 
-            maxSpeed
+            BALL.maxSpeed
         );
 
     const scale =
@@ -697,11 +2443,11 @@ function keyboardSpeed(
 
     /*
         0.1 = 6
-        0.5 = ~12.2
+        0.6 = ~13.8
         1.0 = 20
 
-        El valor por defecto 0.5
-        ahora se siente mucho más ágil.
+        El valor por defecto 0.6
+        acompaña el nuevo estándar de juego.
     */
 
     return (
@@ -715,7 +2461,9 @@ function keyboardSpeed(
 // PVP LOCAL
 // ============================================================
 
-function localMove() {
+function localMove(
+    stepScale = 1
+) {
 
     for (
         const side of
@@ -734,7 +2482,8 @@ function localMove() {
         const speed =
             keyboardSpeed(
                 controls.sensitivity
-            );
+            ) *
+            stepScale;
 
         if (
             keys[
@@ -759,7 +2508,9 @@ function localMove() {
 // JUGADOR VS IA
 // ============================================================
 
-function humanMoveAI() {
+function humanMoveAI(
+    stepScale = 1
+) {
 
     const paddle =
         sidePaddle(
@@ -769,7 +2520,8 @@ function humanMoveAI() {
     const speed =
         keyboardSpeed(
             aiControls.sensitivity
-        );
+        ) *
+        stepScale;
 
     const up =
         keys[aiControls.up1] ||
@@ -809,6 +2561,34 @@ function clampPaddles() {
         );
 }
 
+function updatePaddleMotion(
+    stepScale = 1
+) {
+
+    for (
+        const paddle of
+        [
+            leftPaddle,
+            rightPaddle
+        ]
+    ) {
+
+        paddle.vy =
+            stepScale > 0
+
+                ? (
+                    paddle.y -
+                    paddle.previousY
+                ) /
+                stepScale
+
+                : 0;
+
+        paddle.previousY =
+            paddle.y;
+    }
+}
+
 
 // ============================================================
 // IA
@@ -816,10 +2596,13 @@ function clampPaddles() {
 
 function aiMovementSensitivity() {
 
-    const limit =
+    const level =
         AI_LEVELS[
             aiDifficulty
-        ].returns;
+        ];
+
+    const limit =
+        level.returns;
 
     const progress =
         clamp(
@@ -830,21 +2613,25 @@ function aiMovementSensitivity() {
         );
 
     /*
-        Empieza al 100%.
+        Cada dificultad parte de
+        una capacidad distinta.
 
         A medida que devuelve,
         pierde capacidad de movimiento.
 
-        5 / 15 / 30 determinan
+        5 / 10 / 20 determinan
         cuánto tarda en degradarse.
     */
 
     return Math.max(
-        0.08,
+        0.1,
 
-        1 -
-        progress *
-        0.92
+        level.baseSensitivity *
+        (
+            1 -
+            progress *
+            0.78
+        )
     );
 }
 
@@ -853,6 +2640,15 @@ function registerAIReturn(side) {
     if (
         gameMode !== "ai"
     ) {
+        return;
+    }
+
+    if (aiVsAiEnabled) {
+
+        autoplayAIBrains[
+            side
+        ].returns++;
+
         return;
     }
 
@@ -868,7 +2664,624 @@ function registerAIReturn(side) {
     aiReturns++;
 }
 
-function updateAI() {
+function reflectPredictedBallY(
+    value
+) {
+
+    const radius =
+        BALL.size / 2;
+
+    const minY =
+        TABLE.top +
+        radius;
+
+    const maxY =
+        TABLE.bottom -
+        radius;
+
+    const span =
+        maxY -
+        minY;
+
+    const cycle =
+        span * 2;
+
+    const offset =
+        (
+            (
+                value -
+                minY
+            ) %
+            cycle +
+            cycle
+        ) %
+        cycle;
+
+    return (
+        offset <= span
+
+            ? minY +
+              offset
+
+            : maxY -
+              (
+                  offset -
+                  span
+              )
+    );
+}
+
+function predictedBallYAtPaddle(
+    side,
+    spinAwareness = 0
+) {
+
+    const paddle =
+        sidePaddle(
+            side
+        );
+
+    const ballCenterX =
+        ball.x +
+        BALL.size / 2;
+
+    const ballCenterY =
+        ball.y +
+        BALL.size / 2;
+
+    if (
+        Math.abs(
+            ball.vx
+        ) <
+        0.000001
+    ) {
+        return ballCenterY;
+    }
+
+    const targetX =
+        side === "left"
+
+            ? paddle.x +
+              PADDLE.w +
+              BALL.size / 2
+
+            : paddle.x -
+              BALL.size / 2;
+
+    const travelSteps =
+        (
+            targetX -
+            ballCenterX
+        ) /
+        ball.vx;
+
+    if (travelSteps <= 0) {
+        return ballCenterY;
+    }
+
+    const linearPrediction =
+        reflectPredictedBallY(
+        ballCenterY +
+        ball.vy *
+        travelSteps
+    );
+
+    if (
+        !spinEnabled ||
+        Math.abs(
+            ball.spin
+        ) <
+            SPIN.epsilon ||
+        spinAwareness <= 0
+    ) {
+        return linearPrediction;
+    }
+
+    const spinPrediction =
+        spinPredictedBallYAtPaddle(
+            side,
+            linearPrediction
+        );
+
+    return (
+        linearPrediction +
+        (
+            spinPrediction -
+            linearPrediction
+        ) *
+        clamp(
+            spinAwareness,
+            0,
+            1
+        )
+    );
+}
+
+function spinPredictedBallYAtPaddle(
+    side,
+    fallback
+) {
+
+    const paddle =
+        sidePaddle(
+            side
+        );
+
+    const radius =
+        BALL.size / 2;
+
+    const targetX =
+        side === "left"
+
+            ? paddle.x +
+              PADDLE.w +
+              radius
+
+            : paddle.x -
+              radius;
+
+    let predictedX =
+        ball.x;
+
+    let predictedY =
+        ball.y;
+
+    let predictedVx =
+        ball.vx;
+
+    let predictedVy =
+        ball.vy;
+
+    let predictedSpin =
+        ball.spin;
+
+
+    const applyPredictedBounce =
+        () => {
+
+            const speed =
+                Math.hypot(
+                    predictedVx,
+                    predictedVy
+                );
+
+            if (speed <= 0) {
+                return;
+            }
+
+            const horizontalDirection =
+                Math.sign(
+                    predictedVx
+                ) || 1;
+
+            const verticalDirection =
+                Math.sign(
+                    predictedVy
+                ) || 1;
+
+            if (
+                ball.shotType ===
+                "topspin"
+            ) {
+
+                const verticalSpeed =
+                    Math.min(
+                        speed * 0.94,
+
+                        Math.abs(
+                            predictedVy
+                        ) *
+                        SPIN.topspinBounceVerticalBoost
+                    );
+
+                predictedVy =
+                    verticalDirection *
+                    verticalSpeed;
+
+                predictedVx =
+                    horizontalDirection *
+                    Math.sqrt(
+                        Math.max(
+                            0,
+                            speed * speed -
+                            verticalSpeed *
+                            verticalSpeed
+                        )
+                    );
+
+            } else if (
+                ball.shotType ===
+                "backspin"
+            ) {
+
+                const horizontalSpeed =
+                    Math.abs(
+                        predictedVx
+                    ) *
+                    SPIN.backspinBounceHorizontalRetention;
+
+                predictedVx =
+                    horizontalDirection *
+                    horizontalSpeed;
+
+                predictedVy =
+                    verticalDirection *
+                    Math.sqrt(
+                        Math.max(
+                            0,
+                            speed * speed -
+                            horizontalSpeed *
+                            horizontalSpeed
+                        )
+                    );
+            }
+        };
+
+
+    for (
+        let step = 0;
+        step < 360;
+        step++
+    ) {
+
+        if (
+            Math.abs(
+                predictedSpin
+            ) >=
+            SPIN.epsilon
+        ) {
+
+            const curveMultiplier =
+                ball.shotType ===
+                    "topspin"
+
+                    ? SPIN.topspinCurveMultiplier
+                    : ball.shotType ===
+                        "backspin"
+
+                        ? SPIN.backspinCurveMultiplier
+                        : 1;
+
+            const angle =
+                predictedSpin *
+                SPIN.curvePerStep *
+                curveMultiplier;
+
+            const cos =
+                Math.cos(angle);
+
+            const sin =
+                Math.sin(angle);
+
+            const vx =
+                predictedVx;
+
+            const vy =
+                predictedVy;
+
+            predictedVx =
+                vx * cos -
+                vy * sin;
+
+            predictedVy =
+                vx * sin +
+                vy * cos;
+        }
+
+        predictedSpin *=
+            SPIN.decay;
+
+        if (
+            Math.abs(
+                predictedSpin
+            ) <
+            SPIN.epsilon
+        ) {
+            predictedSpin = 0;
+        }
+
+        predictedX +=
+            predictedVx;
+
+        predictedY +=
+            predictedVy;
+
+
+        if (
+            predictedY <=
+            TABLE.top
+        ) {
+
+            predictedY =
+                TABLE.top;
+
+            predictedVy =
+                Math.abs(
+                    predictedVy
+                );
+
+            predictedSpin *=
+                SPIN.wallRetention;
+
+            applyPredictedBounce();
+
+        } else if (
+            predictedY +
+            BALL.size >=
+            TABLE.bottom
+        ) {
+
+            predictedY =
+                TABLE.bottom -
+                BALL.size;
+
+            predictedVy =
+                -Math.abs(
+                    predictedVy
+                );
+
+            predictedSpin *=
+                SPIN.wallRetention;
+
+            applyPredictedBounce();
+        }
+
+
+        const centerX =
+            predictedX +
+            radius;
+
+        const reachedPaddle =
+            side === "left"
+
+                ? centerX <=
+                  targetX
+
+                : centerX >=
+                  targetX;
+
+        if (reachedPaddle) {
+
+            return clamp(
+                predictedY +
+                radius,
+
+                TABLE.top +
+                radius,
+
+                TABLE.bottom -
+                radius
+            );
+        }
+    }
+
+    return fallback;
+}
+
+function aiFatigueRatio(
+    level,
+    returnCount = aiReturns
+) {
+
+    return clamp(
+        returnCount /
+        level.returns,
+        0,
+        1
+    );
+}
+
+function chooseAIShotIntent(
+    level,
+    returnCount = aiReturns
+) {
+
+    const speed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    const fatigue =
+        aiFatigueRatio(
+            level,
+            returnCount
+        );
+
+
+    /*
+        Ante una pelota extrema o al final
+        de su capacidad, la IA prioriza
+        una devolución defensiva.
+    */
+
+    if (
+        speed >= 27 ||
+        fatigue >= 0.96
+    ) {
+        return "block";
+    }
+
+    const speedPressure =
+        clamp(
+            (
+                speed -
+                14
+            ) /
+            16,
+            0,
+            1
+        );
+
+    const blockChance =
+        clamp(
+            level.blockChance +
+            speedPressure *
+                0.12 +
+            fatigue *
+                0.14,
+            0,
+            0.85
+        );
+
+    const backspinChance =
+        clamp(
+            level.backspinChance,
+            0,
+            0.45
+        );
+
+    const roll =
+        Math.random();
+
+    if (roll < blockChance) {
+        return "block";
+    }
+
+    if (
+        roll <
+        blockChance +
+        backspinChance
+    ) {
+        return "backspin";
+    }
+
+    return "topspin";
+}
+
+function transitionAIState(
+    nextState,
+    level,
+    paddle
+) {
+
+    if (
+        aiState ===
+        nextState
+    ) {
+        return;
+    }
+
+    aiState =
+        nextState;
+
+    aiCorrectionRemaining =
+        0;
+
+
+    if (
+        nextState ===
+        "arcadeTracking"
+    ) {
+
+        const fatigue =
+            aiFatigueRatio(
+                level
+            );
+
+        aiReactionRemaining =
+            level.reactionSteps;
+
+        aiAimY =
+            paddle.y +
+            PADDLE.h / 2;
+
+        aiAimError =
+            (
+                Math.random() *
+                2 -
+                1
+            ) *
+            level.aimError *
+            (
+                1 +
+                fatigue *
+                0.75
+            );
+
+        aiShotIntent =
+            chooseAIShotIntent(
+                level
+            );
+
+        return;
+    }
+
+
+    aiReactionRemaining =
+        0;
+
+    aiAimError =
+        0;
+
+    aiShotIntent =
+        "block";
+}
+
+function updateAITarget(
+    aiSide,
+    level,
+    ballCenter,
+    stepScale
+) {
+
+    if (
+        aiReactionRemaining >
+        0
+    ) {
+
+        aiReactionRemaining =
+            Math.max(
+                0,
+                aiReactionRemaining -
+                stepScale
+            );
+
+        return aiAimY;
+    }
+
+
+    aiCorrectionRemaining -=
+        stepScale;
+
+    if (
+        aiCorrectionRemaining <=
+        0
+    ) {
+
+        const prediction =
+            predictedBallYAtPaddle(
+                aiSide,
+                level.spinAwareness
+            );
+
+        aiAimY =
+            clamp(
+                ballCenter +
+                (
+                    prediction -
+                    ballCenter
+                ) *
+                level.anticipation +
+                aiAimError,
+
+                TABLE.top +
+                PADDLE.h / 2,
+
+                TABLE.bottom -
+                PADDLE.h / 2
+            );
+
+        aiCorrectionRemaining =
+            level.correctionSteps;
+    }
+
+    return aiAimY;
+}
+
+function updateAI(
+    stepScale = 1
+) {
 
     if (
         gameMode !== "ai"
@@ -876,19 +3289,66 @@ function updateAI() {
         return;
     }
 
+    const aiSide =
+        otherSide(
+            humanSide
+        );
+
     const paddle =
         sidePaddle(
-            otherSide(
-                humanSide
-            )
+            aiSide
         );
+
+    const level =
+        AI_LEVELS[
+            aiDifficulty
+        ];
 
     const sensitivity =
         aiMovementSensitivity();
 
-    const target =
+    const endurance =
+        1 -
+        aiFatigueRatio(
+            level
+        ) *
+        0.7;
+
+    const ballCenter =
         ball.y +
         BALL.size / 2;
+
+    const movingTowardAI =
+        aiSide === "left"
+
+            ? ball.vx < 0
+            : ball.vx > 0;
+
+    const nextState =
+        movingTowardAI
+
+            ? "arcadeTracking"
+            : "recovering";
+
+    transitionAIState(
+        nextState,
+        level,
+        paddle
+    );
+
+    let target =
+        H / 2;
+
+    if (movingTowardAI) {
+
+        target =
+            updateAITarget(
+                aiSide,
+                level,
+                ballCenter,
+                stepScale
+            );
+    }
 
     const center =
         paddle.y +
@@ -937,30 +3397,346 @@ function updateAI() {
 
     const maxStep =
         ballDemand *
+        level.demandScale *
         (
-            0.35 +
+            0.28 +
             sensitivity *
-            0.9
-        );
+            0.72
+        ) *
+        level.response *
+        endurance;
 
 
     const tracking =
-        0.26 +
-        sensitivity *
-        0.18;
+        level.tracking *
+        (
+            0.65 +
+            sensitivity *
+            0.35
+        ) *
+        (
+            0.55 +
+            endurance *
+            0.45
+        );
 
 
-    paddle.y +=
+    const movement =
         clamp(
             delta *
             tracking,
 
             -maxStep,
             maxStep
+        ) *
+        stepScale;
+
+
+    paddle.y +=
+        clamp(
+            movement,
+
+            Math.min(
+                0,
+                delta
+            ),
+
+            Math.max(
+                0,
+                delta
+            )
         );
 }
 
-function updatePaddles() {
+function transitionAutoplayAIState(
+    brain,
+    nextState,
+    level,
+    paddle
+) {
+
+    if (
+        brain.state ===
+        nextState
+    ) {
+        return;
+    }
+
+    brain.state =
+        nextState;
+
+    brain.correctionRemaining =
+        0;
+
+    if (
+        nextState ===
+        "arcadeTracking"
+    ) {
+
+        const fatigue =
+            aiFatigueRatio(
+                level,
+                brain.returns
+            );
+
+        brain.reactionRemaining =
+            level.reactionSteps;
+
+        brain.aimY =
+            paddle.y +
+            PADDLE.h / 2;
+
+        brain.aimError =
+            (
+                Math.random() *
+                2 -
+                1
+            ) *
+            level.aimError *
+            (
+                1 +
+                fatigue *
+                0.75
+            );
+
+        brain.shotIntent =
+            chooseAIShotIntent(
+                level,
+                brain.returns
+            );
+
+        return;
+    }
+
+    brain.reactionRemaining =
+        0;
+
+    brain.aimError =
+        0;
+
+    brain.shotIntent =
+        "block";
+}
+
+function updateAutoplayAITarget(
+    side,
+    brain,
+    level,
+    ballCenter,
+    stepScale
+) {
+
+    if (
+        brain.reactionRemaining >
+        0
+    ) {
+
+        brain.reactionRemaining =
+            Math.max(
+                0,
+                brain.reactionRemaining -
+                stepScale
+            );
+
+        return brain.aimY;
+    }
+
+    brain.correctionRemaining -=
+        stepScale;
+
+    if (
+        brain.correctionRemaining <=
+        0
+    ) {
+
+        const prediction =
+            predictedBallYAtPaddle(
+                side,
+                level.spinAwareness
+            );
+
+        brain.aimY =
+            clamp(
+                ballCenter +
+                (
+                    prediction -
+                    ballCenter
+                ) *
+                level.anticipation +
+                brain.aimError,
+
+                TABLE.top +
+                PADDLE.h / 2,
+
+                TABLE.bottom -
+                PADDLE.h / 2
+            );
+
+        brain.correctionRemaining =
+            level.correctionSteps;
+    }
+
+    return brain.aimY;
+}
+
+function updateAutoplayAI(
+    side,
+    stepScale = 1
+) {
+
+    const paddle =
+        sidePaddle(
+            side
+        );
+
+    const level =
+        AI_LEVELS[
+            aiDifficultyForSide(
+                side
+            )
+        ];
+
+    const brain =
+        autoplayAIBrains[
+            side
+        ];
+
+    const fatigue =
+        aiFatigueRatio(
+            level,
+            brain.returns
+        );
+
+    const sensitivity =
+        Math.max(
+            0.1,
+            level.baseSensitivity *
+            (
+                1 -
+                fatigue *
+                0.78
+            )
+        );
+
+    const endurance =
+        1 -
+        fatigue *
+        0.7;
+
+    const ballCenter =
+        ball.y +
+        BALL.size / 2;
+
+    const movingTowardAI =
+        side === "left"
+
+            ? ball.vx < 0
+            : ball.vx > 0;
+
+    const nextState =
+        movingTowardAI
+
+            ? "arcadeTracking"
+            : "recovering";
+
+    transitionAutoplayAIState(
+        brain,
+        nextState,
+        level,
+        paddle
+    );
+
+    let target =
+        H / 2;
+
+    if (movingTowardAI) {
+
+        target =
+            updateAutoplayAITarget(
+                side,
+                brain,
+                level,
+                ballCenter,
+                stepScale
+            );
+    }
+
+    const center =
+        paddle.y +
+        PADDLE.h / 2;
+
+    const delta =
+        target -
+        center;
+
+    const ballDemand =
+        Math.max(
+            12,
+
+            Math.abs(
+                ball.vy
+            ) *
+            1.35 +
+
+            Math.abs(
+                ball.vx
+            ) *
+            0.38
+        );
+
+    const maxStep =
+        ballDemand *
+        level.demandScale *
+        (
+            0.28 +
+            sensitivity *
+            0.72
+        ) *
+        level.response *
+        endurance;
+
+    const tracking =
+        level.tracking *
+        (
+            0.65 +
+            sensitivity *
+            0.35
+        ) *
+        (
+            0.55 +
+            endurance *
+            0.45
+        );
+
+    const movement =
+        clamp(
+            delta *
+            tracking,
+
+            -maxStep,
+            maxStep
+        ) *
+        stepScale;
+
+    paddle.y +=
+        clamp(
+            movement,
+
+            Math.min(
+                0,
+                delta
+            ),
+
+            Math.max(
+                0,
+                delta
+            )
+        );
+}
+
+function updatePaddles(
+    stepScale = 1
+) {
 
     if (
         startMenuOpen ||
@@ -976,15 +3752,37 @@ function updatePaddles() {
         "local"
     ) {
 
-        localMove();
+        localMove(
+            stepScale
+        );
 
     } else if (
         gameMode ===
         "ai"
     ) {
 
-        humanMoveAI();
-        updateAI();
+        if (aiVsAiEnabled) {
+
+            updateAutoplayAI(
+                "left",
+                stepScale
+            );
+
+            updateAutoplayAI(
+                "right",
+                stepScale
+            );
+
+        } else {
+
+            humanMoveAI(
+                stepScale
+            );
+
+            updateAI(
+                stepScale
+            );
+        }
     }
 
     clampPaddles();
@@ -1033,6 +3831,8 @@ function bouncePaddle(
     side
 ) {
 
+    clearBallSpin();
+
     ball.x =
         side === "left"
 
@@ -1057,6 +3857,18 @@ function bouncePaddle(
     );
 
     increaseBallSpeed();
+    applyBallSpin(
+        paddle,
+        side
+    );
+
+    limitAIOutgoingAngle(
+        side
+    );
+
+    registerReplaySpeedThreshold();
+
+    markReplayReturn();
     paddleSound();
 }
 
@@ -1065,23 +3877,31 @@ function bouncePaddle(
 // PELOTA
 // ============================================================
 
-function updateBall() {
+function updateBall(
+    stepScale = 1
+) {
 
     if (
         startMenuOpen ||
         gamePaused ||
         gameOver ||
+        replayPlaying ||
         !gameMode
     ) {
         return;
     }
 
+    updateBallSpin(
+        stepScale
+    );
+
     ball.x +=
-        ball.vx;
+        ball.vx *
+        stepScale;
 
     ball.y +=
-        ball.vy;
-
+        ball.vy *
+        stepScale;
 
     // PARED SUPERIOR
 
@@ -1098,7 +3918,11 @@ function updateBall() {
                 ball.vy
             );
 
-        increaseBallSpeed();
+        ball.spin *=
+            SPIN.wallRetention;
+
+        applySpinBounceResponse();
+
         wallSound();
 
 
@@ -1119,7 +3943,11 @@ function updateBall() {
                 ball.vy
             );
 
-        increaseBallSpeed();
+        ball.spin *=
+            SPIN.wallRetention;
+
+        applySpinBounceResponse();
+
         wallSound();
     }
 
@@ -1155,6 +3983,18 @@ function updateBall() {
     }
 
 
+    if (!progressiveSpeed) {
+
+        setBallSpeed(
+            currentBallSpeed()
+        );
+    }
+
+
+    captureReplayFrame(
+        stepScale
+    );
+
     // PUNTO DERECHA
 
     if (
@@ -1163,10 +4003,9 @@ function updateBall() {
         TABLE.left
     ) {
 
-        rightScore++;
-
-        pointSound();
-        handlePoint();
+        awardPoint(
+            "right"
+        );
 
 
     // PUNTO IZQUIERDA
@@ -1176,10 +4015,9 @@ function updateBall() {
         TABLE.right
     ) {
 
-        leftScore++;
-
-        pointSound();
-        handlePoint();
+        awardPoint(
+            "left"
+        );
     }
 }
 
@@ -1188,11 +4026,43 @@ function updateBall() {
 // TECLADO
 // ============================================================
 
+function replaySkipKey(
+    event
+) {
+
+    return (
+        event.key ===
+            "Escape" ||
+        event.key ===
+            "Enter" ||
+        event.code ===
+            "Space" ||
+        event.key ===
+            " "
+    );
+}
+
 window.addEventListener(
     "keydown",
     event => {
 
         initAudio();
+
+
+        if (replayPlaying) {
+
+            if (
+                replaySkipKey(
+                    event
+                )
+            ) {
+
+                event.preventDefault();
+                finishReplay();
+            }
+
+            return;
+        }
 
 
         // REASIGNAR TECLA
@@ -1209,7 +4079,9 @@ window.addEventListener(
                 waitingForKey =
                     null;
 
-                closeMenusToGame();
+                closeMenusToGame(
+                    true
+                );
 
                 return;
             }
@@ -1332,7 +4204,9 @@ function setRebindKey(
 // ESC / NAVEGACIÓN
 // ============================================================
 
-function closeMenusToGame() {
+function closeMenusToGame(
+    fromEscape = false
+) {
 
     if (
         !gameMode ||
@@ -1341,17 +4215,28 @@ function closeMenusToGame() {
         return;
     }
 
+    if (fromEscape) {
+
+        escapeResumeTime =
+            performance.now();
+    }
+
     gamePaused = false;
 
     settingsOpen = false;
     controlsOpen = false;
     backgroundOpen = false;
     physicsOpen = false;
+    ballOpen = false;
+    replayOpen = false;
+    languageOpen = false;
 
     confirmOpen = null;
 
     waitingForKey = null;
     hoveredButton = null;
+
+    requestMouseCapture();
 }
 
 function handleEscape() {
@@ -1359,6 +4244,7 @@ function handleEscape() {
     if (startMenuOpen) {
 
         if (aiMenuOpen) {
+
             aiMenuOpen = false;
         }
 
@@ -1369,22 +4255,51 @@ function handleEscape() {
         return;
     }
 
-    if (
-        gamePaused ||
+    const submenuOpen =
         settingsOpen ||
         controlsOpen ||
         backgroundOpen ||
         physicsOpen ||
-        confirmOpen
+        ballOpen ||
+        replayOpen ||
+        languageOpen ||
+        Boolean(
+            confirmOpen
+        );
+
+    if (submenuOpen) {
+
+        closeMenusToGame(
+            true
+        );
+
+        return;
+    }
+
+    if (
+        gamePaused &&
+        performance.now() -
+        pointerUnlockPauseTime <
+        250
+    ) {
+        return;
+    }
+
+    if (
+        gamePaused
     ) {
 
-        closeMenusToGame();
+        closeMenusToGame(
+            true
+        );
 
         return;
     }
 
     gamePaused =
         true;
+
+    releaseMouseCapture();
 }
 
 
@@ -1392,9 +4307,249 @@ function handleEscape() {
 // MOUSE
 // ============================================================
 
+function mouseControlActive() {
+
+    if (
+        gameMode === "ai"
+    ) {
+        return (
+            !aiVsAiEnabled &&
+            aiControls.mouse
+        );
+    }
+
+    if (
+        gameMode === "local"
+    ) {
+
+        return (
+            localControls.left.mouse ||
+            localControls.right.mouse
+        );
+    }
+
+    return false;
+}
+
+function moveMousePaddles(
+    delta
+) {
+
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        replayPlaying ||
+        !Number.isFinite(delta)
+    ) {
+        return;
+    }
+
+
+    // VS IA
+
+    if (
+        gameMode === "ai" &&
+        !aiVsAiEnabled &&
+        aiControls.mouse
+    ) {
+
+        sidePaddle(
+            humanSide
+        ).y +=
+            delta *
+            (
+                0.75 +
+                aiControls.sensitivity *
+                2
+            );
+
+
+    // PVP LOCAL
+
+    } else if (
+        gameMode === "local"
+    ) {
+
+        for (
+            const side of
+            [
+                "left",
+                "right"
+            ]
+        ) {
+
+            const controls =
+                localControls[side];
+
+            if (
+                controls.mouse
+            ) {
+
+                sidePaddle(
+                    side
+                ).y +=
+                    delta *
+                    (
+                        0.75 +
+                        controls.sensitivity *
+                        2
+                    );
+            }
+        }
+    }
+
+    clampPaddles();
+}
+
+function queueMouseMovement(
+    delta
+) {
+
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        replayPlaying ||
+        !Number.isFinite(delta)
+    ) {
+        return;
+    }
+
+    pendingMouseDelta +=
+        delta;
+}
+
+function requestMouseCapture() {
+
+    if (
+        startMenuOpen ||
+        gamePaused ||
+        gameOver ||
+        replayPlaying ||
+        !mouseControlActive() ||
+        document.pointerLockElement ===
+            canvas ||
+        typeof canvas.requestPointerLock !==
+            "function"
+    ) {
+        return;
+    }
+
+    previousMouseY =
+        null;
+
+    pendingMouseDelta =
+        0;
+
+    let request =
+        null;
+
+    try {
+
+        request =
+            canvas.requestPointerLock();
+
+    } catch {
+        return;
+    }
+
+    if (
+        request &&
+        typeof request.catch ===
+            "function"
+    ) {
+        request.catch(
+            () => {}
+        );
+    }
+}
+
+function releaseMouseCapture() {
+
+    if (
+        document.pointerLockElement ===
+            canvas &&
+        typeof document.exitPointerLock ===
+            "function"
+    ) {
+        document.exitPointerLock();
+    }
+
+    previousMouseY =
+        null;
+
+    pendingMouseDelta =
+        0;
+}
+
+document.addEventListener(
+    "mousemove",
+    event => {
+
+        if (
+            document.pointerLockElement !==
+            canvas
+        ) {
+            return;
+        }
+
+        const rect =
+            canvas.getBoundingClientRect();
+
+        const delta =
+            event.movementY *
+            H /
+            rect.height;
+
+        queueMouseMovement(
+            delta
+        );
+    }
+);
+
+document.addEventListener(
+    "pointerlockchange",
+    () => {
+
+        previousMouseY =
+            null;
+
+        if (
+            document.pointerLockElement !==
+                canvas &&
+            !startMenuOpen &&
+            !gamePaused &&
+            !gameOver &&
+            !replayPlaying &&
+            performance.now() -
+                replayFinishTime >
+                250 &&
+            performance.now() -
+                escapeResumeTime >
+                250 &&
+            mouseControlActive()
+        ) {
+
+            gamePaused =
+                true;
+
+            pointerUnlockPauseTime =
+                performance.now();
+        }
+    }
+);
+
 canvas.addEventListener(
     "mousemove",
     event => {
+
+        if (
+            document.pointerLockElement ===
+            canvas
+        ) {
+            return;
+        }
 
         const {
             x,
@@ -1416,65 +4571,9 @@ canvas.addEventListener(
                 previousMouseY;
 
 
-            // VS IA
-
-            if (
-                gameMode ===
-                    "ai" &&
-                aiControls.mouse
-            ) {
-
-                sidePaddle(
-                    humanSide
-                ).y +=
-                    delta *
-                    (
-                        0.75 +
-                        aiControls
-                            .sensitivity *
-                        2
-                    );
-
-
-            // PVP LOCAL
-
-            } else if (
-                gameMode ===
-                "local"
-            ) {
-
-                for (
-                    const side of
-                    [
-                        "left",
-                        "right"
-                    ]
-                ) {
-
-                    const controls =
-                        localControls[
-                            side
-                        ];
-
-                    if (
-                        controls.mouse
-                    ) {
-
-                        sidePaddle(
-                            side
-                        ).y +=
-                            delta *
-                            (
-                                0.75 +
-                                controls
-                                    .sensitivity *
-                                2
-                            );
-                    }
-                }
-            }
-
-            clampPaddles();
+            queueMouseMovement(
+                delta
+            );
         }
 
 
@@ -1525,6 +4624,10 @@ canvas.addEventListener(
     "mousedown",
     event => {
 
+        if (replayPlaying) {
+            return;
+        }
+
         const {
             x,
             y
@@ -1564,6 +4667,13 @@ canvas.addEventListener(
     "click",
     event => {
 
+        if (replayPlaying) {
+
+            finishReplay();
+
+            return;
+        }
+
         const {
             x,
             y
@@ -1592,6 +4702,10 @@ canvas.addEventListener(
             handleAction(
                 hit.id
             );
+
+        } else {
+
+            requestMouseCapture();
         }
     }
 );
@@ -1648,13 +4762,15 @@ function addSlider(
     value,
     min,
     max,
-    rect
+    rect,
+    displayValue = null
 ) {
 
     items.push({
         id,
         label,
         value,
+        displayValue,
         min,
         max,
         rect,
@@ -1698,7 +4814,6 @@ function interactiveItems() {
         });
     };
 
-
     // MENU INICIAL
 
     if (
@@ -1707,29 +4822,41 @@ function interactiveItems() {
     ) {
 
         add(
-            "local",
-            "PVP LOCAL",
+            "ai",
+            t("vsAi"),
             buttonRect(
                 0,
-                3
+                3,
+                340,
+                50,
+                12,
+                410
             )
         );
 
         add(
-            "ai",
-            "VS IA",
+            "local",
+            t("localPvp"),
             buttonRect(
                 1,
-                3
+                3,
+                340,
+                50,
+                12,
+                410
             )
         );
 
         add(
             "online",
-            "PVP ONLINE",
+            t("onlinePvp"),
             buttonRect(
                 2,
-                3
+                3,
+                340,
+                50,
+                12,
+                410
             ),
             true
         );
@@ -1748,12 +4875,12 @@ function interactiveItems() {
         add(
             "side",
 
-            `LADO: ${
+            `${t("side")}: ${
                 humanSide ===
                 "left"
 
-                    ? "IZQUIERDA"
-                    : "DERECHA"
+                    ? t("left")
+                    : t("right")
             }`,
 
             buttonRect(
@@ -1762,59 +4889,59 @@ function interactiveItems() {
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
         add(
             "easy",
-            "FÁCIL",
+            t("easy"),
             buttonRect(
                 1,
                 5,
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
         add(
             "normal",
-            "NORMAL",
+            t("normal"),
             buttonRect(
                 2,
                 5,
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
         add(
             "hard",
-            "DIFÍCIL",
+            t("hard"),
             buttonRect(
                 3,
                 5,
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
         add(
             "aiBack",
-            "VOLVER",
+            t("back"),
             buttonRect(
                 4,
                 5,
                 360,
                 54,
                 13,
-                390
+                480
             )
         );
 
@@ -1826,15 +4953,47 @@ function interactiveItems() {
 
     if (gameOver) {
 
+        const difficultySelectable =
+            gameMode === "ai" &&
+            !aiVsAiEnabled;
+
+        if (difficultySelectable) {
+
+            add(
+                "victoryDifficulty",
+
+                `${t("difficulty")}: ${difficultyLabel(
+                    aiDifficulty
+                )}`,
+
+                {
+                    x:
+                        W / 2 - 180,
+
+                    y:
+                        H / 2 + 30,
+
+                    w: 360,
+                    h: 52
+                }
+            );
+        }
+
         add(
             "revenge",
-            "¿REVANCHA?",
+            t("rematch"),
             {
                 x:
                     W / 2 - 130,
 
                 y:
-                    H / 2 + 55,
+                    H / 2 +
+                    (
+                        difficultySelectable
+
+                            ? 95
+                            : 55
+                    ),
 
                 w: 260,
                 h: 60
@@ -1843,13 +5002,19 @@ function interactiveItems() {
 
         add(
             "victoryMenu",
-            "MENÚ INICIAL",
+            t("mainMenu"),
             {
                 x:
                     W / 2 - 130,
 
                 y:
-                    H / 2 + 135,
+                    H / 2 +
+                    (
+                        difficultySelectable
+
+                            ? 175
+                            : 135
+                    ),
 
                 w: 260,
                 h: 52
@@ -1866,7 +5031,7 @@ function interactiveItems() {
 
         add(
             "confirmYes",
-            "SÍ",
+            t("yes"),
             {
                 x:
                     W / 2 - 200,
@@ -1881,7 +5046,7 @@ function interactiveItems() {
 
         add(
             "confirmNo",
-            "NO",
+            t("no"),
             {
                 x:
                     W / 2 + 20,
@@ -1924,193 +5089,16 @@ function interactiveItems() {
     if (backgroundOpen) {
 
         [
-            ["green", "VERDE"],
-            ["blue", "AZUL"],
-            ["black", "NEGRO"],
-            ["backgroundBack", "VOLVER"]
-
-        ].forEach(
-            (
-                [
-                    id,
-                    text
-                ],
-                index
-            ) => {
-
-                add(
-                    id,
-                    text,
-
-                    buttonRect(
-                        index,
-                        4,
-                        280,
-                        55,
-                        15,
-                        380
-                    )
-                );
-            }
-        );
-
-        return items;
-    }
-
-
-    // FISICAS
-
-    if (physicsOpen) {
-
-        addSlider(
-            items,
-            "ballSpeed",
-            "VELOCIDAD",
-            ballSpeedLevel,
-            1,
-            10,
-            {
-                x:
-                    W / 2 - 180,
-
-                y: 170,
-
-                w: 360,
-                h: 20
-            }
-        );
-
-        add(
-            "progressive",
-
-            `VELOCIDAD PROGRESIVA: ${
-                progressiveSpeed
-                    ? "ON"
-                    : "OFF"
-            }`,
-
-            {
-                x:
-                    W / 2 - 230,
-
-                y: 240,
-
-                w: 460,
-                h: 55
-            }
-        );
-
-        add(
-            "topspin",
-            "TOPSPIN · PRÓXIMAMENTE",
-            {
-                x:
-                    W / 2 - 210,
-
-                y: 320,
-
-                w: 420,
-                h: 44
-            },
-            true
-        );
-
-        add(
-            "backspin",
-            "BACKSPIN · PRÓXIMAMENTE",
-            {
-                x:
-                    W / 2 - 210,
-
-                y: 374,
-
-                w: 420,
-                h: 44
-            },
-            true
-        );
-
-        add(
-            "sidespin",
-            "SIDESPIN · PRÓXIMAMENTE",
-            {
-                x:
-                    W / 2 - 210,
-
-                y: 428,
-
-                w: 420,
-                h: 44
-            },
-            true
-        );
-
-        add(
-            "physicsReset",
-            "RESTABLECER POR DEFECTO",
-            {
-                x:
-                    W / 2 - 190,
-
-                y: 505,
-
-                w: 380,
-                h: 50
-            }
-        );
-
-        add(
-            "physicsBack",
-            "VOLVER",
-            {
-                x:
-                    W / 2 - 110,
-
-                y: 570,
-
-                w: 220,
-                h: 50
-            }
-        );
-
-        return items;
-    }
-
-
-    // AJUSTES
-
-    if (settingsOpen) {
-
-        [
+            ["green", t("green")],
+            ["blue", t("blue")],
+            ["black", t("black")],
             [
-                "controls",
-                "CONTROLES"
+                "scorePosition",
+                `${t("score")}: ${t(
+                    scorePosition
+                )}`
             ],
-
-            [
-                "background",
-                "FONDO"
-            ],
-
-            [
-                "physics",
-                "FÍSICAS"
-            ],
-
-            [
-                "sound",
-
-                `SONIDO: ${
-                    audioMuted
-                        ? "OFF"
-                        : "ON"
-                }`
-            ],
-
-            [
-                "settingsBack",
-                "VOLVER"
-            ]
+            ["backgroundBack", t("back")]
 
         ].forEach(
             (
@@ -2128,9 +5116,380 @@ function interactiveItems() {
                     buttonRect(
                         index,
                         5,
-                        300,
+                        280,
                         55,
-                        14,
+                        15,
+                        380
+                    )
+                );
+            }
+        );
+
+        return items;
+    }
+
+    // PELOTA
+
+    if (ballOpen) {
+
+        [
+            [
+                "ballColor",
+                `${t("color")}: ${t(
+                    ballColor
+                )}`
+            ],
+
+            [
+                "ballSize",
+                `${t("size")}: ${t(
+                    ballSizeMode
+                )}`
+            ],
+
+            [
+                "ballDefaults",
+                t("defaults")
+            ],
+
+            [
+                "ballBack",
+                t("back")
+            ]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    text
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+                    text,
+
+                    buttonRect(
+                        index,
+                        4,
+                        430,
+                        58,
+                        15,
+                        390
+                    )
+                );
+            }
+        );
+
+        return items;
+    }
+
+    // FISICAS
+
+    if (physicsOpen) {
+
+        addSlider(
+            items,
+            "ballSpeed",
+            t("velocity"),
+            ballSpeedLevel,
+            1,
+            10,
+            {
+                x:
+                    W / 2 - 180,
+
+                y: 170,
+
+                w: 360,
+                h: 20
+            },
+            initialBallSpeedText()
+        );
+
+        add(
+            "progressive",
+
+            `${t("progressive")}: ${
+                progressiveSpeed
+                    ? "ON"
+                    : "OFF"
+            }`,
+
+            {
+                x:
+                    W / 2 - 230,
+
+                y: 240,
+
+                w: 460,
+                h: 55
+            }
+        );
+
+        add(
+            "spin",
+
+            `SPIN: ${
+                spinEnabled
+                    ? "ON"
+                    : "OFF"
+            }`,
+
+            {
+                x:
+                    W / 2 - 230,
+
+                y: 320,
+
+                w: 460,
+                h: 55
+            },
+            false
+        );
+
+        add(
+            "physicsReset",
+            t("resetDefaults"),
+            {
+                x:
+                    W / 2 - 190,
+
+                y: 415,
+
+                w: 380,
+                h: 50
+            }
+        );
+
+        add(
+            "physicsBack",
+            t("back"),
+            {
+                x:
+                    W / 2 - 110,
+
+                y: 480,
+
+                w: 220,
+                h: 50
+            }
+        );
+
+        return items;
+    }
+
+
+    // REPETICIÓN
+
+    if (replayOpen) {
+
+        add(
+            "replayAuto",
+
+            `${t("replayAuto")}: ${
+                replayAutoEnabled
+                    ? "ON"
+                    : "OFF"
+            }`,
+
+            {
+                x: 330,
+                y: 125,
+                w: 620,
+                h: 50
+            }
+        );
+
+        REPLAY.modeOptions
+            .forEach(
+                (
+                    mode,
+                    index
+                ) => {
+
+                    add(
+                        `replayMode:${mode}`,
+
+                        `${replayModeLabel(
+                            mode
+                        )}${
+                            replayMode ===
+                            mode
+
+                                ? ` · ${t("active")}`
+                                : ""
+                        }`,
+
+                        {
+                            x: 315,
+                            y:
+                                225 +
+                                index * 54,
+                            w: 650,
+                            h: 46
+                        }
+                    );
+                }
+            );
+
+        add(
+            "replayDefaults",
+            t("defaults"),
+            {
+                x: 390,
+                y: 465,
+                w: 500,
+                h: 46
+            }
+        );
+
+        add(
+            "replayBack",
+            t("back"),
+            {
+                x: 500,
+                y: 525,
+                w: 280,
+                h: 46
+            }
+        );
+
+        return items;
+    }
+
+
+    // IDIOMA
+
+    if (languageOpen) {
+
+        [
+            ["langAuto", "auto", t("automatic")],
+            ["langEs", "es", t("spanish")],
+            ["langEn", "en", t("english")]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    mode,
+                    label
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+
+                    mode === languageMode
+
+                        ? `${label} · ${t("active")}`
+                        : label,
+
+                    buttonRect(
+                        index,
+                        4,
+                        360,
+                        55,
+                        15,
+                        380
+                    )
+                );
+            }
+        );
+
+        add(
+            "languageBack",
+            t("back"),
+            buttonRect(
+                3,
+                4,
+                360,
+                55,
+                15,
+                380
+            )
+        );
+
+        return items;
+    }
+
+
+    // AJUSTES
+
+    if (settingsOpen) {
+
+        [
+            [
+                "controls",
+                t("controls")
+            ],
+
+            [
+                "background",
+                t("background")
+            ],
+
+            [
+                "ballSettings",
+                t("ball")
+            ],
+
+            [
+                "physics",
+                t("physics")
+            ],
+
+            [
+                "fps",
+                `FPS: ${physicsFps}`
+            ],
+
+            [
+                "replay",
+                t("replay")
+            ],
+
+            [
+                "language",
+                `${t("language")}: ${languageModeLabel()}`
+            ],
+
+            [
+                "sound",
+
+                `${t("sound")}: ${
+                    audioMuted
+                        ? "OFF"
+                        : "ON"
+                }`
+            ],
+
+            [
+                "settingsBack",
+                t("back")
+            ]
+
+        ].forEach(
+            (
+                [
+                    id,
+                    text
+                ],
+                index
+            ) => {
+
+                add(
+                    id,
+                    text,
+
+                    buttonRect(
+                        index,
+                        9,
+                        430,
+                        39,
+                        5,
                         390
                     )
                 );
@@ -2148,22 +5507,22 @@ function interactiveItems() {
         [
             [
                 "continue",
-                "CONTINUAR"
+                t("continue")
             ],
 
             [
                 "restart",
-                "REINICIAR PARTIDA"
+                t("restart")
             ],
 
             [
                 "mainMenu",
-                "MENÚ INICIAL"
+                t("mainMenu")
             ],
 
             [
                 "settings",
-                "AJUSTES"
+                t("settings")
             ]
 
         ].forEach(
@@ -2233,7 +5592,7 @@ function localControlItems(
             waitingForKey ===
             `${side}:up`
 
-                ? "PRESIONÁ..."
+                ? t("press")
                 : formatKey(
                     controls.up
                 ),
@@ -2256,7 +5615,7 @@ function localControlItems(
             waitingForKey ===
             `${side}:down`
 
-                ? "PRESIONÁ..."
+                ? t("press")
                 : formatKey(
                     controls.down
                 ),
@@ -2325,7 +5684,7 @@ function localControlItems(
 
     add(
         "localControlsReset",
-        "RESTABLECER POR DEFECTO",
+        t("resetDefaults"),
         {
             x:
                 W / 2 - 185,
@@ -2340,7 +5699,7 @@ function localControlItems(
 
     add(
         "controlsBack",
-        "VOLVER",
+        t("back"),
         {
             x:
                 W / 2 - 110,
@@ -2368,6 +5727,67 @@ function aiControlItems(
     const x =
         570;
 
+    add(
+        "aiVsAi",
+
+        `${t("aiVsAi")}: ${
+            aiVsAiEnabled
+                ? "ON"
+                : "OFF"
+        }`,
+
+        {
+            x:
+                W / 2 - 210,
+
+            y:
+                aiVsAiEnabled
+                    ? 135
+                    : 430,
+
+            w: 420,
+            h: 48
+        }
+    );
+
+
+    if (aiVsAiEnabled) {
+
+        add(
+            "aiLeftDifficulty",
+
+            `${t("aiLeft")}: ${
+                difficultyLabel(
+                    aiLeftDifficulty
+                )
+            }`,
+
+            {
+                x: 155,
+                y: 280,
+                w: 430,
+                h: 58
+            }
+        );
+
+        add(
+            "aiRightDifficulty",
+
+            `${t("aiRight")}: ${
+                difficultyLabel(
+                    aiRightDifficulty
+                )
+            }`,
+
+            {
+                x: 695,
+                y: 280,
+                w: 430,
+                h: 58
+            }
+        );
+
+    } else {
 
     add(
         "up1",
@@ -2375,7 +5795,7 @@ function aiControlItems(
         waitingForKey ===
         "up1"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.up1
             ),
@@ -2396,7 +5816,7 @@ function aiControlItems(
         waitingForKey ===
         "up2"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.up2
             ),
@@ -2419,7 +5839,7 @@ function aiControlItems(
         waitingForKey ===
         "down1"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.down1
             ),
@@ -2440,7 +5860,7 @@ function aiControlItems(
         waitingForKey ===
         "down2"
 
-            ? "PRESIONÁ..."
+            ? t("press")
             : formatKey(
                 aiControls.down2
             ),
@@ -2501,15 +5921,17 @@ function aiControlItems(
         }
     );
 
+    }
+
 
     add(
         "aiControlsReset",
-        "RESTABLECER POR DEFECTO",
+        t("resetDefaults"),
         {
             x:
                 W / 2 - 185,
 
-            y: 510,
+            y: 520,
 
             w: 370,
             h: 50
@@ -2519,12 +5941,12 @@ function aiControlItems(
 
     add(
         "controlsBack",
-        "VOLVER",
+        t("back"),
         {
             x:
                 W / 2 - 110,
 
-            y: 580,
+            y: 590,
 
             w: 220,
             h: 50
@@ -2683,6 +6105,8 @@ function handleAction(id) {
         gamePaused =
             false;
 
+        requestMouseCapture();
+
         return;
     }
 
@@ -2800,6 +6224,112 @@ function handleAction(id) {
 
     if (
         id ===
+        "ballSettings"
+    ) {
+
+        ballOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballColor"
+    ) {
+
+        ballColor =
+            ballColor === "white"
+
+                ? "orange"
+                : "white";
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballSize"
+    ) {
+
+        setBallSizeMode(
+            ballSizeMode === "pong"
+
+                ? "pingPong"
+                : "pong"
+        );
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballDefaults"
+    ) {
+
+        resetBallAppearance();
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "ballBack"
+    ) {
+
+        ballOpen =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "fps"
+    ) {
+
+        setPhysicsFps(
+            physicsFps === 60
+
+                ? 120
+                : 60
+        );
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "replay"
+    ) {
+
+        replayOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "language"
+    ) {
+
+        languageOpen =
+            true;
+
+        return;
+    }
+
+
+    if (
+        id ===
         "sound"
     ) {
 
@@ -2839,6 +6369,21 @@ function handleAction(id) {
 
     if (
         id ===
+        "scorePosition"
+    ) {
+
+        scorePosition =
+            scorePosition === "bottom"
+
+                ? "top"
+                : "bottom";
+
+        return;
+    }
+
+
+    if (
+        id ===
         "backgroundBack"
     ) {
 
@@ -2860,6 +6405,96 @@ function handleAction(id) {
         return;
     }
 
+    if (
+        id ===
+        "replayAuto"
+    ) {
+
+        replayAutoEnabled =
+            !replayAutoEnabled;
+
+        return;
+    }
+
+
+    if (
+        id.startsWith(
+            "replayMode:"
+        )
+    ) {
+
+        const nextMode =
+            id.split(":")[1];
+
+        if (
+            REPLAY.modeOptions
+                .includes(
+                    nextMode
+                )
+        ) {
+
+            replayMode =
+                nextMode;
+        }
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "replayDefaults"
+    ) {
+
+        replayAutoEnabled =
+            REPLAY.defaultEnabled;
+
+        replayMode =
+            REPLAY.defaultMode;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "replayBack"
+    ) {
+
+        replayOpen =
+            false;
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "languageBack"
+    ) {
+
+        languageOpen =
+            false;
+
+        return;
+    }
+
+
+    const languageActions = {
+        langAuto: "auto",
+        langEs: "es",
+        langEn: "en"
+    };
+
+    if (
+        languageActions[id]
+    ) {
+
+        languageMode =
+            languageActions[id];
+
+        return;
+    }
 
     if (
         [
@@ -2991,6 +6626,54 @@ function handleAction(id) {
     ) {
 
         if (
+            id ===
+            "aiVsAi"
+        ) {
+
+            aiVsAiEnabled =
+                !aiVsAiEnabled;
+
+            waitingForKey =
+                null;
+
+            resetAIThinking();
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiLeftDifficulty"
+        ) {
+
+            aiLeftDifficulty =
+                nextAIDifficulty(
+                    aiLeftDifficulty
+                );
+
+            resetAutoplayAIThinking();
+
+            return;
+        }
+
+
+        if (
+            id ===
+            "aiRightDifficulty"
+        ) {
+
+            aiRightDifficulty =
+                nextAIDifficulty(
+                    aiRightDifficulty
+                );
+
+            resetAutoplayAIThinking();
+
+            return;
+        }
+
+        if (
             [
                 "up1",
                 "up2",
@@ -3080,6 +6763,31 @@ function handleAction(id) {
         progressiveSpeed =
             !progressiveSpeed;
 
+        if (!progressiveSpeed) {
+
+            clearBallSpin();
+
+            setBallSpeed(
+                currentBallSpeed()
+            );
+        }
+
+        return;
+    }
+
+
+    if (
+        id ===
+        "spin"
+    ) {
+
+        spinEnabled =
+            !spinEnabled;
+
+        if (!spinEnabled) {
+            clearBallSpin();
+        }
+
         return;
     }
 
@@ -3096,6 +6804,22 @@ function handleAction(id) {
 
 
     // FINAL
+
+    if (
+        id ===
+        "victoryDifficulty"
+    ) {
+
+        aiDifficulty =
+            nextAIDifficulty(
+                aiDifficulty
+            );
+
+        resetAIThinking();
+
+        return;
+    }
+
 
     if (
         id ===
@@ -3136,7 +6860,10 @@ function updateHover(
     ) {
 
         if (
-            !item.disabled &&
+            (
+                !item.disabled ||
+                item.id === "online"
+            ) &&
             inside(
                 x,
                 y,
@@ -3153,7 +6880,8 @@ function updateHover(
     }
 
     canvas.style.cursor =
-        hoveredButton
+        hoveredButton &&
+        hoveredButton !== "online"
             ? "pointer"
             : "default";
 }
@@ -3236,27 +6964,56 @@ function drawPaddles() {
     );
 }
 
-function drawBall() {
+function drawBallShape(
+    centerX,
+    centerY,
+    size = BALL.size
+) {
 
-    ctx.fillStyle =
-        "#FFFFFF";
+    if (
+        ballSizeMode ===
+        "pong"
+    ) {
+
+        ctx.fillRect(
+            centerX -
+            size / 2,
+
+            centerY -
+            size / 2,
+
+            size,
+            size
+        );
+
+        return;
+    }
 
     ctx.beginPath();
 
     ctx.arc(
-        ball.x +
-        BALL.size / 2,
-
-        ball.y +
-        BALL.size / 2,
-
-        BALL.size / 2,
-
+        centerX,
+        centerY,
+        size / 2,
         0,
         Math.PI * 2
     );
 
     ctx.fill();
+}
+
+function drawBall() {
+
+    ctx.fillStyle =
+        currentBallColor();
+
+    drawBallShape(
+        ball.x +
+        BALL.size / 2,
+
+        ball.y +
+        BALL.size / 2
+    );
 }
 
 
@@ -3273,7 +7030,10 @@ function drawScore() {
     */
 
     const scoreBaselineY =
-        TABLE.bottom - 23;
+        scorePosition === "top"
+
+            ? TABLE.top + 58
+            : TABLE.bottom - 23;
 
     ctx.fillStyle =
         "#FFFFFF";
@@ -3331,8 +7091,8 @@ function drawScore() {
 
 
     /*
-        Obtenemos el borde visual
-        inferior REAL del contador.
+        Obtenemos el borde visual REAL
+        orientado hacia el límite elegido.
     */
 
     const metrics =
@@ -3351,9 +7111,28 @@ function drawScore() {
             : 2;
 
 
-    const scoreVisualBottom =
-        scoreBaselineY +
-        descent;
+    const ascent =
+        Number.isFinite(
+            metrics.actualBoundingBoxAscent
+        )
+            ? metrics.actualBoundingBoxAscent
+            : 42;
+
+
+    const scoreVisualEdge =
+        scorePosition === "top"
+
+            ? scoreBaselineY -
+              ascent
+            : scoreBaselineY +
+              descent;
+
+
+    const tableEdge =
+        scorePosition === "top"
+
+            ? TABLE.top
+            : TABLE.bottom;
 
 
     /*
@@ -3361,14 +7140,14 @@ function drawScore() {
         en el centro entre:
 
         borde visual del número
-        y borde inferior de la mesa.
+        y el límite elegido de la mesa.
     */
 
     const matchY =
-        scoreVisualBottom +
+        scoreVisualEdge +
         (
-            TABLE.bottom -
-            scoreVisualBottom
+            tableEdge -
+            scoreVisualEdge
         ) /
         2;
 
@@ -3606,6 +7385,7 @@ function drawSlider(item) {
 
 
     ctx.fillText(
+        item.displayValue ||
         String(
             item.value
         ),
@@ -3661,10 +7441,338 @@ function drawSlider(item) {
     ctx.fill();
 }
 
-
 // ============================================================
 // START
 // ============================================================
+
+function drawArgenPongLogo(
+    scale = 0.84
+) {
+
+    const centerX =
+        W / 2;
+
+    const neonPulse =
+        0.22 +
+        0.78 *
+        (
+            Math.sin(
+                performance.now() /
+                300
+            ) +
+            1
+        ) /
+        2;
+
+    ctx.save();
+
+    ctx.translate(
+        centerX,
+        0
+    );
+
+    ctx.scale(
+        scale,
+        scale
+    );
+
+    ctx.translate(
+        -centerX,
+        0
+    );
+
+    ctx.shadowColor =
+        `rgba(108,172,228,${
+            0.24 +
+            neonPulse *
+            0.58
+        })`;
+
+    ctx.shadowBlur =
+        14 +
+        neonPulse *
+        24;
+
+    ctx.fillStyle =
+        BRAND.ink;
+
+    ctx.strokeStyle =
+        BRAND.blue;
+
+    ctx.lineWidth =
+        3;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        centerX - 245,
+        42
+    );
+
+    ctx.lineTo(
+        centerX + 245,
+        42
+    );
+
+    ctx.lineTo(
+        centerX + 215,
+        205
+    );
+
+    ctx.lineTo(
+        centerX,
+        244
+    );
+
+    ctx.lineTo(
+        centerX - 215,
+        205
+    );
+
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowBlur =
+        0;
+
+    ctx.fillStyle =
+        BRAND.blue;
+
+    ctx.font =
+        "900 32px Arial, sans-serif";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.fillText(
+        "ARGEN",
+        centerX,
+        82
+    );
+
+    ctx.font =
+        "900 66px Arial, sans-serif";
+
+    const pWidth =
+        ctx.measureText("P").width;
+
+    const ngWidth =
+        ctx.measureText("NG").width;
+
+    const ballDiameter =
+        48;
+
+    const letterGap =
+        8;
+
+    const wordWidth =
+        pWidth +
+        ngWidth +
+        ballDiameter +
+        letterGap * 2;
+
+    const wordStart =
+        centerX -
+        wordWidth / 2;
+
+
+    // Paleta integrada al escudo.
+
+    ctx.save();
+
+    ctx.translate(
+        wordStart - 48,
+        147
+    );
+
+    ctx.rotate(-0.2);
+
+    ctx.fillStyle =
+        BRAND.blue;
+
+    ctx.fillRect(
+        -6,
+        20,
+        12,
+        31
+    );
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        0,
+        -5,
+        22,
+        31,
+        0,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+    ctx.restore();
+
+
+    // La pelota reemplaza la O de PONG.
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.textAlign =
+        "left";
+
+    ctx.fillText(
+        "P",
+        wordStart,
+        148
+    );
+
+    const ballCenterX =
+        wordStart +
+        pWidth +
+        letterGap +
+        ballDiameter / 2;
+
+    ctx.fillStyle =
+        BRAND.gold;
+
+    ctx.shadowColor =
+        `rgba(255,184,28,${
+            0.35 +
+            neonPulse *
+            0.5
+        })`;
+
+    ctx.shadowBlur =
+        10 +
+        neonPulse *
+        18;
+
+    ctx.beginPath();
+
+    ctx.arc(
+        ballCenterX,
+        148,
+        ballDiameter / 2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.shadowBlur =
+        0;
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.65)";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        ballCenterX - 7,
+        140,
+        5,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.fillText(
+        "NG",
+        ballCenterX +
+        ballDiameter / 2 +
+        letterGap,
+        148
+    );
+
+
+    // Remate angular de estética eSport.
+
+    ctx.strokeStyle =
+        BRAND.blue;
+
+    ctx.lineWidth =
+        5;
+
+    ctx.shadowColor =
+        `rgba(108,172,228,${
+            0.28 +
+            neonPulse *
+            0.62
+        })`;
+
+    ctx.shadowBlur =
+        8 +
+        neonPulse *
+        16;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        centerX - 155,
+        194
+    );
+
+    ctx.lineTo(
+        centerX - 30,
+        213
+    );
+
+    ctx.lineTo(
+        centerX + 155,
+        194
+    );
+
+    ctx.stroke();
+
+    ctx.shadowBlur =
+        0;
+
+    ctx.strokeStyle =
+        BRAND.gold;
+
+    ctx.lineWidth =
+        3;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        centerX - 30,
+        213
+    );
+
+    ctx.lineTo(
+        centerX + 35,
+        207
+    );
+
+    ctx.stroke();
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.78)";
+
+    ctx.font =
+        "bold 12px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.fillText(
+        "1.1 BETA",
+        centerX,
+        226
+    );
+
+    ctx.restore();
+}
 
 function drawStart() {
 
@@ -3679,37 +7787,15 @@ function drawStart() {
     );
 
 
-    if (!aiMenuOpen) {
+    drawArgenPongLogo();
+
+
+    if (aiMenuOpen) {
 
         title(
-            "ARGENPONG",
-            145,
-            "bold 64px monospace"
-        );
-
-
-        ctx.font =
-            "42px monospace";
-
-        ctx.fillStyle =
-            "#FFFFFF";
-
-        ctx.textAlign =
-            "center";
-
-
-        ctx.fillText(
-            "🏓",
-            W / 2,
-            220
-        );
-
-    } else {
-
-        title(
-            "ELEGÍ TU LADO",
-            125,
-            "bold 42px monospace"
+            t("chooseSide"),
+            270,
+            "bold 26px monospace"
         );
 
 
@@ -3724,9 +7810,9 @@ function drawStart() {
 
 
         ctx.fillText(
-            "Después seleccioná la dificultad",
+            t("chooseDifficulty"),
             W / 2,
-            180
+            302
         );
     }
 
@@ -3740,7 +7826,10 @@ function drawStart() {
     );
 
 
-    if (!aiMenuOpen) {
+    if (
+        !aiMenuOpen &&
+        hoveredButton === "online"
+    ) {
 
         const online =
             items.find(
@@ -3751,6 +7840,23 @@ function drawStart() {
 
 
         if (online) {
+
+            const blink =
+                0.25 +
+                0.75 *
+                (
+                    Math.sin(
+                        performance.now() /
+                        260
+                    ) +
+                    1
+                ) /
+                2;
+
+            ctx.save();
+
+            ctx.globalAlpha =
+                blink;
 
             ctx.fillStyle =
                 "rgba(255,255,255,.65)";
@@ -3763,12 +7869,17 @@ function drawStart() {
 
 
             ctx.fillText(
-                "PRÓXIMAMENTE",
-                W / 2,
+                t("comingSoon"),
+                online.rect.x +
+                online.rect.w +
+                105,
+
                 online.rect.y +
-                online.rect.h +
-                22
+                online.rect.h / 2 +
+                5
             );
+
+            ctx.restore();
         }
     }
 }
@@ -3782,9 +7893,14 @@ function drawPause() {
 
     overlay(0.72);
 
+    drawArgenPongLogo(
+        0.64
+    );
+
     title(
-        "PAUSA",
-        110
+        t("pause"),
+        214,
+        "bold 30px monospace"
     );
 
     interactiveItems()
@@ -3798,7 +7914,7 @@ function drawSettings() {
     overlay(0.8);
 
     title(
-        "AJUSTES",
+        t("settings"),
         75
     );
 
@@ -3813,7 +7929,112 @@ function drawBackground() {
     overlay(0.82);
 
     title(
-        "FONDO",
+        t("background"),
+        75
+    );
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
+function drawBallSettings() {
+
+    overlay(0.82);
+
+    title(
+        t("ball"),
+        75
+    );
+
+    ctx.save();
+
+    ctx.fillStyle =
+        currentBallColor();
+
+    drawBallShape(
+        W / 2,
+        145,
+        BALL.size
+    );
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.82)";
+
+    ctx.font =
+        "16px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.fillText(
+        ballSizeMode ===
+        "pingPong"
+
+            ? `40 mm · ${BALL.size.toFixed(
+                1
+            )} px`
+            : `${BALL.size.toFixed(
+                0
+            )} × ${BALL.size.toFixed(
+                0
+            )} px`,
+
+        W / 2,
+        185
+    );
+
+    ctx.restore();
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
+function drawReplaySettings() {
+
+    overlay(0.82);
+
+    title(
+        t("replay"),
+        75
+    );
+
+    ctx.fillStyle =
+        "rgba(255,255,255,.82)";
+
+    ctx.font =
+        "bold 18px monospace";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.textBaseline =
+        "middle";
+
+    ctx.fillText(
+        t("frequency"),
+        W / 2,
+        202
+    );
+
+    interactiveItems()
+        .forEach(
+            drawButton
+        );
+}
+
+function drawLanguage() {
+
+    overlay(0.82);
+
+    title(
+        t("language"),
         75
     );
 
@@ -3827,13 +8048,12 @@ function drawConfirm() {
 
     overlay(0.84);
 
-
     title(
         confirmOpen ===
         "restart"
 
-            ? "¿REINICIAR PARTIDA?"
-            : "¿VOLVER AL MENÚ?",
+            ? t("confirmRestart")
+            : t("confirmMenu"),
 
         H / 2 - 80,
 
@@ -3852,7 +8072,8 @@ function drawConfirm() {
 
 
     ctx.fillText(
-        "Se perderá la partida actual.",
+        t("loseCurrent"),
+
         W / 2,
         H / 2 - 25
     );
@@ -3869,7 +8090,7 @@ function drawPhysics() {
     overlay(0.84);
 
     title(
-        "FÍSICAS",
+        t("physics"),
         65
     );
 
@@ -3926,7 +8147,7 @@ function drawControls() {
 function drawLocalControls() {
 
     title(
-        "CONTROLES",
+        t("controls"),
         65
     );
 
@@ -3948,14 +8169,14 @@ function drawLocalControls() {
 
 
     ctx.fillText(
-        "IZQUIERDA",
+        t("left"),
         360,
         125
     );
 
 
     ctx.fillText(
-        "DERECHA",
+        t("right"),
         940,
         125
     );
@@ -3986,28 +8207,28 @@ function drawLocalControls() {
 
 
         ctx.fillText(
-            "ARRIBA",
+            t("up"),
             x,
             202
         );
 
 
         ctx.fillText(
-            "ABAJO",
+            t("down"),
             x,
             262
         );
 
 
         ctx.fillText(
-            "MOUSE",
+            t("mouse"),
             x,
             322
         );
 
 
         ctx.fillText(
-            "SENS.",
+            t("sensitivity"),
             x,
             392
         );
@@ -4039,9 +8260,36 @@ function drawLocalControls() {
 function drawAIControls() {
 
     title(
-        "CONTROLES",
+        t("controls"),
         65
     );
+
+    if (aiVsAiEnabled) {
+
+        ctx.fillStyle =
+            "rgba(255,255,255,.78)";
+
+        ctx.font =
+            "18px monospace";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.fillText(
+            `${t("easy")} · ${
+                t("normal")
+            } · ${t("hard")}`,
+            W / 2,
+            235
+        );
+
+        interactiveItems()
+            .forEach(
+                drawButton
+            );
+
+        return;
+    }
 
 
     ctx.fillStyle =
@@ -4055,7 +8303,7 @@ function drawAIControls() {
 
 
     ctx.fillText(
-        "JUGADOR",
+        t("player"),
         W / 2,
         125
     );
@@ -4069,10 +8317,10 @@ function drawAIControls() {
 
 
     [
-        ["ARRIBA", 202],
-        ["ABAJO", 262],
-        ["MOUSE", 322],
-        ["SENS.", 392]
+        [t("up"), 202],
+        [t("down"), 262],
+        [t("mouse"), 322],
+        [t("sensitivity"), 392]
 
     ].forEach(
         (
@@ -4115,8 +8363,364 @@ function drawAIControls() {
 
 
 // ============================================================
+// REPETICIÓN
+// ============================================================
+
+function replayFrameAt(
+    position
+) {
+
+    if (!replayClip.length) {
+        return replaySnapshot();
+    }
+
+    const firstIndex =
+        clamp(
+            Math.floor(position),
+            0,
+            replayClip.length - 1
+        );
+
+    const secondIndex =
+        clamp(
+            firstIndex + 1,
+            0,
+            replayClip.length - 1
+        );
+
+    const ratio =
+        clamp(
+            position - firstIndex,
+            0,
+            1
+        );
+
+    const first =
+        replayClip[firstIndex];
+
+    const second =
+        replayClip[secondIndex];
+
+    const mix =
+        key =>
+            first[key] +
+            (
+                second[key] -
+                first[key]
+            ) *
+            ratio;
+
+    return {
+        ballX: mix("ballX"),
+        ballY: mix("ballY"),
+        ballVx: mix("ballVx"),
+        ballVy: mix("ballVy"),
+        ballSpeed: mix("ballSpeed"),
+        leftPaddleY: mix("leftPaddleY"),
+        rightPaddleY: mix("rightPaddleY")
+    };
+}
+
+function drawReplayTrajectory(
+    visibleFrame
+) {
+
+    if (
+        replayClip.length < 2
+    ) {
+        return;
+    }
+
+    const currentIndex =
+        clamp(
+            Math.floor(
+                replayPosition
+            ),
+            0,
+            replayClip.length - 1
+        );
+
+    const startIndex =
+        Math.max(
+            1,
+            currentIndex -
+            REPLAY.trailFrames +
+            1
+        );
+
+    const fractionalProgress =
+        clamp(
+            replayPosition -
+            currentIndex,
+            0,
+            1
+        );
+
+    const completeSegments =
+        Math.max(
+            0,
+            currentIndex -
+            startIndex +
+            1
+        );
+
+    const segmentCount =
+        completeSegments +
+        (
+            fractionalProgress > 0
+                ? 1
+                : 0
+        );
+
+    if (!segmentCount) {
+        return;
+    }
+
+    ctx.save();
+
+    ctx.lineWidth =
+        4;
+
+    ctx.lineCap =
+        "round";
+
+    ctx.shadowColor =
+        BRAND.blue;
+
+    ctx.shadowBlur =
+        5;
+
+    let drawnSegments =
+        0;
+
+    const drawSegment = (
+        previous,
+        current
+    ) => {
+
+        drawnSegments++;
+
+        const ageRatio =
+            drawnSegments /
+            segmentCount;
+
+        ctx.globalAlpha =
+            0.08 +
+            ageRatio *
+            0.72;
+
+        ctx.strokeStyle =
+            BRAND.blue;
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            previous.ballX +
+            BALL.size / 2,
+            previous.ballY +
+            BALL.size / 2
+        );
+
+        ctx.lineTo(
+            current.ballX +
+            BALL.size / 2,
+            current.ballY +
+            BALL.size / 2
+        );
+
+        ctx.stroke();
+    };
+
+    for (
+        let index = startIndex;
+        index <= currentIndex;
+        index++
+    ) {
+
+        const previous =
+            replayClip[index - 1];
+
+        const current =
+            replayClip[index];
+
+        drawSegment(
+            previous,
+            current
+        );
+    }
+
+    if (
+        fractionalProgress > 0 &&
+        currentIndex <
+            replayClip.length - 1
+    ) {
+
+        drawSegment(
+            replayClip[currentIndex],
+            visibleFrame
+        );
+    }
+
+    ctx.restore();
+}
+
+function drawReplay() {
+
+    const frame =
+        replayFrameAt(
+            replayPosition
+        );
+
+    drawTable();
+    drawReplayTrajectory(
+        frame
+    );
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    ctx.fillRect(
+        leftPaddle.x,
+        frame.leftPaddleY,
+        PADDLE.w,
+        PADDLE.h
+    );
+
+    ctx.fillRect(
+        rightPaddle.x,
+        frame.rightPaddleY,
+        PADDLE.w,
+        PADDLE.h
+    );
+
+    ctx.fillStyle =
+        currentBallColor();
+
+    drawBallShape(
+        frame.ballX +
+        BALL.size / 2,
+
+        frame.ballY +
+        BALL.size / 2
+    );
+
+    drawScore();
+
+    const blink =
+        0.25 +
+        0.75 *
+        (
+            (
+                Math.sin(
+                    performance.now() /
+                    260
+                ) +
+                1
+            ) /
+            2
+        );
+
+    ctx.save();
+
+    ctx.textBaseline =
+        "alphabetic";
+
+    ctx.textAlign =
+        "left";
+
+    ctx.font =
+        "bold 20px monospace";
+
+    ctx.fillStyle =
+        BRAND.blue;
+
+    ctx.globalAlpha =
+        blink;
+
+    ctx.fillText(
+        t("instantReplay"),
+        TABLE.left + 22,
+        TABLE.top + 28
+    );
+
+    ctx.globalAlpha =
+        1;
+
+    ctx.fillStyle =
+        "#FFFFFF";
+
+    const speedLabel =
+        `${t("replaySpeed")}: `;
+
+    ctx.font =
+        "bold 18px monospace";
+
+    ctx.fillText(
+        speedLabel,
+        TABLE.left + 22,
+        TABLE.top + 58
+    );
+
+    const speedLabelWidth =
+        ctx.measureText(
+            speedLabel
+        ).width;
+
+    ctx.font =
+        "18px monospace";
+
+    ctx.fillText(
+        replaySpeedText(
+            frame
+        ),
+        TABLE.left +
+        22 +
+        speedLabelWidth,
+        TABLE.top + 58
+    );
+
+    ctx.font =
+        "16px monospace";
+
+    ctx.fillText(
+        t("skipReplay"),
+        TABLE.left + 22,
+        TABLE.top + 84
+    );
+
+    ctx.restore();
+}
+
+
+// ============================================================
 // VICTORIA
 // ============================================================
+
+function victoryTitle() {
+
+    if (
+        gameMode ===
+        "ai" &&
+        !aiVsAiEnabled
+    ) {
+
+        return (
+            winner ===
+            humanSide
+
+                ? t("youWon")
+                : t("solWins")
+        );
+    }
+
+    return (
+        winner ===
+        "left"
+
+            ? t("winLeft")
+            : t("winRight")
+    );
+}
 
 function drawVictory() {
 
@@ -4124,11 +8728,7 @@ function drawVictory() {
 
 
     title(
-        winner ===
-        "left"
-
-            ? "LA IZQUIERDA GANA"
-            : "LA DERECHA GANA",
+        victoryTitle(),
 
         H / 2 - 50,
 
@@ -4160,6 +8760,14 @@ function drawGame() {
     if (startMenuOpen) {
 
         drawStart();
+
+        return;
+    }
+
+
+    if (replayPlaying) {
+
+        drawReplay();
 
         return;
     }
@@ -4203,6 +8811,29 @@ function drawGame() {
     }
 
 
+    if (ballOpen) {
+
+        drawBallSettings();
+
+        return;
+    }
+
+    if (replayOpen) {
+
+        drawReplaySettings();
+
+        return;
+    }
+
+
+    if (languageOpen) {
+
+        drawLanguage();
+
+        return;
+    }
+
+
     if (physicsOpen) {
 
         drawPhysics();
@@ -4230,10 +8861,151 @@ function drawGame() {
 // LOOP
 // ============================================================
 
-function loop() {
+function loop(
+    timestamp
+) {
 
-    updatePaddles();
-    updateBall();
+    if (replayPlaying) {
+
+        updateReplay(
+            timestamp
+        );
+
+        previousFrameTime =
+            timestamp;
+
+        frameAccumulator =
+            0;
+
+        drawGame();
+
+        requestAnimationFrame(
+            loop
+        );
+
+        return;
+    }
+
+    if (
+        previousFrameTime ===
+        null
+    ) {
+        previousFrameTime =
+            timestamp;
+    }
+
+
+    const stepMs =
+        currentStepMs();
+
+    const stepScale =
+        currentStepScale();
+
+
+    const elapsed =
+        Math.min(
+            timestamp -
+            previousFrameTime,
+
+            stepMs *
+            TIMING.maxSteps
+        );
+
+
+    previousFrameTime =
+        timestamp;
+
+    frameAccumulator +=
+        elapsed;
+
+
+    const stepsToRun =
+        Math.min(
+            TIMING.maxSteps,
+
+            Math.floor(
+                frameAccumulator /
+                stepMs
+            )
+        );
+
+    const mouseDeltaPerStep =
+        stepsToRun > 0
+
+            ? pendingMouseDelta /
+              stepsToRun
+
+            : 0;
+
+
+    if (
+        stepsToRun > 0
+    ) {
+        pendingMouseDelta =
+            0;
+    }
+
+
+    for (
+        let frameStep = 0;
+        frameStep < stepsToRun;
+        frameStep++
+    ) {
+
+        moveMousePaddles(
+            mouseDeltaPerStep
+        );
+
+        updatePaddles(
+            stepScale
+        );
+
+        updatePaddleMotion(
+            stepScale
+        );
+
+
+        const ballSubsteps =
+            Math.max(
+                1,
+                Math.ceil(
+                    stepScale
+                )
+            );
+
+        const ballStepScale =
+            stepScale /
+            ballSubsteps;
+
+
+        for (
+            let step = 0;
+            step < ballSubsteps;
+            step++
+        ) {
+
+            updateBall(
+                ballStepScale
+            );
+
+            if (replayPlaying) {
+                break;
+            }
+        }
+
+        frameAccumulator -=
+            stepMs;
+
+        if (replayPlaying) {
+
+            frameAccumulator =
+                0;
+
+            break;
+        }
+    }
+
+
     drawGame();
 
     requestAnimationFrame(
@@ -4243,4 +9015,6 @@ function loop() {
 
 
 resetBall();
-loop();
+requestAnimationFrame(
+    loop
+);
