@@ -515,6 +515,7 @@ const onlineSession = {
         (H - PADDLE.h) / 2,
     savedSettings: null,
     snapshotAccumulator: 0,
+    latencyMs: null,
     pointerHint: false,
     countdownTimers: []
 };
@@ -1339,6 +1340,7 @@ function resetOnlineSession() {
     onlineSession.remoteTargetY =
         (H - PADDLE.h) / 2;
     onlineSession.snapshotAccumulator = 0;
+    onlineSession.latencyMs = null;
     onlineSession.pointerHint = false;
 }
 
@@ -1708,6 +1710,17 @@ function configureOnlineTransport() {
             ) {
                 startHostCountdown();
             }
+        },
+
+        latency({ ms }) {
+            onlineSession.latencyMs =
+                Number.isFinite(ms)
+
+                    ? Math.max(
+                        0,
+                        Math.round(ms)
+                    )
+                    : null;
         },
 
         data(message) {
@@ -9756,6 +9769,39 @@ function drawVictory() {
         );
 }
 
+function drawOnlineLatency() {
+
+    if (
+        gameMode !== "online" ||
+        onlineSession.screen !==
+            "playing"
+    ) {
+        return;
+    }
+
+    const value =
+        Number.isFinite(
+            onlineSession.latencyMs
+        )
+
+            ? `${onlineSession.latencyMs} ms`
+            : "-- ms";
+
+    ctx.save();
+    ctx.fillStyle =
+        "rgba(255,255,255,.68)";
+    ctx.font =
+        "12px monospace";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    ctx.fillText(
+        value,
+        W - 14,
+        12
+    );
+    ctx.restore();
+}
+
 function drawOnlinePointerHint() {
 
     if (
@@ -9833,6 +9879,7 @@ function drawGame() {
     drawPaddles();
     drawBall();
     drawScore();
+    drawOnlineLatency();
     drawOnlinePointerHint();
 
 
