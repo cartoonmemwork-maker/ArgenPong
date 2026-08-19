@@ -7,6 +7,11 @@
         }
     ];
 
+    const LATENCY_PROBE_INTERVAL_MS =
+        1000;
+    const LATENCY_PROBE_TIMEOUT_MS =
+        4000;
+
     let handlers = {};
     let socket = null;
     let peer = null;
@@ -15,6 +20,11 @@
     let localSide = null;
     let pendingCandidates = [];
     let manualClose = false;
+    let latencyTimer = null;
+    let latencySequence = 0;
+    let latencyPingId = null;
+    let latencyPingStartedAt = 0;
+    let latencyMs = null;
     const incomingChunks =
         new Map();
 
@@ -111,6 +121,159 @@
         return true;
     };
 
+    const stopLatencyProbe = () => {
+        if (latencyTimer !== null) {
+            clearInterval(
+                latencyTimer
+            );
+            latencyTimer = null;
+        }
+
+        latencyPingId = null;
+        latencyPingStartedAt = 0;
+        latencyMs = null;
+
+        emit("latency", {
+            ms: null
+        });
+    };
+
+    const sendLatencyProbe = () => {
+        if (
+            !channel ||
+            channel.readyState !==
+                "open"
+        ) {
+            return;
+        }
+
+        const now =
+            performance.now();
+
+        if (
+            latencyPingId !== null
+        ) {
+            if (
+                now -
+                    latencyPingStartedAt <
+                LATENCY_PROBE_TIMEOUT_MS
+            ) {
+                return;
+            }
+
+            latencyPingId = null;
+            latencyPingStartedAt = 0;
+            latencyMs = null;
+
+            emit("latency", {
+                ms: null
+            });
+        }
+
+        latencySequence++;
+        latencyPingId =
+            latencySequence;
+        latencyPingStartedAt = now;
+
+        try {
+            channel.send(
+                JSON.stringify({
+                    __argenPongLatency:
+                        "ping",
+                    id: latencyPingId
+                })
+            );
+        } catch {}
+    };
+
+    const startLatencyProbe = () => {
+        stopLatencyProbe();
+        sendLatencyProbe();
+
+        latencyTimer =
+            setInterval(
+                sendLatencyProbe,
+                LATENCY_PROBE_INTERVAL_MS
+            );
+    };
+
+    const handleLatencyMessage =
+        message => {
+            if (
+                !message ||
+                !message.__argenPongLatency
+            ) {
+                return false;
+            }
+
+            if (
+                message.__argenPongLatency ===
+                    "ping" &&
+                Number.isInteger(
+                    message.id
+                )
+            ) {
+                if (
+                    channel &&
+                    channel.readyState ===
+                        "open"
+                ) {
+                    try {
+                        channel.send(
+                            JSON.stringify({
+                                __argenPongLatency:
+                                    "pong",
+                                id:
+                                    message.id
+                            })
+                        );
+                    } catch {}
+                }
+
+                return true;
+            }
+
+            if (
+                message.__argenPongLatency ===
+                    "pong"
+            ) {
+                if (
+                    message.id ===
+                        latencyPingId &&
+                    latencyPingStartedAt > 0
+                ) {
+                    const sample =
+                        performance.now() -
+                        latencyPingStartedAt;
+
+                    latencyMs =
+                        latencyMs === null
+
+                            ? sample
+                            : latencyMs *
+                                  0.7 +
+                              sample *
+                                  0.3;
+
+                    latencyPingId = null;
+                    latencyPingStartedAt = 0;
+
+                    emit("latency", {
+                        ms: Math.max(
+                            0,
+                            Math.round(
+                                latencyMs
+                            )
+                        )
+                    });
+                }
+
+                return true;
+            }
+
+            return true;
+        };
+
     const emitDataMessage = message => {
         if (!message.__chunk) {
             emit("data", message);
@@ -188,6 +351,8 @@
     };
 
     const closePeer = () => {
+        stopLatencyProbe();
+
         if (channel) {
             try {
                 channel.close();
@@ -245,6 +410,8 @@
                     role,
                     side: localSide
                 });
+
+                startLatencyProbe();
             }
         );
 
@@ -259,10 +426,21 @@
                 }
 
                 try {
-                    emitDataMessage(
+                    const message =
                         JSON.parse(
                             event.data
+                        );
+
+                    if (
+                        handleLatencyMessage(
+                            message
                         )
+                    ) {
+                        return;
+                    }
+
+                    emitDataMessage(
+                        message
                     );
                 } catch {}
             }
@@ -271,6 +449,8 @@
         channel.addEventListener(
             "close",
             () => {
+                stopLatencyProbe();
+
                 if (!manualClose) {
                     emit(
                         "opponentLeft"
