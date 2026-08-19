@@ -29,9 +29,25 @@ function allowedOrigin(
 
 export default {
     async fetch(request, env) {
+        const isWebSocket =
+            String(
+                request.headers.get(
+                    "Upgrade"
+                ) ||
+                ""
+            ).toLowerCase() ===
+            "websocket";
+
+        const url =
+            new URL(request.url);
+
+        const isStatsRequest =
+            request.method === "GET" &&
+            url.pathname === "/stats";
+
         if (
-            request.headers.get("Upgrade") !==
-            "websocket"
+            !isWebSocket &&
+            !isStatsRequest
         ) {
             return new Response(
                 "ArgenPong public matchmaker",
@@ -76,6 +92,56 @@ export class PublicQueue {
     }
 
     async fetch(request) {
+        if (
+            String(
+                request.headers.get(
+                    "Upgrade"
+                ) ||
+                ""
+            ).toLowerCase() !==
+            "websocket"
+        ) {
+            const activeMatchIds =
+                new Set(
+                    this.ctx
+                        .getWebSockets()
+                        .map(
+                            socket =>
+                                this.attachment(
+                                    socket
+                                )
+                        )
+                        .filter(
+                            data =>
+                                data.state ===
+                                    "matched" &&
+                                data.matchId
+                        )
+                        .map(
+                            data =>
+                                data.matchId
+                        )
+                );
+
+            return Response.json(
+                {
+                    activeMatches:
+                        activeMatchIds.size
+                },
+                {
+                    headers: {
+                        "access-control-allow-origin":
+                            request.headers.get(
+                                "Origin"
+                            ) ||
+                            "null",
+                        "cache-control":
+                            "no-store"
+                    }
+                }
+            );
+        }
+
         const pair =
             new WebSocketPair();
 
