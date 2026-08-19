@@ -92,7 +92,6 @@ const SPIN = {
     backspinBounceHorizontalRetention: 0.84,
     decay: 0.992,
     wallRetention: 0.8,
-    aiProfessionalCurveLimit: 0.025,
     epsilon: 0.001
 };
 
@@ -134,21 +133,6 @@ const TEXT = {
         localPvp: "PVP LOCAL",
         vsAi: "VS IA",
         onlinePvp: "PVP ONLINE",
-        rules: "REGLAMENTO",
-        rulesTitle: "REGLAMENTO Y GLOSARIO",
-        rulesIntro: "Seleccioná un reglamento. El tanteo sigue siendo a 11, con 2 de diferencia.",
-        arcade: "ARCADE",
-        professional: "PROFESIONAL",
-        glossary: "GLOSARIO",
-        advancedGlossary: "GLOSARIO DE JUEGO",
-        strokes: "GOLPES BÁSICOS Y AVANZADOS",
-        spinTypes: "TIPOS DE EFECTOS (SPIN)",
-        gameDynamics: "DINÁMICA Y JUEGO",
-        previous: "ANTERIOR",
-        next: "SIGUIENTE",
-        confirmRules: "¿CAMBIAR REGLAMENTO?",
-        rulesRestart: "La partida actual se reiniciará.",
-        advancedWarning: "PROFESIONAL ES PARA JUGADORES AVANZADOS.",
         side: "LADO",
         left: "IZQUIERDA",
         right: "DERECHA",
@@ -216,21 +200,6 @@ const TEXT = {
         localPvp: "LOCAL PVP",
         vsAi: "VS AI",
         onlinePvp: "ONLINE PVP",
-        rules: "RULES",
-        rulesTitle: "RULES AND GLOSSARY",
-        rulesIntro: "Select a ruleset. Scoring remains first to 11 with a 2-point lead.",
-        arcade: "ARCADE",
-        professional: "PROFESSIONAL",
-        glossary: "GLOSSARY",
-        advancedGlossary: "GAME GLOSSARY",
-        strokes: "BASIC AND ADVANCED SHOTS",
-        spinTypes: "TYPES OF SPIN",
-        gameDynamics: "GAME DYNAMICS",
-        previous: "PREVIOUS",
-        next: "NEXT",
-        confirmRules: "CHANGE RULESET?",
-        rulesRestart: "The current match will restart.",
-        advancedWarning: "PROFESSIONAL IS FOR ADVANCED PLAYERS.",
         side: "SIDE",
         left: "LEFT",
         right: "RIGHT",
@@ -294,58 +263,6 @@ const TEXT = {
     }
 };
 
-const RULEBOOK = {
-    es: {
-        arcade: [
-            "Reglas libres inspiradas en Pong clásico.",
-            "Los piques no generan faltas; el tanto termina al superar una paleta.",
-            "La velocidad crece con cada devolución y el spin puede usarse libremente."
-        ],
-
-        professional: [
-            "Cada golpe debe picar una vez en la mitad rival.",
-            "Si pica en tu mitad o sale sin picar del lado rival, perdés.",
-            "Si el rival la toca antes del pique, ganás el tanto.",
-            "Un segundo pique rival también te da el tanto.",
-            "Cada devolución cambia al atacante. Para jugadores avanzados."
-        ],
-
-        glossary: [
-            ["SAQUE", "Puesta en juego; cambia cada 2 tantos y en cada tanto desde 10-10."],
-            ["DEVOLUCIÓN", "Golpe de paleta hacia el rival; en Profesional sólo vale después del pique."],
-            ["PIQUE", "Contacto con la mesa; en Profesional debe producirse en la mitad rival."],
-            ["SPIN", "Paleta quieta: bloqueo. Acompañar: topspin. Contradecir: backspin."],
-            ["VELOCIDAD PROGRESIVA", "La pelota acelera únicamente al ser devuelta por una paleta."],
-            ["MATCH / IGUALES", "MATCH anuncia un posible cierre; desde 10-10 se gana por 2."]
-        ]
-    },
-
-    en: {
-        arcade: [
-            "Free rules inspired by classic Pong.",
-            "Bounces do not cause faults; a point ends when the ball passes a paddle.",
-            "Speed rises on each return and spin can be used without restrictions."
-        ],
-
-        professional: [
-            "Every hit must bounce once on the opponent's half.",
-            "A bounce on your half or an exit without a rival bounce loses the point.",
-            "If the opponent touches it before the bounce, you win the point.",
-            "A second rival-side bounce also wins the point.",
-            "Each return changes the hitter. Recommended for advanced players."
-        ],
-
-        glossary: [
-            ["SERVE", "Starts the rally; changes every 2 points and every point from 10-10."],
-            ["RETURN", "A paddle hit toward the rival; in Professional it is valid after the bounce."],
-            ["BOUNCE", "Ball contact with the table; in Professional it must occur on the rival half."],
-            ["SPIN", "Still paddle: block. Move with the ball: topspin. Oppose it: backspin."],
-            ["PROGRESSIVE SPEED", "The ball accelerates only when it is returned by a paddle."],
-            ["MATCH / DEUCE", "MATCH warns of a possible finish; from 10-10 a 2-point lead wins."]
-        ]
-    }
-};
-
 const MATCH = {
     win: 11,
     margin: 2
@@ -405,11 +322,7 @@ const AI_LEVELS = {
         spinAwareness: 0.12,
         shotStrength: 0.55,
         blockChance: 0.5,
-        backspinChance: 0.14,
-        serveBounceDistance: 440,
-        serveVariation: 25,
-        returnBounceDistance: 650,
-        returnVariation: 90
+        backspinChance: 0.14
     },
 
     normal: {
@@ -426,11 +339,7 @@ const AI_LEVELS = {
         spinAwareness: 0.64,
         shotStrength: 0.76,
         blockChance: 0.38,
-        backspinChance: 0.24,
-        serveBounceDistance: 480,
-        serveVariation: 30,
-        returnBounceDistance: 760,
-        returnVariation: 55
+        backspinChance: 0.24
     },
 
     hard: {
@@ -447,11 +356,7 @@ const AI_LEVELS = {
         spinAwareness: 1,
         shotStrength: 0.94,
         blockChance: 0.22,
-        backspinChance: 0.3,
-        serveBounceDistance: 520,
-        serveVariation: 35,
-        returnBounceDistance: 880,
-        returnVariation: 30
+        backspinChance: 0.3
     }
 };
 
@@ -469,7 +374,6 @@ let ballSpeedLevel = BALL.defaultLevel;
 let progressiveSpeed = true;
 let spinEnabled = SPIN.defaultEnabled;
 let physicsFps = TIMING.defaultFps;
-let playStyle = "arcade";
 
 let previousFrameTime = null;
 let frameAccumulator = 0;
@@ -487,8 +391,6 @@ let gameMode = null;
 
 let startMenuOpen = true;
 let aiMenuOpen = false;
-let rulesOpen = false;
-let rulesPage = 0;
 
 let settingsOpen = false;
 let controlsOpen = false;
@@ -498,7 +400,6 @@ let replayOpen = false;
 let languageOpen = false;
 
 let confirmOpen = null;
-let pendingPlayStyle = null;
 let hoveredButton = null;
 let waitingForKey = null;
 
@@ -529,9 +430,6 @@ const autoplayAIBrains = {
     left: createAutoplayAIBrain(),
     right: createAutoplayAIBrain()
 };
-
-let professionalLastHitter = null;
-let professionalBounceCount = 0;
 
 let previousMouseY = null;
 let activeSlider = null;
@@ -1005,147 +903,7 @@ function resetPaddles() {
         0;
 }
 
-function resetProfessionalBounce(
-    lastHitter = null
-) {
-
-    professionalLastHitter =
-        lastHitter;
-
-    professionalBounceCount =
-        0;
-}
-
-function variedAIValue(
-    value,
-    variation
-) {
-
-    return (
-        value +
-        (
-            Math.random() *
-            2 -
-            1
-        ) *
-        variation
-    );
-}
-
-function setBallVelocityForBounceDistance(
-    speed,
-    horizontalDirection,
-    verticalDirection,
-    horizontalDistance
-) {
-
-    const radius =
-        BALL.size / 2;
-
-    const ballCenterY =
-        ball.y +
-        radius;
-
-    const verticalDistance =
-        verticalDirection < 0
-
-            ? ballCenterY -
-              (
-                  TABLE.top +
-                  radius
-              )
-
-            : TABLE.bottom -
-              radius -
-              ballCenterY;
-
-    const safeHorizontalDistance =
-        Math.max(
-            1,
-            horizontalDistance
-        );
-
-    const verticalToHorizontal =
-        Math.max(
-            0,
-            verticalDistance
-        ) /
-        safeHorizontalDistance;
-
-    const horizontalSpeed =
-        speed /
-        Math.hypot(
-            1,
-            verticalToHorizontal
-        );
-
-    ball.vx =
-        horizontalDirection *
-        horizontalSpeed;
-
-    ball.vy =
-        verticalDirection *
-        horizontalSpeed *
-        verticalToHorizontal;
-}
-
-function configureAIProfessionalServe(
-    speed
-) {
-
-    if (
-        gameMode !== "ai" ||
-        playStyle !==
-            "professional" ||
-        !isAISide(
-            servingPlayer
-        )
-    ) {
-        return;
-    }
-
-    const level =
-        AI_LEVELS[
-            aiDifficultyForSide(
-                servingPlayer
-            )
-        ];
-
-    const horizontalDirection =
-        servingPlayer === "left"
-
-            ? 1
-            : -1;
-
-    const verticalDirection =
-        Math.random() < 0.5
-
-            ? -1
-            : 1;
-
-    const bounceDistance =
-        variedAIValue(
-            level.serveBounceDistance,
-            level.serveVariation
-        );
-
-    setBallVelocityForBounceDistance(
-        speed,
-        horizontalDirection,
-        verticalDirection,
-        bounceDistance
-    );
-
-    limitAIOutgoingAngle(
-        servingPlayer
-    );
-}
-
 function resetBall() {
-
-    resetProfessionalBounce(
-        servingPlayer
-    );
 
     ball.x =
         (W - BALL.size) / 2;
@@ -1205,10 +963,6 @@ function resetBall() {
         ) *
         verticalSpeed;
 
-    configureAIProfessionalServe(
-        speed
-    );
-
     // Cada punto reinicia
     // el desgaste de la IA.
     aiReturns = 0;
@@ -1234,7 +988,6 @@ function resetMatch() {
 
     gamePaused = false;
     confirmOpen = null;
-    pendingPlayStyle = null;
 
     resetPaddles();
     resetBall();
@@ -1259,8 +1012,6 @@ function startGame(
 
     startMenuOpen = false;
     aiMenuOpen = false;
-    rulesOpen = false;
-    rulesPage = 0;
 
     settingsOpen = false;
     controlsOpen = false;
@@ -1278,8 +1029,6 @@ function goToStartMenu() {
 
     startMenuOpen = true;
     aiMenuOpen = false;
-    rulesOpen = false;
-    rulesPage = 0;
 
     gamePaused = false;
     gameOver = false;
@@ -1287,7 +1036,6 @@ function goToStartMenu() {
     winner = null;
 
     confirmOpen = null;
-    pendingPlayStyle = null;
     hoveredButton = null;
     waitingForKey = null;
 
@@ -1974,117 +1722,12 @@ function isAISide(
     );
 }
 
-function prepareAIProfessionalReturn(
-    side
-) {
-
-    if (
-        playStyle !==
-            "professional" ||
-        !isAISide(side)
-    ) {
-        return;
-    }
-
-    const level =
-        AI_LEVELS[
-            aiDifficultyForSide(
-                side
-            )
-        ];
-
-    const speed =
-        Math.hypot(
-            ball.vx,
-            ball.vy
-        );
-
-    const horizontalDirection =
-        side === "left"
-
-            ? 1
-            : -1;
-
-    const radius =
-        BALL.size / 2;
-
-    const ballCenterY =
-        ball.y +
-        radius;
-
-    const distanceToTop =
-        ballCenterY -
-        (
-            TABLE.top +
-            radius
-        );
-
-    const distanceToBottom =
-        TABLE.bottom -
-        radius -
-        ballCenterY;
-
-    const verticalDirection =
-        Math.abs(
-            distanceToTop -
-            distanceToBottom
-        ) < 24
-
-            ? Math.random() < 0.5
-                ? -1
-                : 1
-
-            : distanceToTop <
-                distanceToBottom
-
-                ? -1
-                : 1;
-
-    const bounceDistance =
-        clamp(
-            variedAIValue(
-                level.returnBounceDistance,
-                level.returnVariation
-            ),
-
-            TABLE_WIDTH * 0.42,
-            TABLE_WIDTH * 0.82
-        );
-
-    setBallVelocityForBounceDistance(
-        speed,
-        horizontalDirection,
-        verticalDirection,
-        bounceDistance
-    );
-}
-
 function limitAIOutgoingAngle(
     side
 ) {
 
     if (!isAISide(side)) {
         return;
-    }
-
-    if (
-        playStyle ===
-        "professional"
-    ) {
-
-        /*
-            La IA conserva el perfil de velocidad
-            de Topspin / Backspin, pero reduce
-            la curva aérea para garantizar que
-            el primer pique siga siendo legal.
-        */
-
-        ball.spin =
-            clamp(
-                ball.spin,
-                -SPIN.aiProfessionalCurveLimit,
-                SPIN.aiProfessionalCurveLimit
-            );
     }
 
     const horizontalSpeed =
@@ -3270,14 +2913,7 @@ function chooseAIShotIntent(
 
     const backspinChance =
         clamp(
-            level.backspinChance +
-            (
-                playStyle ===
-                "professional"
-
-                    ? 0.08
-                    : 0
-            ),
+            level.backspinChance,
             0,
             0.45
         );
@@ -3322,9 +2958,7 @@ function transitionAIState(
 
     if (
         nextState ===
-            "arcadeTracking" ||
-        nextState ===
-            "professionalReturn"
+        "arcadeTracking"
     ) {
 
         const fatigue =
@@ -3369,32 +3003,6 @@ function transitionAIState(
 
     aiShotIntent =
         "block";
-}
-
-function desiredAIState(
-    aiSide,
-    movingTowardAI
-) {
-
-    if (!movingTowardAI) {
-        return "recovering";
-    }
-
-    if (
-        professionalAIWaitingForBounce(
-            aiSide
-        )
-    ) {
-        return "waitingBounce";
-    }
-
-    return (
-        playStyle ===
-        "professional"
-
-            ? "professionalReturn"
-            : "arcadeTracking"
-    );
 }
 
 function updateAITarget(
@@ -3458,27 +3066,6 @@ function updateAITarget(
     return aiAimY;
 }
 
-function professionalAIWaitingForBounce(
-    aiSide
-) {
-
-    const movingTowardAI =
-        aiSide === "left"
-
-            ? ball.vx < 0
-            : ball.vx > 0;
-
-    return (
-        playStyle ===
-            "professional" &&
-        movingTowardAI &&
-        professionalLastHitter &&
-        professionalLastHitter !==
-            aiSide &&
-        professionalBounceCount === 0
-    );
-}
-
 function updateAI(
     stepScale = 1
 ) {
@@ -3525,10 +3112,10 @@ function updateAI(
             : ball.vx > 0;
 
     const nextState =
-        desiredAIState(
-            aiSide,
-            movingTowardAI
-        );
+        movingTowardAI
+
+            ? "arcadeTracking"
+            : "recovering";
 
     transitionAIState(
         nextState,
@@ -3536,40 +3123,10 @@ function updateAI(
         paddle
     );
 
-    const waitingForBounce =
-        aiState ===
-        "waitingBounce";
-
     let target =
         H / 2;
 
-    if (waitingForBounce) {
-
-        const escapeDirection =
-            ballCenter <
-            H / 2
-
-                ? 1
-                : -1;
-
-        target =
-            clamp(
-                ballCenter +
-                escapeDirection *
-                (
-                    PADDLE.h / 2 +
-                    BALL.size +
-                    22
-                ),
-
-                TABLE.top +
-                PADDLE.h / 2,
-
-                TABLE.bottom -
-                PADDLE.h / 2
-            );
-
-    } else if (movingTowardAI) {
+    if (movingTowardAI) {
 
         target =
             updateAITarget(
@@ -3626,40 +3183,29 @@ function updateAI(
     */
 
     const maxStep =
-        waitingForBounce
-
-            ? ballDemand *
-              Math.max(
-                  1,
-                  level.response
-              )
-
-            : ballDemand *
-              level.demandScale *
-              (
-                  0.28 +
-                  sensitivity *
-                  0.72
-              ) *
-              level.response *
-              endurance;
+        ballDemand *
+        level.demandScale *
+        (
+            0.28 +
+            sensitivity *
+            0.72
+        ) *
+        level.response *
+        endurance;
 
 
     const tracking =
-        waitingForBounce
-
-            ? 0.46
-            : level.tracking *
-              (
-                  0.65 +
-                  sensitivity *
-                  0.35
-              ) *
-              (
-                  0.55 +
-                  endurance *
-                  0.45
-              );
+        level.tracking *
+        (
+            0.65 +
+            sensitivity *
+            0.35
+        ) *
+        (
+            0.55 +
+            endurance *
+            0.45
+        );
 
 
     const movement =
@@ -3711,9 +3257,7 @@ function transitionAutoplayAIState(
 
     if (
         nextState ===
-            "arcadeTracking" ||
-        nextState ===
-            "professionalReturn"
+        "arcadeTracking"
     ) {
 
         const fatigue =
@@ -3877,10 +3421,10 @@ function updateAutoplayAI(
             : ball.vx > 0;
 
     const nextState =
-        desiredAIState(
-            side,
-            movingTowardAI
-        );
+        movingTowardAI
+
+            ? "arcadeTracking"
+            : "recovering";
 
     transitionAutoplayAIState(
         brain,
@@ -3889,40 +3433,10 @@ function updateAutoplayAI(
         paddle
     );
 
-    const waitingForBounce =
-        brain.state ===
-        "waitingBounce";
-
     let target =
         H / 2;
 
-    if (waitingForBounce) {
-
-        const escapeDirection =
-            ballCenter <
-            H / 2
-
-                ? 1
-                : -1;
-
-        target =
-            clamp(
-                ballCenter +
-                escapeDirection *
-                (
-                    PADDLE.h / 2 +
-                    BALL.size +
-                    22
-                ),
-
-                TABLE.top +
-                PADDLE.h / 2,
-
-                TABLE.bottom -
-                PADDLE.h / 2
-            );
-
-    } else if (movingTowardAI) {
+    if (movingTowardAI) {
 
         target =
             updateAutoplayAITarget(
@@ -3958,39 +3472,28 @@ function updateAutoplayAI(
         );
 
     const maxStep =
-        waitingForBounce
-
-            ? ballDemand *
-              Math.max(
-                  1,
-                  level.response
-              )
-
-            : ballDemand *
-              level.demandScale *
-              (
-                  0.28 +
-                  sensitivity *
-                  0.72
-              ) *
-              level.response *
-              endurance;
+        ballDemand *
+        level.demandScale *
+        (
+            0.28 +
+            sensitivity *
+            0.72
+        ) *
+        level.response *
+        endurance;
 
     const tracking =
-        waitingForBounce
-
-            ? 0.46
-            : level.tracking *
-              (
-                  0.65 +
-                  sensitivity *
-                  0.35
-              ) *
-              (
-                  0.55 +
-                  endurance *
-                  0.45
-              );
+        level.tracking *
+        (
+            0.65 +
+            sensitivity *
+            0.35
+        ) *
+        (
+            0.55 +
+            endurance *
+            0.45
+        );
 
     const movement =
         clamp(
@@ -4110,92 +3613,10 @@ function paddleCollision(
     );
 }
 
-function registerProfessionalBounce() {
-
-    if (
-        playStyle !==
-        "professional" ||
-        !professionalLastHitter
-    ) {
-        return null;
-    }
-
-    const bounceSide =
-        ball.x +
-        BALL.size / 2 <
-        W / 2
-
-            ? "left"
-            : "right";
-
-    if (
-        bounceSide ===
-        professionalLastHitter
-    ) {
-
-        return otherSide(
-            professionalLastHitter
-        );
-    }
-
-    professionalBounceCount++;
-
-    return (
-        professionalBounceCount >= 2
-
-            ? professionalLastHitter
-            : null
-    );
-}
-
-function professionalVolleyWinner(
-    paddleSide
-) {
-
-    if (
-        playStyle !==
-            "professional" ||
-        !professionalLastHitter ||
-        paddleSide ===
-            professionalLastHitter ||
-        professionalBounceCount > 0
-    ) {
-        return null;
-    }
-
-    return professionalLastHitter;
-}
-
-function professionalExitWinner(
-    exitSide,
-    standardWinner
-) {
-
-    if (
-        playStyle ===
-            "professional" &&
-        professionalLastHitter &&
-        exitSide ===
-            otherSide(
-                professionalLastHitter
-            ) &&
-        professionalBounceCount === 0
-    ) {
-
-        return exitSide;
-    }
-
-    return standardWinner;
-}
-
 function bouncePaddle(
     paddle,
     side
 ) {
-
-    resetProfessionalBounce(
-        side
-    );
 
     clearBallSpin();
 
@@ -4219,10 +3640,6 @@ function bouncePaddle(
         );
 
     registerAIReturn(
-        side
-    );
-
-    prepareAIProfessionalReturn(
         side
     );
 
@@ -4273,10 +3690,6 @@ function updateBall(
         ball.vy *
         stepScale;
 
-    let professionalPoint =
-        null;
-
-
     // PARED SUPERIOR
 
     if (
@@ -4298,9 +3711,6 @@ function updateBall(
         applySpinBounceResponse();
 
         wallSound();
-
-        professionalPoint =
-            registerProfessionalBounce();
 
 
     // PARED INFERIOR
@@ -4326,23 +3736,6 @@ function updateBall(
         applySpinBounceResponse();
 
         wallSound();
-
-        professionalPoint =
-            registerProfessionalBounce();
-    }
-
-
-    if (professionalPoint) {
-
-        captureReplayFrame(
-            stepScale
-        );
-
-        awardPoint(
-            professionalPoint
-        );
-
-        return;
     }
 
 
@@ -4354,24 +3747,6 @@ function updateBall(
             "left"
         )
     ) {
-
-        const volleyWinner =
-            professionalVolleyWinner(
-                "left"
-            );
-
-        if (volleyWinner) {
-
-            captureReplayFrame(
-                stepScale
-            );
-
-            awardPoint(
-                volleyWinner
-            );
-
-            return;
-        }
 
         bouncePaddle(
             leftPaddle,
@@ -4387,24 +3762,6 @@ function updateBall(
             "right"
         )
     ) {
-
-        const volleyWinner =
-            professionalVolleyWinner(
-                "right"
-            );
-
-        if (volleyWinner) {
-
-            captureReplayFrame(
-                stepScale
-            );
-
-            awardPoint(
-                volleyWinner
-            );
-
-            return;
-        }
 
         bouncePaddle(
             rightPaddle,
@@ -4426,10 +3783,7 @@ function updateBall(
     ) {
 
         awardPoint(
-            professionalExitWinner(
-                "left",
-                "right"
-            )
+            "right"
         );
 
 
@@ -4441,10 +3795,7 @@ function updateBall(
     ) {
 
         awardPoint(
-            professionalExitWinner(
-                "right",
-                "left"
-            )
+            "left"
         );
     }
 }
@@ -4657,11 +4008,8 @@ function closeMenusToGame(
     physicsOpen = false;
     replayOpen = false;
     languageOpen = false;
-    rulesOpen = false;
-    rulesPage = 0;
 
     confirmOpen = null;
-    pendingPlayStyle = null;
 
     waitingForKey = null;
     hoveredButton = null;
@@ -4673,11 +4021,7 @@ function handleEscape() {
 
     if (startMenuOpen) {
 
-        if (rulesOpen) {
-
-            rulesOpen = false;
-
-        } else if (aiMenuOpen) {
+        if (aiMenuOpen) {
 
             aiMenuOpen = false;
         }
@@ -4696,7 +4040,6 @@ function handleEscape() {
         physicsOpen ||
         replayOpen ||
         languageOpen ||
-        rulesOpen ||
         Boolean(
             confirmOpen
         );
@@ -5246,65 +4589,11 @@ function interactiveItems() {
         });
     };
 
-    const addChoice = (
-        id,
-        rect
-    ) => {
-
-        items.push({
-            id,
-            rect,
-            disabled: false,
-            type: "choice"
-        });
-    };
-
-
     // MENU INICIAL
 
     if (
-        rulesOpen &&
-        !confirmOpen
-    ) {
-
-        addChoice(
-            "rulesArcade",
-            {
-                x: 40,
-                y: 88,
-                w: 570,
-                h: 220
-            }
-        );
-
-        addChoice(
-            "rulesProfessional",
-            {
-                x: 670,
-                y: 88,
-                w: 570,
-                h: 220
-            }
-        );
-
-        add(
-            "rulesBack",
-            t("back"),
-            {
-                x: 550,
-                y: 650,
-                w: 180,
-                h: 46
-            }
-        );
-
-        return items;
-    }
-
-    if (
         startMenuOpen &&
-        !aiMenuOpen &&
-        !rulesOpen
+        !aiMenuOpen
     ) {
 
         add(
@@ -5312,7 +4601,7 @@ function interactiveItems() {
             t("vsAi"),
             buttonRect(
                 0,
-                4,
+                3,
                 340,
                 50,
                 12,
@@ -5325,7 +4614,7 @@ function interactiveItems() {
             t("localPvp"),
             buttonRect(
                 1,
-                4,
+                3,
                 340,
                 50,
                 12,
@@ -5338,26 +4627,13 @@ function interactiveItems() {
             t("onlinePvp"),
             buttonRect(
                 2,
-                4,
+                3,
                 340,
                 50,
                 12,
                 410
             ),
             true
-        );
-
-        add(
-            "rules",
-            t("rules"),
-            buttonRect(
-                3,
-                4,
-                340,
-                50,
-                12,
-                410
-            )
         );
 
         return items;
@@ -5834,11 +5110,6 @@ function interactiveItems() {
             ],
 
             [
-                "rulesSettings",
-                t("rules")
-            ],
-
-            [
                 "fps",
                 `FPS: ${physicsFps}`
             ],
@@ -5883,7 +5154,7 @@ function interactiveItems() {
 
                     buttonRect(
                         index,
-                        9,
+                        8,
                         430,
                         39,
                         5,
@@ -6423,104 +5694,6 @@ function handleAction(id) {
 
 
     if (
-        id === "rules" ||
-        id === "rulesSettings"
-    ) {
-
-        rulesOpen =
-            true;
-
-        rulesPage =
-            0;
-
-        return;
-    }
-
-
-    if (
-        id ===
-        "rulesBack"
-    ) {
-
-        rulesOpen =
-            false;
-
-        rulesPage =
-            0;
-
-        return;
-    }
-
-
-    if (
-        id ===
-        "rulesNext"
-    ) {
-
-        rulesPage =
-            1;
-
-        return;
-    }
-
-
-    if (
-        id ===
-        "rulesPrevious"
-    ) {
-
-        rulesPage =
-            0;
-
-        return;
-    }
-
-
-    if (
-        id === "rulesArcade" ||
-        id === "rulesProfessional"
-    ) {
-
-        const nextStyle =
-            id ===
-            "rulesProfessional"
-
-                ? "professional"
-                : "arcade";
-
-        if (
-            nextStyle ===
-            playStyle
-        ) {
-            return;
-        }
-
-        if (
-            startMenuOpen ||
-            !gameMode
-        ) {
-
-            playStyle =
-                nextStyle;
-
-            resetProfessionalBounce(
-                servingPlayer
-            );
-
-            return;
-        }
-
-        pendingPlayStyle =
-            nextStyle;
-
-        confirmOpen =
-            "rules";
-
-        return;
-    }
-
-
-    if (
         id ===
         "local"
     ) {
@@ -6660,31 +5833,6 @@ function handleAction(id) {
 
             resetMatch();
 
-        } else if (
-            action ===
-            "rules"
-        ) {
-
-            if (pendingPlayStyle) {
-
-                playStyle =
-                    pendingPlayStyle;
-            }
-
-            pendingPlayStyle =
-                null;
-
-            rulesOpen =
-                false;
-
-            rulesPage =
-                0;
-
-            settingsOpen =
-                false;
-
-            resetMatch();
-
         } else {
 
             goToStartMenu();
@@ -6700,9 +5848,6 @@ function handleAction(id) {
     ) {
 
         confirmOpen =
-            null;
-
-        pendingPlayStyle =
             null;
 
         return;
@@ -7806,77 +6951,6 @@ function drawSlider(item) {
     ctx.fill();
 }
 
-function drawWrappedText(
-    text,
-    x,
-    y,
-    maxWidth,
-    lineHeight
-) {
-
-    const words =
-        text.split(" ");
-
-    let line =
-        "";
-
-    let lineY =
-        y;
-
-    for (
-        const word of
-        words
-    ) {
-
-        const candidate =
-            line
-
-                ? `${line} ${word}`
-                : word;
-
-        if (
-            line &&
-            ctx.measureText(
-                candidate
-            ).width >
-            maxWidth
-        ) {
-
-            ctx.fillText(
-                line,
-                x,
-                lineY
-            );
-
-            line =
-                word;
-
-            lineY +=
-                lineHeight;
-
-        } else {
-
-            line =
-                candidate;
-        }
-    }
-
-    if (line) {
-
-        ctx.fillText(
-            line,
-            x,
-            lineY
-        );
-    }
-
-    return (
-        lineY +
-        lineHeight
-    );
-}
-
-
 // ============================================================
 // START
 // ============================================================
@@ -8210,284 +7284,6 @@ function drawArgenPongLogo(
     ctx.restore();
 }
 
-function drawRules() {
-
-    const book =
-        RULEBOOK[
-            currentLanguage()
-        ];
-
-    ctx.fillStyle =
-        "#000000";
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
-
-
-    const drawGlossaryEntry = (
-        term,
-        description,
-        x,
-        y,
-        color,
-        maxWidth = 540
-    ) => {
-
-        ctx.fillStyle =
-            color;
-
-        ctx.font =
-            "bold 16px monospace";
-
-        ctx.textAlign =
-            "left";
-
-        ctx.fillText(
-            term,
-            x,
-            y
-        );
-
-        ctx.fillStyle =
-            "rgba(255,255,255,.82)";
-
-        ctx.font =
-            "14px monospace";
-
-        drawWrappedText(
-            description,
-            x,
-            y + 23,
-            maxWidth,
-            17
-        );
-    };
-
-    title(
-        t("rulesTitle"),
-        32,
-        "bold 32px monospace"
-    );
-
-    ctx.fillStyle =
-        "rgba(255,255,255,.82)";
-
-    ctx.font =
-        "16px monospace";
-
-    ctx.textAlign =
-        "center";
-
-    ctx.textBaseline =
-        "alphabetic";
-
-    ctx.fillText(
-        t("rulesIntro"),
-        W / 2,
-        68
-    );
-
-    const drawMode = (
-        mode,
-        x,
-        lines
-    ) => {
-
-        const active =
-            playStyle ===
-            mode;
-
-        const hover =
-            hoveredButton ===
-            `rules${
-                mode === "arcade"
-
-                    ? "Arcade"
-                    : "Professional"
-            }`;
-
-        ctx.fillStyle =
-            active
-
-                ? "rgba(108,172,228,.10)"
-                : hover
-                    ? "rgba(255,255,255,.08)"
-                    : "rgba(255,255,255,.025)";
-
-        ctx.fillRect(
-            x,
-            88,
-            570,
-            220
-        );
-
-        ctx.strokeStyle =
-            active
-
-                ? BRAND.blue
-                : hover
-                    ? "#FFFFFF"
-                    : "rgba(255,255,255,.34)";
-
-        ctx.lineWidth =
-            active
-
-                ? 3
-                : hover
-                    ? 3
-                    : 2;
-
-        ctx.strokeRect(
-            x,
-            88,
-            570,
-            220
-        );
-
-        ctx.fillStyle =
-            active
-
-                ? BRAND.blue
-                : "#FFFFFF";
-
-        ctx.font =
-            "bold 21px monospace";
-
-        ctx.textAlign =
-            "left";
-
-        ctx.fillText(
-            `${t(mode)}${
-                active
-
-                    ? ` · ${t("active")}`
-                    : ""
-            }`,
-            x + 20,
-            119
-        );
-
-        ctx.fillStyle =
-            "rgba(255,255,255,.88)";
-
-        ctx.font =
-            "14px monospace";
-
-        let lineY =
-            143;
-
-        for (
-            let index = 0;
-            index < lines.length;
-            index++
-        ) {
-
-            const warning =
-                mode ===
-                "professional" &&
-                index ===
-                lines.length - 1;
-
-            ctx.fillStyle =
-                warning
-
-                    ? BRAND.gold
-                    : "rgba(255,255,255,.88)";
-
-            ctx.font =
-                warning
-
-                    ? "bold 13px monospace"
-                    : "14px monospace";
-
-            lineY =
-                drawWrappedText(
-                    `• ${lines[index]}`,
-                    x + 20,
-                    lineY,
-                    530,
-                    17
-                ) +
-                3;
-        }
-    };
-
-    drawMode(
-        "arcade",
-        40,
-        book.arcade
-    );
-
-    drawMode(
-        "professional",
-        670,
-        book.professional
-    );
-
-    title(
-        t("glossary"),
-        335,
-        "bold 24px monospace"
-    );
-
-    book.glossary
-        .forEach(
-            (
-                [
-                    term,
-                    description
-                ],
-                index
-            ) => {
-
-                const column =
-                    index % 2;
-
-                const row =
-                    Math.floor(
-                        index / 2
-                    );
-
-                const x =
-                    column === 0
-
-                        ? 70
-                        : 660;
-
-                const y =
-                    370 +
-                    row * 85;
-
-                drawGlossaryEntry(
-                    term,
-                    description,
-                    x,
-                    y,
-                    column === 0
-
-                        ? BRAND.blue
-                        : BRAND.gold,
-
-                    540
-                );
-            }
-        );
-
-    interactiveItems()
-        .filter(
-            item =>
-                item.type ===
-                "button"
-        )
-        .forEach(
-            drawButton
-        );
-}
-
 function drawStart() {
 
     ctx.fillStyle =
@@ -8499,14 +7295,6 @@ function drawStart() {
         W,
         H
     );
-
-
-    if (rulesOpen) {
-
-        drawRules();
-
-        return;
-    }
 
 
     drawArgenPongLogo();
@@ -8550,7 +7338,6 @@ function drawStart() {
 
     if (
         !aiMenuOpen &&
-        !rulesOpen &&
         hoveredButton === "online"
     ) {
 
@@ -8714,19 +7501,12 @@ function drawConfirm() {
 
     overlay(0.84);
 
-
-    const changingRules =
-        confirmOpen ===
-        "rules";
-
     title(
         confirmOpen ===
         "restart"
 
             ? t("confirmRestart")
-            : changingRules
-                ? t("confirmRules")
-                : t("confirmMenu"),
+            : t("confirmMenu"),
 
         H / 2 - 80,
 
@@ -8745,34 +7525,11 @@ function drawConfirm() {
 
 
     ctx.fillText(
-        changingRules
-
-            ? t("rulesRestart")
-            : t("loseCurrent"),
+        t("loseCurrent"),
 
         W / 2,
         H / 2 - 25
     );
-
-
-    if (
-        changingRules &&
-        pendingPlayStyle ===
-        "professional"
-    ) {
-
-        ctx.fillStyle =
-            BRAND.gold;
-
-        ctx.font =
-            "bold 17px monospace";
-
-        ctx.fillText(
-            t("advancedWarning"),
-            W / 2,
-            H / 2 + 8
-        );
-    }
 
 
     interactiveItems()
@@ -9489,14 +8246,6 @@ function drawGame() {
     if (confirmOpen) {
 
         drawConfirm();
-
-        return;
-    }
-
-
-    if (rulesOpen) {
-
-        drawRules();
 
         return;
     }
