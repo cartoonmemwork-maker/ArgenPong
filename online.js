@@ -34,6 +34,61 @@
             ""
         ).trim();
 
+    const statsUrl = () => {
+        const url =
+            new URL(
+                serverUrl()
+            );
+
+        if (url.protocol === "wss:") {
+            url.protocol = "https:";
+        } else if (
+            url.protocol === "ws:"
+        ) {
+            url.protocol = "http:";
+        }
+
+        url.pathname = "/stats";
+        url.search = "";
+        url.hash = "";
+
+        return url.toString();
+    };
+
+    const getStats = async () => {
+        const response =
+            await fetch(
+                statsUrl(),
+                {
+                    cache: "no-store"
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                "stats-unavailable"
+            );
+        }
+
+        const data =
+            await response.json();
+
+        return {
+            activeMatches:
+                Number.isFinite(
+                    data.activeMatches
+                )
+
+                    ? Math.max(
+                        0,
+                        Math.trunc(
+                            data.activeMatches
+                        )
+                    )
+                    : 0
+        };
+    };
+
     const emit = (
         name,
         payload = {}
@@ -813,6 +868,7 @@
             Boolean(serverUrl()),
 
         serverUrl,
+        getStats,
 
         setHandlers(nextHandlers) {
             handlers =
