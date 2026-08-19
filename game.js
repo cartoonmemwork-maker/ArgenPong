@@ -218,6 +218,9 @@ const TEXT = {
         background: "MESA",
         physics: "FÍSICAS",
         ball: "PELOTA",
+        score: "MARCADOR",
+        top: "ARRIBA",
+        bottom: "ABAJO",
         color: "COLOR",
         white: "BLANCA",
         orange: "NARANJA",
@@ -293,6 +296,9 @@ const TEXT = {
         background: "TABLE",
         physics: "PHYSICS",
         ball: "BALL",
+        score: "SCORE",
+        top: "TOP",
+        bottom: "BOTTOM",
         color: "COLOR",
         white: "WHITE",
         orange: "ORANGE",
@@ -345,6 +351,10 @@ const TEXT = {
 const MATCH = {
     win: 11,
     margin: 2
+};
+
+const SCORE = {
+    defaultPosition: "bottom"
 };
 
 const SENS = {
@@ -445,6 +455,7 @@ const AI_LEVELS = {
 // ============================================================
 
 let courtColor = "black";
+let scorePosition = SCORE.defaultPosition;
 
 let audioContext = null;
 let audioMuted = false;
@@ -1847,6 +1858,32 @@ function scaleBallVelocity(
     }
 }
 
+function setBallSpeed(
+    targetSpeed
+) {
+
+    const currentSpeed =
+        Math.hypot(
+            ball.vx,
+            ball.vy
+        );
+
+    if (
+        currentSpeed <= 0 ||
+        !Number.isFinite(
+            targetSpeed
+        ) ||
+        targetSpeed <= 0
+    ) {
+        return;
+    }
+
+    scaleBallVelocity(
+        targetSpeed /
+        currentSpeed
+    );
+}
+
 function clearBallSpin() {
 
     const speedFactor =
@@ -2093,13 +2130,16 @@ function applyBallSpin(
         ball.shotType =
             "block";
 
-        scaleBallVelocity(
-            SPIN.blockSpeedRetention
-        );
+        if (progressiveSpeed) {
 
-        storeSpinSpeedFactor(
-            speedBefore
-        );
+            scaleBallVelocity(
+                SPIN.blockSpeedRetention
+            );
+
+            storeSpinSpeedFactor(
+                speedBefore
+            );
+        }
 
         return;
     }
@@ -2177,14 +2217,16 @@ function applyBallSpin(
               SPIN.backspinSpeedInfluence;
 
 
-    scaleBallVelocity(
-        speedFactor
-    );
+    if (progressiveSpeed) {
 
+        scaleBallVelocity(
+            speedFactor
+        );
 
-    storeSpinSpeedFactor(
-        speedBefore
-    );
+        storeSpinSpeedFactor(
+            speedBefore
+        );
+    }
 }
 
 function updateBallSpin(
@@ -3941,6 +3983,14 @@ function updateBall(
     }
 
 
+    if (!progressiveSpeed) {
+
+        setBallSpeed(
+            currentBallSpeed()
+        );
+    }
+
+
     captureReplayFrame(
         stepScale
     );
@@ -5042,6 +5092,12 @@ function interactiveItems() {
             ["green", t("green")],
             ["blue", t("blue")],
             ["black", t("black")],
+            [
+                "scorePosition",
+                `${t("score")}: ${t(
+                    scorePosition
+                )}`
+            ],
             ["backgroundBack", t("back")]
 
         ].forEach(
@@ -5059,7 +5115,7 @@ function interactiveItems() {
 
                     buttonRect(
                         index,
-                        4,
+                        5,
                         280,
                         55,
                         15,
@@ -6313,6 +6369,21 @@ function handleAction(id) {
 
     if (
         id ===
+        "scorePosition"
+    ) {
+
+        scorePosition =
+            scorePosition === "bottom"
+
+                ? "top"
+                : "bottom";
+
+        return;
+    }
+
+
+    if (
+        id ===
         "backgroundBack"
     ) {
 
@@ -6692,6 +6763,15 @@ function handleAction(id) {
         progressiveSpeed =
             !progressiveSpeed;
 
+        if (!progressiveSpeed) {
+
+            clearBallSpin();
+
+            setBallSpeed(
+                currentBallSpeed()
+            );
+        }
+
         return;
     }
 
@@ -6950,7 +7030,10 @@ function drawScore() {
     */
 
     const scoreBaselineY =
-        TABLE.bottom - 23;
+        scorePosition === "top"
+
+            ? TABLE.top + 58
+            : TABLE.bottom - 23;
 
     ctx.fillStyle =
         "#FFFFFF";
@@ -7008,8 +7091,8 @@ function drawScore() {
 
 
     /*
-        Obtenemos el borde visual
-        inferior REAL del contador.
+        Obtenemos el borde visual REAL
+        orientado hacia el límite elegido.
     */
 
     const metrics =
@@ -7028,9 +7111,28 @@ function drawScore() {
             : 2;
 
 
-    const scoreVisualBottom =
-        scoreBaselineY +
-        descent;
+    const ascent =
+        Number.isFinite(
+            metrics.actualBoundingBoxAscent
+        )
+            ? metrics.actualBoundingBoxAscent
+            : 42;
+
+
+    const scoreVisualEdge =
+        scorePosition === "top"
+
+            ? scoreBaselineY -
+              ascent
+            : scoreBaselineY +
+              descent;
+
+
+    const tableEdge =
+        scorePosition === "top"
+
+            ? TABLE.top
+            : TABLE.bottom;
 
 
     /*
@@ -7038,14 +7140,14 @@ function drawScore() {
         en el centro entre:
 
         borde visual del número
-        y borde inferior de la mesa.
+        y el límite elegido de la mesa.
     */
 
     const matchY =
-        scoreVisualBottom +
+        scoreVisualEdge +
         (
-            TABLE.bottom -
-            scoreVisualBottom
+            tableEdge -
+            scoreVisualEdge
         ) /
         2;
 
