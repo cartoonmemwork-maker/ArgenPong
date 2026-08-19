@@ -1171,8 +1171,6 @@ function setBallShape(
 
     ballShape =
         shape;
-
-    resetReplayCapture();
 }
 
 function resetBallAppearance() {
@@ -1237,12 +1235,6 @@ function toggleClassicPongPreset() {
         );
     }
 
-    if (
-        gameMode &&
-        !gameOver
-    ) {
-        resetBall();
-    }
 }
 
 function startSettingsActive() {
