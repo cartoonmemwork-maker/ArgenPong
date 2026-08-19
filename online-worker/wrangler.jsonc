@@ -1,0 +1,26 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "argenpong-matchmaker",
+    "main": "worker.js",
+    "compatibility_date": "2026-08-19",
+    "workers_dev": true,
+    "vars": {
+        "ALLOWED_ORIGIN": "https://cartoonmemwork-maker.github.io"
+    },
+    "durable_objects": {
+        "bindings": [
+            {
+                "name": "PUBLIC_QUEUE",
+                "class_name": "PublicQueue"
+            }
+        ]
+    },
+    "migrations": [
+        {
+            "tag": "v1",
+            "new_sqlite_classes": [
+                "PublicQueue"
+            ]
+        }
+    ]
+}

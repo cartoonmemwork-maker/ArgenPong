@@ -196,6 +196,16 @@ const TEXT = {
         localPvp: "PVP LOCAL",
         vsAi: "VS IA",
         onlinePvp: "PVP ONLINE",
+        onlineJoin: "UNIRME",
+        onlineSelectSide: "SELECCIONAR LADO",
+        searchingOpponent: "BUSCANDO OPONENTE",
+        waitingOpponent: "ESPERANDO OPONENTE",
+        opponentFound: "OPONENTE ENCONTRADO",
+        onlineConnecting: "CONECTANDO",
+        onlineNotConfigured: "FALTA CONFIGURAR EL SERVIDOR ONLINE",
+        onlineConnectionError: "NO SE PUDO CONECTAR",
+        opponentLeft: "EL OPONENTE SE DESCONECTÓ",
+        clickRecapture: "CLICK PARA RECUPERAR EL MOUSE",
         side: "LADO",
         left: "IZQUIERDA",
         right: "DERECHA",
@@ -274,6 +284,16 @@ const TEXT = {
         localPvp: "LOCAL PVP",
         vsAi: "VS AI",
         onlinePvp: "ONLINE PVP",
+        onlineJoin: "JOIN",
+        onlineSelectSide: "SELECT SIDE",
+        searchingOpponent: "SEARCHING FOR OPPONENT",
+        waitingOpponent: "WAITING FOR OPPONENT",
+        opponentFound: "OPPONENT FOUND",
+        onlineConnecting: "CONNECTING",
+        onlineNotConfigured: "ONLINE SERVER NOT CONFIGURED",
+        onlineConnectionError: "CONNECTION FAILED",
+        opponentLeft: "OPPONENT DISCONNECTED",
+        clickRecapture: "CLICK TO RECAPTURE MOUSE",
         side: "SIDE",
         left: "LEFT",
         right: "RIGHT",
@@ -483,6 +503,21 @@ let gameMode = null;
 
 let startMenuOpen = true;
 let aiMenuOpen = false;
+let onlineMenuOpen = false;
+
+const onlineSession = {
+    screen: "closed",
+    role: null,
+    side: "left",
+    countdown: null,
+    errorKey: null,
+    remoteTargetY:
+        (H - PADDLE.h) / 2,
+    savedSettings: null,
+    snapshotAccumulator: 0,
+    pointerHint: false,
+    countdownTimers: []
+};
 
 let settingsOpen = false;
 let controlsOpen = false;
@@ -1192,6 +1227,7 @@ function startGame(
 
     startMenuOpen = false;
     aiMenuOpen = false;
+    onlineMenuOpen = false;
 
     settingsOpen = false;
     controlsOpen = false;
@@ -1204,12 +1240,548 @@ function startGame(
     resetMatch();
 }
 
+function onlineTransport() {
+
+    return (
+        window.ArgenPongOnline ||
+        null
+    );
+}
+
+function clearOnlineCountdown() {
+
+    onlineSession.countdownTimers
+        .forEach(clearTimeout);
+
+    onlineSession.countdownTimers = [];
+    onlineSession.countdown = null;
+}
+
+function saveOfflineSettings() {
+
+    if (onlineSession.savedSettings) {
+        return;
+    }
+
+    onlineSession.savedSettings = {
+        ballSpeedLevel,
+        progressiveSpeed,
+        spinEnabled,
+        physicsFps,
+        ballColor,
+        ballSizeMode,
+        replayAutoEnabled,
+        replayMode
+    };
+}
+
+function applyOnlineDefaults() {
+
+    saveOfflineSettings();
+
+    ballSpeedLevel =
+        BALL.defaultLevel;
+
+    progressiveSpeed = true;
+    spinEnabled = true;
+    physicsFps = 60;
+    ballColor = "white";
+    replayAutoEnabled =
+        REPLAY.defaultEnabled;
+    replayMode =
+        REPLAY.defaultMode;
+
+    setBallSizeMode(
+        "pingPong"
+    );
+}
+
+function restoreOfflineSettings() {
+
+    const saved =
+        onlineSession.savedSettings;
+
+    if (!saved) {
+        return;
+    }
+
+    ballSpeedLevel =
+        saved.ballSpeedLevel;
+    progressiveSpeed =
+        saved.progressiveSpeed;
+    spinEnabled =
+        saved.spinEnabled;
+    physicsFps =
+        saved.physicsFps;
+    ballColor =
+        saved.ballColor;
+    replayAutoEnabled =
+        saved.replayAutoEnabled;
+    replayMode =
+        saved.replayMode;
+
+    setBallSizeMode(
+        saved.ballSizeMode
+    );
+
+    onlineSession.savedSettings =
+        null;
+}
+
+function resetOnlineSession() {
+
+    clearOnlineCountdown();
+
+    onlineSession.screen = "closed";
+    onlineSession.role = null;
+    onlineSession.side = "left";
+    onlineSession.errorKey = null;
+    onlineSession.remoteTargetY =
+        (H - PADDLE.h) / 2;
+    onlineSession.snapshotAccumulator = 0;
+    onlineSession.pointerHint = false;
+}
+
+function onlineStateSnapshot() {
+
+    return {
+        ball: {
+            x: ball.x,
+            y: ball.y,
+            vx: ball.vx,
+            vy: ball.vy,
+            spin: ball.spin,
+            spinSpeedOffset:
+                ball.spinSpeedOffset,
+            shotType: ball.shotType
+        },
+        leftPaddleY: leftPaddle.y,
+        rightPaddleY: rightPaddle.y,
+        leftScore,
+        rightScore,
+        servingPlayer,
+        gameOver,
+        winner
+    };
+}
+
+function applyOnlineSnapshot(
+    snapshot
+) {
+
+    if (
+        onlineSession.role !== "guest" ||
+        !snapshot ||
+        !snapshot.ball
+    ) {
+        return;
+    }
+
+    for (
+        const key of
+        [
+            "x",
+            "y",
+            "vx",
+            "vy",
+            "spin",
+            "spinSpeedOffset"
+        ]
+    ) {
+        if (
+            Number.isFinite(
+                snapshot.ball[key]
+            )
+        ) {
+            ball[key] =
+                snapshot.ball[key];
+        }
+    }
+
+    if (
+        typeof snapshot.ball.shotType ===
+        "string"
+    ) {
+        ball.shotType =
+            snapshot.ball.shotType;
+    }
+
+    if (
+        onlineSession.side !== "left" &&
+        Number.isFinite(
+            snapshot.leftPaddleY
+        )
+    ) {
+        leftPaddle.y =
+            snapshot.leftPaddleY;
+    }
+
+    if (
+        onlineSession.side !== "right" &&
+        Number.isFinite(
+            snapshot.rightPaddleY
+        )
+    ) {
+        rightPaddle.y =
+            snapshot.rightPaddleY;
+    }
+
+    leftScore = clamp(
+        Math.trunc(
+            Number.isFinite(
+                snapshot.leftScore
+            )
+
+                ? snapshot.leftScore
+                : 0
+        ),
+        0,
+        99
+    );
+
+    rightScore = clamp(
+        Math.trunc(
+            Number.isFinite(
+                snapshot.rightScore
+            )
+
+                ? snapshot.rightScore
+                : 0
+        ),
+        0,
+        99
+    );
+
+    servingPlayer =
+        snapshot.servingPlayer ===
+        "right"
+
+            ? "right"
+            : "left";
+
+    gameOver =
+        Boolean(snapshot.gameOver);
+
+    winner =
+        snapshot.winner === "left" ||
+        snapshot.winner === "right"
+
+            ? snapshot.winner
+            : null;
+
+    if (gameOver) {
+        releaseMouseCapture();
+    }
+}
+
+function sendOnlineSnapshot(
+    force = false
+) {
+
+    if (
+        gameMode !== "online" ||
+        onlineSession.role !== "host" ||
+        onlineSession.screen !== "playing"
+    ) {
+        return;
+    }
+
+    if (!force) {
+        onlineSession.snapshotAccumulator++;
+
+        if (
+            onlineSession.snapshotAccumulator <
+            2
+        ) {
+            return;
+        }
+    }
+
+    onlineSession.snapshotAccumulator = 0;
+
+    onlineTransport()?.sendSnapshot(
+        onlineStateSnapshot()
+    );
+}
+
+function failOnline(errorKey) {
+
+    clearOnlineCountdown();
+
+    onlineTransport()?.close(
+        false
+    );
+
+    releaseMouseCapture();
+    restoreOfflineSettings();
+
+    startMenuOpen = true;
+    aiMenuOpen = false;
+    onlineMenuOpen = true;
+    gameMode = null;
+    gamePaused = false;
+    gameOver = false;
+    winner = null;
+
+    onlineSession.screen = "error";
+    onlineSession.errorKey =
+        errorKey;
+    onlineSession.role = null;
+    onlineSession.countdown = null;
+}
+
+function beginOnlineGame() {
+
+    if (
+        onlineSession.screen ===
+        "playing"
+    ) {
+        return;
+    }
+
+    clearOnlineCountdown();
+    applyOnlineDefaults();
+
+    startGame(
+        "online",
+        onlineSession.side
+    );
+
+    onlineSession.screen = "playing";
+    onlineSession.pointerHint =
+        document.pointerLockElement !==
+        canvas;
+
+    sendOnlineSnapshot(true);
+}
+
+function setOnlineCountdown(value) {
+
+    onlineSession.screen =
+        "countdown";
+    onlineSession.countdown =
+        value;
+}
+
+function startHostCountdown() {
+
+    clearOnlineCountdown();
+    setOnlineCountdown(3);
+
+    onlineTransport()?.sendEvent({
+        type: "countdown",
+        value: 3
+    });
+
+    [
+        [1000, 2],
+        [2000, 1]
+    ].forEach(
+        ([delay, value]) => {
+            onlineSession.countdownTimers
+                .push(
+                    setTimeout(
+                        () => {
+                            setOnlineCountdown(
+                                value
+                            );
+
+                            onlineTransport()
+                                ?.sendEvent({
+                                    type:
+                                        "countdown",
+                                    value
+                                });
+                        },
+                        delay
+                    )
+                );
+        }
+    );
+
+    onlineSession.countdownTimers.push(
+        setTimeout(
+            () => {
+                onlineTransport()
+                    ?.sendEvent({
+                        type: "start"
+                    });
+
+                beginOnlineGame();
+            },
+            3000
+        )
+    );
+}
+
+function handleOnlineEvent(event) {
+
+    if (!event) {
+        return;
+    }
+
+    if (
+        event.type === "countdown" &&
+        onlineSession.role === "guest"
+    ) {
+        setOnlineCountdown(
+            clamp(
+                Math.trunc(event.value),
+                1,
+                3
+            )
+        );
+        return;
+    }
+
+    if (
+        event.type === "start" &&
+        onlineSession.role === "guest"
+    ) {
+        beginOnlineGame();
+        return;
+    }
+
+    if (
+        event.type === "replay" &&
+        onlineSession.role === "guest" &&
+        Array.isArray(event.clip) &&
+        event.clip.length >= 2
+    ) {
+        applyOnlineSnapshot(
+            event.snapshot
+        );
+
+        replayClip =
+            event.clip
+                .slice(
+                    0,
+                    REPLAY.maxFrames
+                )
+                .filter(
+                    frame =>
+                        frame &&
+                        Number.isFinite(
+                            frame.ballX
+                        ) &&
+                        Number.isFinite(
+                            frame.ballY
+                        )
+                );
+
+        if (
+            replayClip.length < 2
+        ) {
+            replayClip = [];
+            return;
+        }
+        replayPlaying = true;
+        replayPosition = 0;
+        replayLastTime = null;
+        replayPlaybackAccumulator = 0;
+    }
+}
+
+function configureOnlineTransport() {
+
+    const transport =
+        onlineTransport();
+
+    if (!transport) {
+        return;
+    }
+
+    transport.setHandlers({
+        matched({ role, side }) {
+            onlineSession.role = role;
+            onlineSession.side = side;
+            humanSide = side;
+            onlineSession.screen =
+                "connecting";
+            resetPaddles();
+        },
+
+        ready() {
+            if (
+                onlineSession.role ===
+                "host"
+            ) {
+                startHostCountdown();
+            }
+        },
+
+        data(message) {
+            if (
+                message.type === "input" &&
+                onlineSession.role === "host" &&
+                message.input &&
+                Number.isFinite(
+                    message.input.targetY
+                )
+            ) {
+                onlineSession.remoteTargetY =
+                    message.input.targetY;
+                return;
+            }
+
+            if (
+                message.type === "snapshot"
+            ) {
+                applyOnlineSnapshot(
+                    message.snapshot
+                );
+                return;
+            }
+
+            if (
+                message.type === "event"
+            ) {
+                handleOnlineEvent(
+                    message.event
+                );
+            }
+        },
+
+        error({ code }) {
+            failOnline(
+                code === "not_configured"
+
+                    ? "onlineNotConfigured"
+                    : "onlineConnectionError"
+            );
+        },
+
+        opponentLeft() {
+            failOnline(
+                "opponentLeft"
+            );
+        },
+
+        connectionLost() {
+            failOnline(
+                "onlineConnectionError"
+            );
+        }
+    });
+}
+
 function goToStartMenu() {
+
+    if (
+        gameMode === "online" ||
+        onlineMenuOpen
+    ) {
+        clearOnlineCountdown();
+        onlineTransport()?.close();
+        restoreOfflineSettings();
+        resetOnlineSession();
+    }
 
     releaseMouseCapture();
 
     startMenuOpen = true;
     aiMenuOpen = false;
+    onlineMenuOpen = false;
 
     gamePaused = false;
     gameOver = false;
@@ -1461,6 +2033,18 @@ function startPointReplay(
     replayLastTime = null;
     replayPlaybackAccumulator = 0;
 
+    if (
+        gameMode === "online" &&
+        onlineSession.role === "host"
+    ) {
+        onlineTransport()?.sendEvent({
+            type: "replay",
+            clip: replayClip,
+            snapshot:
+                onlineStateSnapshot()
+        });
+    }
+
     return true;
 }
 
@@ -1636,8 +2220,18 @@ function finishReplay() {
     replayFinishTime =
         performance.now();
 
+    if (
+        gameMode === "online" &&
+        onlineSession.role === "guest"
+    ) {
+        resetReplayCapture();
+        return;
+    }
+
     finalizePoint();
     resetReplayCapture();
+
+    sendOnlineSnapshot(true);
 
     if (!gameOver) {
         requestMouseCapture();
@@ -2538,6 +3132,81 @@ function humanMoveAI(
     if (down) {
         paddle.y += speed;
     }
+}
+
+function onlineLocalMove(
+    stepScale = 1
+) {
+
+    const paddle =
+        sidePaddle(
+            onlineSession.side
+        );
+
+    const speed =
+        keyboardSpeed(
+            SENS.default
+        ) *
+        stepScale;
+
+    const up =
+        keys.w ||
+        keys.W ||
+        keys.ArrowUp;
+
+    const down =
+        keys.s ||
+        keys.S ||
+        keys.ArrowDown;
+
+    if (up) {
+        paddle.y -= speed;
+    }
+
+    if (down) {
+        paddle.y += speed;
+    }
+
+    if (
+        onlineSession.role ===
+        "guest"
+    ) {
+        onlineTransport()?.sendInput({
+            targetY: paddle.y
+        });
+    }
+}
+
+function onlineRemoteMove(
+    stepScale = 1
+) {
+
+    if (
+        onlineSession.role !== "host"
+    ) {
+        return;
+    }
+
+    const paddle =
+        sidePaddle(
+            otherSide(
+                onlineSession.side
+            )
+        );
+
+    const maxMove =
+        keyboardSpeed(
+            SENS.default
+        ) *
+        stepScale *
+        1.25;
+
+    paddle.y += clamp(
+        onlineSession.remoteTargetY -
+            paddle.y,
+        -maxMove,
+        maxMove
+    );
 }
 
 function clampPaddles() {
@@ -3738,6 +4407,28 @@ function updatePaddles(
     stepScale = 1
 ) {
 
+    const onlineLobbyActive =
+        startMenuOpen &&
+        onlineMenuOpen &&
+        [
+            "waiting",
+            "connecting",
+            "countdown"
+        ].includes(
+            onlineSession.screen
+        );
+
+    if (onlineLobbyActive) {
+        onlineLocalMove(
+            stepScale
+        );
+        onlineRemoteMove(
+            stepScale
+        );
+        clampPaddles();
+        return;
+    }
+
     if (
         startMenuOpen ||
         gamePaused ||
@@ -3783,6 +4474,19 @@ function updatePaddles(
                 stepScale
             );
         }
+
+    } else if (
+        gameMode ===
+        "online"
+    ) {
+
+        onlineLocalMove(
+            stepScale
+        );
+
+        onlineRemoteMove(
+            stepScale
+        );
     }
 
     clampPaddles();
@@ -3887,6 +4591,13 @@ function updateBall(
         gameOver ||
         replayPlaying ||
         !gameMode
+    ) {
+        return;
+    }
+
+    if (
+        gameMode === "online" &&
+        onlineSession.role === "guest"
     ) {
         return;
     }
@@ -4052,6 +4763,7 @@ window.addEventListener(
         if (replayPlaying) {
 
             if (
+                gameMode !== "online" &&
                 replaySkipKey(
                     event
                 )
@@ -4131,7 +4843,10 @@ window.addEventListener(
 
 
         if (
-            startMenuOpen ||
+            (
+                startMenuOpen &&
+                !onlinePointerActive()
+            ) ||
             gamePaused ||
             gameOver
         ) {
@@ -4243,6 +4958,12 @@ function handleEscape() {
 
     if (startMenuOpen) {
 
+        if (onlineMenuOpen) {
+
+            goToStartMenu();
+            return;
+        }
+
         if (aiMenuOpen) {
 
             aiMenuOpen = false;
@@ -4252,6 +4973,10 @@ function handleEscape() {
     }
 
     if (gameOver) {
+        return;
+    }
+
+    if (gameMode === "online") {
         return;
     }
 
@@ -4307,7 +5032,29 @@ function handleEscape() {
 // MOUSE
 // ============================================================
 
+function onlinePointerActive() {
+
+    return (
+        gameMode === "online" ||
+        (
+            startMenuOpen &&
+            onlineMenuOpen &&
+            [
+                "waiting",
+                "connecting",
+                "countdown"
+            ].includes(
+                onlineSession.screen
+            )
+        )
+    );
+}
+
 function mouseControlActive() {
+
+    if (onlinePointerActive()) {
+        return true;
+    }
 
     if (
         gameMode === "ai"
@@ -4335,8 +5082,14 @@ function moveMousePaddles(
     delta
 ) {
 
+    const onlineActive =
+        onlinePointerActive();
+
     if (
-        startMenuOpen ||
+        (
+            startMenuOpen &&
+            !onlineActive
+        ) ||
         gamePaused ||
         gameOver ||
         replayPlaying ||
@@ -4348,7 +5101,19 @@ function moveMousePaddles(
 
     // VS IA
 
-    if (
+    if (onlineActive) {
+
+        sidePaddle(
+            onlineSession.side
+        ).y +=
+            delta *
+            (
+                0.75 +
+                SENS.default *
+                2
+            );
+
+    } else if (
         gameMode === "ai" &&
         !aiVsAiEnabled &&
         aiControls.mouse
@@ -4407,7 +5172,10 @@ function queueMouseMovement(
 ) {
 
     if (
-        startMenuOpen ||
+        (
+            startMenuOpen &&
+            !onlinePointerActive()
+        ) ||
         gamePaused ||
         gameOver ||
         replayPlaying ||
@@ -4423,7 +5191,10 @@ function queueMouseMovement(
 function requestMouseCapture() {
 
     if (
-        startMenuOpen ||
+        (
+            startMenuOpen &&
+            !onlinePointerActive()
+        ) ||
         gamePaused ||
         gameOver ||
         replayPlaying ||
@@ -4516,6 +5287,14 @@ document.addEventListener(
             null;
 
         if (
+            document.pointerLockElement ===
+            canvas
+        ) {
+            onlineSession.pointerHint =
+                false;
+        }
+
+        if (
             document.pointerLockElement !==
                 canvas &&
             !startMenuOpen &&
@@ -4531,11 +5310,18 @@ document.addEventListener(
             mouseControlActive()
         ) {
 
-            gamePaused =
-                true;
+            if (
+                gameMode === "online"
+            ) {
+                onlineSession.pointerHint =
+                    true;
+            } else {
+                gamePaused =
+                    true;
 
-            pointerUnlockPauseTime =
-                performance.now();
+                pointerUnlockPauseTime =
+                    performance.now();
+            }
         }
     }
 );
@@ -4559,7 +5345,10 @@ canvas.addEventListener(
 
 
         if (
-            !startMenuOpen &&
+            (
+                !startMenuOpen ||
+                onlinePointerActive()
+            ) &&
             !gamePaused &&
             !gameOver &&
             previousMouseY !==
@@ -4667,9 +5456,13 @@ canvas.addEventListener(
     "click",
     event => {
 
-        if (replayPlaying) {
+    if (replayPlaying) {
 
-            finishReplay();
+            if (
+                gameMode !== "online"
+            ) {
+                finishReplay();
+            }
 
             return;
         }
@@ -4814,6 +5607,105 @@ function interactiveItems() {
         });
     };
 
+    // PVP ONLINE
+
+    if (
+        startMenuOpen &&
+        onlineMenuOpen
+    ) {
+
+        if (
+            onlineSession.screen ===
+            "menu"
+        ) {
+            add(
+                "onlineJoin",
+                t("onlineJoin"),
+                buttonRect(
+                    0,
+                    3,
+                    390,
+                    56,
+                    16,
+                    430
+                )
+            );
+
+            add(
+                "onlineHost",
+                t("onlineSelectSide"),
+                buttonRect(
+                    1,
+                    3,
+                    390,
+                    56,
+                    16,
+                    430
+                )
+            );
+
+            add(
+                "onlineBack",
+                t("back"),
+                buttonRect(
+                    2,
+                    3,
+                    390,
+                    56,
+                    16,
+                    430
+                )
+            );
+
+            return items;
+        }
+
+        if (
+            onlineSession.screen ===
+            "waiting"
+        ) {
+            add(
+                "onlineSide",
+                `${t("side")}: ${
+                    onlineSession.side ===
+                    "left"
+
+                        ? t("left")
+                        : t("right")
+                }`,
+                {
+                    x: W / 2 - 190,
+                    y: 530,
+                    w: 380,
+                    h: 52
+                }
+            );
+        }
+
+        if (
+            onlineSession.screen !==
+            "countdown"
+        ) {
+            add(
+                "onlineBack",
+                t("back"),
+                {
+                    x: W / 2 - 120,
+                    y:
+                        onlineSession.screen ===
+                        "waiting"
+
+                            ? 600
+                            : 570,
+                    w: 240,
+                    h: 52
+                }
+            );
+        }
+
+        return items;
+    }
+
     // MENU INICIAL
 
     if (
@@ -4857,8 +5749,7 @@ function interactiveItems() {
                 50,
                 12,
                 410
-            ),
-            true
+            )
         );
 
         return items;
@@ -4979,26 +5870,28 @@ function interactiveItems() {
             );
         }
 
-        add(
-            "revenge",
-            t("rematch"),
-            {
-                x:
-                    W / 2 - 130,
+        if (gameMode !== "online") {
+            add(
+                "revenge",
+                t("rematch"),
+                {
+                    x:
+                        W / 2 - 130,
 
-                y:
-                    H / 2 +
-                    (
-                        difficultySelectable
+                    y:
+                        H / 2 +
+                        (
+                            difficultySelectable
 
-                            ? 95
-                            : 55
-                    ),
+                                ? 95
+                                : 55
+                        ),
 
-                w: 260,
-                h: 60
-            }
-        );
+                    w: 260,
+                    h: 60
+                }
+            );
+        }
 
         add(
             "victoryMenu",
@@ -6021,6 +6914,66 @@ function handleAction(id) {
         id ===
         "online"
     ) {
+        onlineMenuOpen = true;
+        onlineSession.screen = "menu";
+        onlineSession.errorKey = null;
+        resetPaddles();
+        return;
+    }
+
+
+    if (
+        id === "onlineJoin"
+    ) {
+        onlineSession.screen =
+            "searching";
+        onlineSession.errorKey = null;
+
+        onlineTransport()?.join();
+        return;
+    }
+
+
+    if (
+        id === "onlineHost"
+    ) {
+        onlineSession.side = "left";
+        humanSide = "left";
+        onlineSession.screen =
+            "waiting";
+        onlineSession.errorKey = null;
+        resetPaddles();
+
+        onlineTransport()?.host(
+            onlineSession.side
+        );
+
+        return;
+    }
+
+
+    if (
+        id === "onlineSide"
+    ) {
+        onlineSession.side =
+            otherSide(
+                onlineSession.side
+            );
+        humanSide =
+            onlineSession.side;
+        resetPaddles();
+
+        onlineTransport()?.updateSide(
+            onlineSession.side
+        );
+        return;
+    }
+
+
+    if (
+        id === "onlineBack"
+    ) {
+        goToStartMenu();
         return;
     }
 
@@ -6860,10 +7813,7 @@ function updateHover(
     ) {
 
         if (
-            (
-                !item.disabled ||
-                item.id === "online"
-            ) &&
+            !item.disabled &&
             inside(
                 x,
                 y,
@@ -6880,8 +7830,7 @@ function updateHover(
     }
 
     canvas.style.cursor =
-        hoveredButton &&
-        hoveredButton !== "online"
+        hoveredButton
             ? "pointer"
             : "default";
 }
@@ -7776,6 +8725,117 @@ function drawArgenPongLogo(
 
 function drawStart() {
 
+    if (
+        onlineMenuOpen &&
+        onlineSession.screen !==
+        "menu"
+    ) {
+        drawTable();
+
+        if (
+            onlineSession.screen ===
+            "waiting"
+        ) {
+            ctx.fillStyle = "#FFFFFF";
+
+            const paddle =
+                sidePaddle(
+                    onlineSession.side
+                );
+
+            ctx.fillRect(
+                paddle.x,
+                paddle.y,
+                PADDLE.w,
+                PADDLE.h
+            );
+        }
+
+        if (
+            [
+                "connecting",
+                "countdown"
+            ].includes(
+                onlineSession.screen
+            )
+        ) {
+            drawPaddles();
+        }
+
+        const blink =
+            0.3 +
+            0.7 *
+            (
+                Math.sin(
+                    performance.now() /
+                    260
+                ) +
+                1
+            ) /
+            2;
+
+        const statusKey =
+            onlineSession.screen ===
+            "searching"
+
+                ? "searchingOpponent"
+                : onlineSession.screen ===
+                    "waiting"
+
+                    ? "waitingOpponent"
+                    : onlineSession.screen ===
+                        "error"
+
+                        ? onlineSession.errorKey ||
+                          "onlineConnectionError"
+                        : "opponentFound";
+
+        ctx.save();
+        ctx.globalAlpha =
+            onlineSession.screen ===
+            "error"
+
+                ? 1
+                : blink;
+
+        title(
+            t(statusKey),
+            112,
+            "bold 30px monospace"
+        );
+        ctx.restore();
+
+        if (
+            onlineSession.screen ===
+            "connecting"
+        ) {
+            title(
+                t("onlineConnecting"),
+                160,
+                "18px monospace"
+            );
+        }
+
+        if (
+            onlineSession.screen ===
+            "countdown"
+        ) {
+            title(
+                String(
+                    onlineSession.countdown ||
+                    3
+                ),
+                H / 2,
+                "bold 108px monospace"
+            );
+        }
+
+        interactiveItems()
+            .forEach(drawButton);
+
+        return;
+    }
+
     ctx.fillStyle =
         "#000000";
 
@@ -7790,7 +8850,15 @@ function drawStart() {
     drawArgenPongLogo();
 
 
-    if (aiMenuOpen) {
+    if (onlineMenuOpen) {
+
+        title(
+            t("onlinePvp"),
+            270,
+            "bold 30px monospace"
+        );
+
+    } else if (aiMenuOpen) {
 
         title(
             t("chooseSide"),
@@ -7826,62 +8894,6 @@ function drawStart() {
     );
 
 
-    if (
-        !aiMenuOpen &&
-        hoveredButton === "online"
-    ) {
-
-        const online =
-            items.find(
-                item =>
-                    item.id ===
-                    "online"
-            );
-
-
-        if (online) {
-
-            const blink =
-                0.25 +
-                0.75 *
-                (
-                    Math.sin(
-                        performance.now() /
-                        260
-                    ) +
-                    1
-                ) /
-                2;
-
-            ctx.save();
-
-            ctx.globalAlpha =
-                blink;
-
-            ctx.fillStyle =
-                "rgba(255,255,255,.65)";
-
-            ctx.font =
-                "bold 14px monospace";
-
-            ctx.textAlign =
-                "center";
-
-
-            ctx.fillText(
-                t("comingSoon"),
-                online.rect.x +
-                online.rect.w +
-                105,
-
-                online.rect.y +
-                online.rect.h / 2 +
-                5
-            );
-
-            ctx.restore();
-        }
-    }
 }
 
 
@@ -8679,14 +9691,16 @@ function drawReplay() {
         TABLE.top + 58
     );
 
-    ctx.font =
-        "16px monospace";
+    if (gameMode !== "online") {
+        ctx.font =
+            "16px monospace";
 
-    ctx.fillText(
-        t("skipReplay"),
-        TABLE.left + 22,
-        TABLE.top + 84
-    );
+        ctx.fillText(
+            t("skipReplay"),
+            TABLE.left + 22,
+            TABLE.top + 84
+        );
+    }
 
     ctx.restore();
 }
@@ -8742,6 +9756,48 @@ function drawVictory() {
         );
 }
 
+function drawOnlinePointerHint() {
+
+    if (
+        gameMode !== "online" ||
+        !onlineSession.pointerHint ||
+        replayPlaying ||
+        gameOver
+    ) {
+        return;
+    }
+
+    ctx.save();
+    ctx.fillStyle =
+        "rgba(0,0,0,.62)";
+    ctx.fillRect(
+        W / 2 - 245,
+        TABLE.bottom - 74,
+        490,
+        46
+    );
+    ctx.strokeStyle =
+        BRAND.blue;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+        W / 2 - 245,
+        TABLE.bottom - 74,
+        490,
+        46
+    );
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font =
+        "bold 16px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+        t("clickRecapture"),
+        W / 2,
+        TABLE.bottom - 51
+    );
+    ctx.restore();
+}
+
 
 // ============================================================
 // RENDER PRINCIPAL
@@ -8777,6 +9833,7 @@ function drawGame() {
     drawPaddles();
     drawBall();
     drawScore();
+    drawOnlinePointerHint();
 
 
     if (gameOver) {
@@ -8993,6 +10050,8 @@ function loop(
             }
         }
 
+        sendOnlineSnapshot();
+
         frameAccumulator -=
             stepMs;
 
@@ -9014,6 +10073,7 @@ function loop(
 }
 
 
+configureOnlineTransport();
 resetBall();
 requestAnimationFrame(
     loop
