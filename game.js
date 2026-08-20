@@ -4,6 +4,9 @@ const H = 720;
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+const p2PonLogoImage = new Image();
+p2PonLogoImage.src = "assets/p2pon-logo.png";
+
 
 // ============================================================
 // CONFIG
@@ -250,8 +253,6 @@ const TEXT = {
         continue: "CONTINUAR",
         restart: "REINICIAR PARTIDA",
         settings: "AJUSTES",
-        classicPong: "PONG CLÁSICO",
-        argenPong: "ARGENPONG",
         press: "PRESIONÁ...",
         pause: "PAUSA",
         chooseSide: "ELEGÍ TU LADO",
@@ -350,8 +351,6 @@ const TEXT = {
         continue: "CONTINUE",
         restart: "RESTART MATCH",
         settings: "SETTINGS",
-        classicPong: "CLASSIC PONG",
-        argenPong: "ARGENPONG",
         press: "PRESS...",
         pause: "PAUSE",
         chooseSide: "CHOOSE YOUR SIDE",
@@ -515,8 +514,6 @@ let spinEnabled = SPIN.defaultEnabled;
 let physicsFps = TIMING.defaultFps;
 let ballColor = BALL.defaultColor;
 let ballShape = BALL.defaultShape;
-let classicPongMode = false;
-let classicPongSavedSettings = null;
 
 let previousFrameTime = null;
 let frameAccumulator = 0;
@@ -1183,54 +1180,6 @@ function resetBallAppearance() {
     );
 }
 
-function toggleClassicPongPreset() {
-
-    if (!classicPongMode) {
-
-        classicPongSavedSettings = {
-            courtColor,
-            scorePosition,
-            ballColor,
-            ballShape
-        };
-
-        classicPongMode = true;
-        courtColor = "black";
-        scorePosition = "top";
-        ballColor = "white";
-
-        setBallShape(
-            "square"
-        );
-
-    } else {
-
-        const saved =
-            classicPongSavedSettings;
-
-        classicPongMode = false;
-        classicPongSavedSettings = null;
-
-        courtColor =
-            saved?.courtColor ||
-            "black";
-
-        scorePosition =
-            saved?.scorePosition ||
-            SCORE.defaultPosition;
-
-        ballColor =
-            saved?.ballColor ||
-            BALL.defaultColor;
-
-        setBallShape(
-            saved?.ballShape ||
-            BALL.defaultShape
-        );
-    }
-
-}
-
 function startSettingsActive() {
 
     return (
@@ -1442,7 +1391,7 @@ function startGame(
 function onlineTransport() {
 
     return (
-        window.ArgenPongOnline ||
+        window.P2PonOnline ||
         null
     );
 }
@@ -2498,7 +2447,6 @@ function drawOnlinePracticeBall() {
     }
 
     ctx.save();
-    applyElementShadow();
 
     ctx.fillStyle =
         currentBallColor();
@@ -8332,15 +8280,6 @@ function interactiveItems() {
             ],
 
             [
-                "classicPong",
-                t(
-                    classicPongMode
-                        ? "argenPong"
-                        : "classicPong"
-                )
-            ],
-
-            [
                 "settingsBack",
                 t("back")
             ]
@@ -8360,7 +8299,7 @@ function interactiveItems() {
 
                     buttonRect(
                         index,
-                        10,
+                        9,
                         430,
                         39,
                         5,
@@ -9494,16 +9433,6 @@ function handleAction(id) {
     }
 
 
-    if (
-        id ===
-        "classicPong"
-    ) {
-
-        toggleClassicPongPreset();
-        return;
-    }
-
-
     // CONTROLES PVP
 
     if (
@@ -9984,9 +9913,6 @@ function drawTable() {
 
 function drawPaddles() {
 
-    ctx.save();
-    applyElementShadow();
-
     ctx.fillStyle =
         "#FFFFFF";
 
@@ -10004,7 +9930,6 @@ function drawPaddles() {
         PADDLE.h
     );
 
-    ctx.restore();
 }
 
 function drawBallShape(
@@ -10047,9 +9972,6 @@ function drawBallShape(
 
 function drawBall() {
 
-    ctx.save();
-    applyElementShadow();
-
     ctx.fillStyle =
         currentBallColor();
 
@@ -10061,7 +9983,6 @@ function drawBall() {
         BALL.size / 2
     );
 
-    ctx.restore();
 }
 
 
@@ -10566,12 +10487,20 @@ function drawSlider(item) {
 // START
 // ============================================================
 
-function drawArgenPongLogo(
+function drawP2PonLogo(
     scale = 0.84
 ) {
 
-    const centerX =
-        W / 2;
+    const width =
+        600 * scale;
+
+    const height =
+        width *
+        682 /
+        2048;
+
+    const top =
+        42;
 
     const neonPulse =
         0.22 +
@@ -10587,21 +10516,6 @@ function drawArgenPongLogo(
 
     ctx.save();
 
-    ctx.translate(
-        centerX,
-        0
-    );
-
-    ctx.scale(
-        scale,
-        scale
-    );
-
-    ctx.translate(
-        -centerX,
-        0
-    );
-
     ctx.shadowColor =
         `rgba(108,172,228,${
             0.24 +
@@ -10614,268 +10528,44 @@ function drawArgenPongLogo(
         neonPulse *
         24;
 
-    ctx.fillStyle =
-        BRAND.ink;
+    if (
+        p2PonLogoImage.complete &&
+        p2PonLogoImage.naturalWidth > 0
+    ) {
+        ctx.drawImage(
+            p2PonLogoImage,
+            (W - width) / 2,
+            top,
+            width,
+            height
+        );
+    } else {
+        ctx.fillStyle =
+            "#FFFFFF";
 
-    ctx.strokeStyle =
-        BRAND.blue;
+        ctx.font =
+            `900 ${
+                Math.round(
+                    72 * scale
+                )
+            }px Arial, sans-serif`;
 
-    ctx.lineWidth =
-        3;
+        ctx.textAlign =
+            "center";
 
-    ctx.beginPath();
+        ctx.textBaseline =
+            "middle";
 
-    ctx.moveTo(
-        centerX - 245,
-        42
-    );
-
-    ctx.lineTo(
-        centerX + 245,
-        42
-    );
-
-    ctx.lineTo(
-        centerX + 215,
-        205
-    );
-
-    ctx.lineTo(
-        centerX,
-        244
-    );
-
-    ctx.lineTo(
-        centerX - 215,
-        205
-    );
-
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+        ctx.fillText(
+            "P2Pon",
+            W / 2,
+            top +
+            height / 2
+        );
+    }
 
     ctx.shadowBlur =
         0;
-
-    ctx.fillStyle =
-        BRAND.blue;
-
-    ctx.font =
-        "900 32px Arial, sans-serif";
-
-    ctx.textAlign =
-        "center";
-
-    ctx.textBaseline =
-        "middle";
-
-    ctx.fillText(
-        "ARGEN",
-        centerX,
-        82
-    );
-
-    ctx.font =
-        "900 66px Arial, sans-serif";
-
-    const pWidth =
-        ctx.measureText("P").width;
-
-    const ngWidth =
-        ctx.measureText("NG").width;
-
-    const ballDiameter =
-        48;
-
-    const letterGap =
-        8;
-
-    const wordWidth =
-        pWidth +
-        ngWidth +
-        ballDiameter +
-        letterGap * 2;
-
-    const wordStart =
-        centerX -
-        wordWidth / 2;
-
-
-    // Paleta integrada al escudo.
-
-    ctx.save();
-
-    ctx.translate(
-        wordStart - 48,
-        147
-    );
-
-    ctx.rotate(-0.2);
-
-    ctx.fillStyle =
-        BRAND.blue;
-
-    ctx.fillRect(
-        -6,
-        20,
-        12,
-        31
-    );
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-        0,
-        -5,
-        22,
-        31,
-        0,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-    ctx.restore();
-
-
-    // La pelota reemplaza la O de PONG.
-
-    ctx.fillStyle =
-        "#FFFFFF";
-
-    ctx.textAlign =
-        "left";
-
-    ctx.fillText(
-        "P",
-        wordStart,
-        148
-    );
-
-    const ballCenterX =
-        wordStart +
-        pWidth +
-        letterGap +
-        ballDiameter / 2;
-
-    ctx.fillStyle =
-        BRAND.gold;
-
-    ctx.shadowColor =
-        `rgba(255,184,28,${
-            0.35 +
-            neonPulse *
-            0.5
-        })`;
-
-    ctx.shadowBlur =
-        10 +
-        neonPulse *
-        18;
-
-    ctx.beginPath();
-
-    ctx.arc(
-        ballCenterX,
-        148,
-        ballDiameter / 2,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.shadowBlur =
-        0;
-
-    ctx.fillStyle =
-        "rgba(255,255,255,.65)";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        ballCenterX - 7,
-        140,
-        5,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle =
-        "#FFFFFF";
-
-    ctx.fillText(
-        "NG",
-        ballCenterX +
-        ballDiameter / 2 +
-        letterGap,
-        148
-    );
-
-
-    // Remate angular de estética eSport.
-
-    ctx.strokeStyle =
-        BRAND.blue;
-
-    ctx.lineWidth =
-        5;
-
-    ctx.shadowColor =
-        `rgba(108,172,228,${
-            0.28 +
-            neonPulse *
-            0.62
-        })`;
-
-    ctx.shadowBlur =
-        8 +
-        neonPulse *
-        16;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        centerX - 155,
-        194
-    );
-
-    ctx.lineTo(
-        centerX - 30,
-        213
-    );
-
-    ctx.lineTo(
-        centerX + 155,
-        194
-    );
-
-    ctx.stroke();
-
-    ctx.shadowBlur =
-        0;
-
-    ctx.strokeStyle =
-        BRAND.gold;
-
-    ctx.lineWidth =
-        3;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        centerX - 30,
-        213
-    );
-
-    ctx.lineTo(
-        centerX + 35,
-        207
-    );
-
-    ctx.stroke();
 
     ctx.fillStyle =
         "rgba(255,255,255,.78)";
@@ -10886,10 +10576,15 @@ function drawArgenPongLogo(
     ctx.textAlign =
         "center";
 
+    ctx.textBaseline =
+        "middle";
+
     ctx.fillText(
         "1.1 BETA",
-        centerX,
-        226
+        W / 2,
+        top +
+        height +
+        16
     );
 
     ctx.restore();
@@ -10909,7 +10604,6 @@ function drawStart() {
             "waiting"
         ) {
             ctx.save();
-            applyElementShadow();
             ctx.fillStyle = "#FFFFFF";
 
             const paddle =
@@ -11040,7 +10734,7 @@ function drawStart() {
     );
 
 
-    drawArgenPongLogo();
+    drawP2PonLogo();
 
 
     if (onlineMenuOpen) {
@@ -11113,7 +10807,7 @@ function drawPause() {
 
     overlay(0.72);
 
-    drawArgenPongLogo(
+    drawP2PonLogo(
         0.64
     );
 
@@ -11169,7 +10863,6 @@ function drawBallSettings() {
     );
 
     ctx.save();
-    applyElementShadow();
 
     ctx.fillStyle =
         currentBallColor();
@@ -11790,7 +11483,6 @@ function drawReplay() {
     );
 
     ctx.save();
-    applyElementShadow();
 
     ctx.fillStyle =
         "#FFFFFF";

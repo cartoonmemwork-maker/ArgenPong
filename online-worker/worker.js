@@ -1,6 +1,48 @@
 const MAX_MESSAGE_BYTES = 32768;
 const RATE_WINDOW_MS = 10000;
 const RATE_LIMIT = 120;
+const MATCHMAKING_WINDOW_MS = 250;
+
+function normalizedLatency(value) {
+    if (
+        typeof value !== "number" ||
+        !Number.isFinite(value)
+    ) {
+        return 5000;
+    }
+
+    const numeric = value;
+
+    return Math.max(
+        0,
+        Math.min(
+            5000,
+            Math.round(numeric)
+        )
+    );
+}
+
+function compareQueuePriority(
+    first,
+    second
+) {
+    return (
+        normalizedLatency(
+            first.latencyMs
+        ) -
+        normalizedLatency(
+            second.latencyMs
+        ) ||
+        normalizedLatency(
+            first.jitterMs
+        ) -
+        normalizedLatency(
+            second.jitterMs
+        ) ||
+        first.queuedAt -
+        second.queuedAt
+    );
+}
 
 function allowedOrigin(
     origin,
@@ -17,14 +59,45 @@ function allowedOrigin(
         return true;
     }
 
-    return String(
+    const allowed = String(
         configuredOrigin ||
         "https://cartoonmemwork-maker.github.io"
     )
         .split(",")
         .map(value => value.trim())
-        .filter(Boolean)
-        .includes(origin);
+        .filter(Boolean);
+
+    return allowed.some(value => {
+        if (
+            value.startsWith(
+                "https://*."
+            )
+        ) {
+            try {
+                const candidate =
+                    new URL(origin);
+
+                const suffix =
+                    value.slice(
+                        "https://*".length
+                    );
+
+                return (
+                    candidate.protocol ===
+                        "https:" &&
+                    candidate.hostname.endsWith(
+                        suffix
+                    ) &&
+                    candidate.hostname.length >
+                        suffix.length
+                );
+            } catch {
+                return false;
+            }
+        }
+
+        return value === origin;
+    });
 }
 
 export default {
@@ -50,7 +123,7 @@ export default {
             !isStatsRequest
         ) {
             return new Response(
-                "ArgenPong public matchmaker",
+                "P2Pon public matchmaker",
                 {
                     status: 200,
                     headers: {
@@ -158,6 +231,8 @@ export class PublicQueue {
             side: null,
             role: null,
             matchId: null,
+            latencyMs: null,
+            jitterMs: null,
             rateStart: Date.now(),
             rateCount: 0
         });
@@ -219,6 +294,24 @@ export class PublicQueue {
         );
     }
 
+    async schedulePairing() {
+        const scheduled =
+            await this.ctx.storage
+                .getAlarm();
+
+        if (scheduled === null) {
+            await this.ctx.storage
+                .setAlarm(
+                    Date.now() +
+                    MATCHMAKING_WINDOW_MS
+                );
+        }
+    }
+
+    async alarm() {
+        this.pairAvailable();
+    }
+
     pairAvailable() {
         while (true) {
             const waiting =
@@ -240,8 +333,10 @@ export class PublicQueue {
                 )
                 .sort(
                     (a, b) =>
-                        a.data.queuedAt -
-                        b.data.queuedAt
+                        compareQueuePriority(
+                            a.data,
+                            b.data
+                        )
                 );
 
             const guests = waiting
@@ -252,8 +347,10 @@ export class PublicQueue {
                 )
                 .sort(
                     (a, b) =>
-                        a.data.queuedAt -
-                        b.data.queuedAt
+                        compareQueuePriority(
+                            a.data,
+                            b.data
+                        )
                 );
 
             if (
@@ -399,6 +496,21 @@ export class PublicQueue {
             return;
         }
 
+        if (
+            message.type ===
+                "latency_probe" &&
+            Number.isInteger(
+                message.id
+            )
+        ) {
+            this.send(socket, {
+                type:
+                    "latency_probe_reply",
+                id: message.id
+            });
+            return;
+        }
+
         if (message.type === "host") {
             const next = {
                 ...attachment,
@@ -410,6 +522,14 @@ export class PublicQueue {
                     "right"
                         ? "right"
                         : "left",
+                latencyMs:
+                    normalizedLatency(
+                        message.latencyMs
+                    ),
+                jitterMs:
+                    normalizedLatency(
+                        message.jitterMs
+                    ),
                 queuedAt: Date.now()
             };
 
@@ -418,7 +538,7 @@ export class PublicQueue {
                 type: "queued",
                 mode: "host"
             });
-            this.pairAvailable();
+            await this.schedulePairing();
             return;
         }
 
@@ -429,6 +549,14 @@ export class PublicQueue {
                 role: null,
                 matchId: null,
                 side: null,
+                latencyMs:
+                    normalizedLatency(
+                        message.latencyMs
+                    ),
+                jitterMs:
+                    normalizedLatency(
+                        message.jitterMs
+                    ),
                 queuedAt: Date.now()
             };
 
@@ -437,7 +565,7 @@ export class PublicQueue {
                 type: "queued",
                 mode: "join"
             });
-            this.pairAvailable();
+            await this.schedulePairing();
             return;
         }
 

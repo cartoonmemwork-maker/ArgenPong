@@ -1,5 +1,5 @@
 {
-    "name": "argenpong-matchmaker",
+    "name": "p2pon-matchmaker",
     "private": true,
     "scripts": {
         "dev": "wrangler dev",

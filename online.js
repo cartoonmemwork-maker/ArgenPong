@@ -11,6 +11,12 @@
         1000;
     const LATENCY_PROBE_TIMEOUT_MS =
         4000;
+    const MATCHMAKING_PROBE_SAMPLES =
+        3;
+    const MATCHMAKING_PROBE_TIMEOUT_MS =
+        450;
+    const MATCHMAKING_PROBE_GAP_MS =
+        40;
 
     let handlers = {};
     let socket = null;
@@ -25,12 +31,15 @@
     let latencyPingId = null;
     let latencyPingStartedAt = 0;
     let latencyMs = null;
+    let matchmakingProbe = null;
+    let matchmakingProbeTimer = null;
+    let matchmakingSequence = 0;
     const incomingChunks =
         new Map();
 
     const serverUrl = () =>
         String(
-            window.ARGENPONG_ONLINE_URL ||
+            window.P2PON_ONLINE_URL ||
             ""
         ).trim();
 
@@ -119,6 +128,203 @@
 
         return true;
     };
+
+    const clearMatchmakingProbe = () => {
+        if (
+            matchmakingProbeTimer !==
+            null
+        ) {
+            clearTimeout(
+                matchmakingProbeTimer
+            );
+
+            matchmakingProbeTimer =
+                null;
+        }
+
+        matchmakingProbe = null;
+    };
+
+    const median = values => {
+        if (!values.length) {
+            return null;
+        }
+
+        const sorted =
+            [...values].sort(
+                (a, b) => a - b
+            );
+
+        return sorted[
+            Math.floor(
+                sorted.length / 2
+            )
+        ];
+    };
+
+    const finishMatchmakingProbe = () => {
+        if (!matchmakingProbe) {
+            return;
+        }
+
+        const {
+            queueMessage,
+            samples
+        } = matchmakingProbe;
+
+        const measuredLatency =
+            median(samples);
+
+        const jitter =
+            samples.length > 1
+
+                ? Math.max(...samples) -
+                  Math.min(...samples)
+                : null;
+
+        clearMatchmakingProbe();
+
+        sendSocket({
+            ...queueMessage,
+            latencyMs:
+                measuredLatency === null
+
+                    ? null
+                    : Math.max(
+                        0,
+                        Math.round(
+                            measuredLatency
+                        )
+                    ),
+            jitterMs:
+                jitter === null
+
+                    ? null
+                    : Math.max(
+                        0,
+                        Math.round(
+                            jitter
+                        )
+                    )
+        });
+    };
+
+    const sendMatchmakingProbe = () => {
+        if (!matchmakingProbe) {
+            return;
+        }
+
+        if (
+            matchmakingProbe.attempts >=
+            MATCHMAKING_PROBE_SAMPLES
+        ) {
+            finishMatchmakingProbe();
+            return;
+        }
+
+        matchmakingSequence++;
+        matchmakingProbe.attempts++;
+        matchmakingProbe.pendingId =
+            matchmakingSequence;
+        matchmakingProbe.startedAt =
+            performance.now();
+
+        if (
+            !sendSocket({
+                type: "latency_probe",
+                id:
+                    matchmakingProbe
+                        .pendingId
+            })
+        ) {
+            finishMatchmakingProbe();
+            return;
+        }
+
+        matchmakingProbeTimer =
+            setTimeout(
+                () => {
+                    if (!matchmakingProbe) {
+                        return;
+                    }
+
+                    matchmakingProbe.pendingId =
+                        null;
+
+                    sendMatchmakingProbe();
+                },
+                MATCHMAKING_PROBE_TIMEOUT_MS
+            );
+    };
+
+    const startMatchmakingProbe =
+        queueMessage => {
+            clearMatchmakingProbe();
+
+            matchmakingProbe = {
+                queueMessage,
+                samples: [],
+                attempts: 0,
+                pendingId: null,
+                startedAt: 0
+            };
+
+            sendMatchmakingProbe();
+        };
+
+    const handleMatchmakingProbeMessage =
+        message => {
+            if (
+                message.type !==
+                "latency_probe_reply"
+            ) {
+                return false;
+            }
+
+            if (
+                !matchmakingProbe ||
+                message.id !==
+                    matchmakingProbe
+                        .pendingId
+            ) {
+                return true;
+            }
+
+            if (
+                matchmakingProbeTimer !==
+                null
+            ) {
+                clearTimeout(
+                    matchmakingProbeTimer
+                );
+
+                matchmakingProbeTimer =
+                    null;
+            }
+
+            matchmakingProbe.samples.push(
+                performance.now() -
+                matchmakingProbe.startedAt
+            );
+
+            matchmakingProbe.pendingId =
+                null;
+
+            if (
+                matchmakingProbe.attempts >=
+                MATCHMAKING_PROBE_SAMPLES
+            ) {
+                finishMatchmakingProbe();
+            } else {
+                matchmakingProbeTimer =
+                    setTimeout(
+                        sendMatchmakingProbe,
+                        MATCHMAKING_PROBE_GAP_MS
+                    );
+            }
+
+            return true;
+        };
 
     const sendData = payload => {
         if (
@@ -233,8 +439,8 @@
         try {
             channel.send(
                 JSON.stringify({
-                    __argenPongLatency:
-                        "ping",
+                    __p2PonLatency:
+                        "request",
                     id: latencyPingId
                 })
             );
@@ -256,14 +462,14 @@
         message => {
             if (
                 !message ||
-                !message.__argenPongLatency
+                !message.__p2PonLatency
             ) {
                 return false;
             }
 
             if (
-                message.__argenPongLatency ===
-                    "ping" &&
+                message.__p2PonLatency ===
+                    "request" &&
                 Number.isInteger(
                     message.id
                 )
@@ -276,8 +482,8 @@
                     try {
                         channel.send(
                             JSON.stringify({
-                                __argenPongLatency:
-                                    "pong",
+                                __p2PonLatency:
+                                    "reply",
                                 id:
                                     message.id
                             })
@@ -289,8 +495,8 @@
             }
 
             if (
-                message.__argenPongLatency ===
-                    "pong"
+                message.__p2PonLatency ===
+                    "reply"
             ) {
                 if (
                     message.id ===
@@ -430,6 +636,7 @@
         notifyServer = true
     ) => {
         manualClose = true;
+        clearMatchmakingProbe();
 
         if (notifyServer) {
             sendSocket({
@@ -591,7 +798,7 @@
         if (role === "host") {
             wireChannel(
                 nextPeer.createDataChannel(
-                    "argenpong",
+                    "p2pon",
                     {
                         ordered: true
                     }
@@ -731,6 +938,14 @@
                 return;
             }
 
+            if (
+                handleMatchmakingProbeMessage(
+                    message
+                )
+            ) {
+                return;
+            }
+
             if (message.type === "queued") {
                 emit("queued", message);
                 return;
@@ -822,7 +1037,7 @@
                     return;
                 }
 
-                sendSocket(
+                startMatchmakingProbe(
                     queueMessage
                 );
             }
@@ -869,6 +1084,7 @@
                 }
 
                 socket = null;
+                clearMatchmakingProbe();
 
                 if (
                     !manualClose &&
@@ -884,7 +1100,7 @@
         return true;
     };
 
-    window.ArgenPongOnline = {
+    window.P2PonOnline = {
         configured: () =>
             Boolean(serverUrl()),
 

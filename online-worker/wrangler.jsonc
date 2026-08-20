@@ -1,11 +1,11 @@
 {
     "$schema": "node_modules/wrangler/config-schema.json",
-    "name": "argenpong",
+    "name": "p2pon",
     "main": "worker.js",
     "compatibility_date": "2026-08-19",
     "workers_dev": true,
     "vars": {
-        "ALLOWED_ORIGIN": "https://cartoonmemwork-maker.github.io,https://argenpong-online-preview.pages.dev"
+        "ALLOWED_ORIGIN": "https://cartoonmemwork-maker.github.io,https://*.pages.dev"
     },
     "durable_objects": {
         "bindings": [
